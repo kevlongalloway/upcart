@@ -1,0 +1,8 @@
+{
+  "name": "blackstar",
+  "version": "1.0.0",
+  "description": "BLACKSTAR - Fashion Brand Site",
+  "scripts": {
+    "scrape": "node scraper.js"
+  }
+}

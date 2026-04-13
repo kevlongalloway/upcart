@@ -1,0 +1,18 @@
+# Copy this file to `.dev.vars` for local development secrets.
+# This file is safe to commit. `.dev.vars` is gitignored.
+#
+# Wrangler automatically loads `.dev.vars` when running `wrangler dev`.
+
+# Admin login credentials
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=changeme
+
+# JWT signing secret — use a long random string in production
+# Generate one with: openssl rand -hex 32
+JWT_SECRET=dev-secret-change-in-production
+
+STRIPE_SECRET_KEY=sk_test_YOUR_TEST_KEY_HERE
+STRIPE_WEBHOOK_SECRET=whsec_YOUR_WEBHOOK_SECRET_HERE
+
+# Only needed if DB_ADAPTER = "mongodb"
+# MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/

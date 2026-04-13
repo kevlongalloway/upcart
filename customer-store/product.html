@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product — BLACKSTAR</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #080808;
+      color: #f0ede8;
+      font-family: 'Space Mono', monospace;
+      cursor: crosshair;
+      min-height: 100vh;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 28px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    @media (min-width: 640px) { nav { padding: 28px 40px; } }
+
+    .nav-mark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 0.2em;
+      opacity: 0.8;
+      text-decoration: none;
+      color: #f0ede8;
+    }
+    .nav-links { display: flex; gap: 32px; }
+    .nav-links a {
+      font-size: 10px;
+      color: #f0ede8;
+      text-decoration: none;
+      letter-spacing: 0.2em;
+      opacity: 0.5;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+    .nav-links a:hover { opacity: 1; }
+
+    /* Layout */
+    .product-page {
+      padding: 120px 24px 80px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (min-width: 640px) { .product-page { padding: 120px 40px 80px; } }
+    @media (min-width: 768px) {
+      .product-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: start;
+      }
+    }
+
+    /* Image */
+    .product-image {
+      aspect-ratio: 3/4;
+      background: #121212;
+      overflow: hidden;
+      width: 100%;
+      margin-bottom: 32px;
+    }
+    @media (min-width: 768px) { .product-image { margin-bottom: 0; } }
+    .product-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-image-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.12;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px;
+      letter-spacing: 0.2em;
+    }
+
+    /* Info */
+    .product-info { position: sticky; top: 100px; }
+
+    .product-back {
+      display: inline-block;
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #f0ede8;
+      text-decoration: none;
+      opacity: 0.35;
+      margin-bottom: 32px;
+      transition: opacity 0.2s;
+    }
+    .product-back:hover { opacity: 1; }
+
+    .product-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(36px, 5vw, 64px);
+      line-height: 0.95;
+      margin-bottom: 16px;
+    }
+
+    .product-price {
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      opacity: 0.6;
+      margin-bottom: 28px;
+    }
+
+    .product-stock {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      opacity: 0.35;
+      margin-bottom: 12px;
+    }
+    .product-stock.low { color: #e87040; opacity: 0.8; }
+    .product-stock.out { color: #e84040; opacity: 0.8; }
+
+    .product-desc {
+      font-size: 10px;
+      line-height: 1.8;
+      opacity: 0.5;
+      margin-bottom: 40px;
+      max-width: 400px;
+    }
+
+    /* Quantity */
+    .qty-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 16px;
+      width: fit-content;
+      border: 1px solid rgba(240,237,232,0.15);
+    }
+    .qty-btn {
+      background: none;
+      border: none;
+      color: #f0ede8;
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      width: 44px;
+      height: 44px;
+      cursor: crosshair;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qty-btn:hover { opacity: 1; }
+    .qty-val {
+      width: 44px;
+      height: 44px;
+      text-align: center;
+      background: none;
+      border: none;
+      border-left: 1px solid rgba(240,237,232,0.15);
+      border-right: 1px solid rgba(240,237,232,0.15);
+      color: #f0ede8;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      cursor: crosshair;
+      -moz-appearance: textfield;
+    }
+    .qty-val::-webkit-outer-spin-button,
+    .qty-val::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    /* Buttons */
+    .btn-add {
+      width: 100%;
+      background: #f0ede8;
+      color: #080808;
+      border: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      padding: 16px;
+      cursor: crosshair;
+      transition: opacity 0.2s;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .btn-add:hover { opacity: 0.8; }
+    .btn-add:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .btn-buy {
+      width: 100%;
+      background: none;
+      color: #f0ede8;
+      border: 1px solid rgba(240,237,232,0.25);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      padding: 16px;
+      cursor: crosshair;
+      transition: opacity 0.2s;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+    .btn-buy:hover { opacity: 0.6; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #f0ede8;
+      color: #080808;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 14px 28px;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Loading / error */
+    .state-msg {
+      padding: 80px 0;
+      text-align: center;
+      opacity: 0.3;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    /* Footer */
+    footer {
+      background: #f0ede8;
+      color: #080808;
+      padding: 60px 24px 36px;
+    }
+    @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(8,8,8,0.12);
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+    footer img { width: 200px; }
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+    .footer-links a {
+      font-size: 10px;
+      color: #080808;
+      text-decoration: none;
+      letter-spacing: 0.15em;
+      opacity: 0.4;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+    .footer-links a:hover { opacity: 1; }
+    .footer-copy { font-size: 9px; opacity: 0.3; letter-spacing: 0.1em; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-mark" href="index.html">BST★</a>
+    <div class="nav-links">
+      <a href="products.html">Shop</a>
+      <a href="#">Drops</a>
+      <a href="#">About</a>
+      <a href="cart.html" class="cart-nav-link">Cart</a>
+    </div>
+  </nav>
+
+  <div class="product-page" id="product-page">
+    <p class="state-msg" id="state">Loading...</p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    <div class="footer-top">
+      <img src="IMG_1309.png" alt="BLACKSTAR">
+      <div class="footer-links">
+        <a href="#">Instagram</a>
+        <a href="#">TikTok</a>
+        <a href="#">Sizing</a>
+        <a href="#">Returns</a>
+      </div>
+    </div>
+    <p class="footer-copy">© 2026 BLACKSTAR</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="cart.js"></script>
+  <script>
+    const params    = new URLSearchParams(location.search);
+    const productId = params.get('id');
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2400);
+    }
+
+    function stockLabel(product) {
+      if (!product.active) return { text: 'Unavailable', cls: 'out' };
+      if (product.stock === 0) return { text: 'Out of stock', cls: 'out' };
+      if (product.stock > 0 && product.stock <= 5) return { text: `Only ${product.stock} left`, cls: 'low' };
+      return { text: 'In stock', cls: '' };
+    }
+
+    function render(product) {
+      const page   = document.getElementById('product-page');
+      const stock  = stockLabel(product);
+      const image  = product.images && product.images[0] ? product.images[0] : null;
+      const avail  = product.active && (product.stock === -1 || product.stock > 0);
+
+      page.innerHTML = `
+        <div class="product-layout">
+          <div class="product-image">
+            ${image
+              ? `<img src="${image}" alt="${product.name}">`
+              : `<div class="product-image-placeholder">BST★</div>`}
+          </div>
+          <div class="product-info">
+            <a href="products.html" class="product-back">← All Products</a>
+            <h1 class="product-name">${product.name}</h1>
+            <p class="product-price">${formatPrice(product.price, product.currency)}</p>
+            <p class="product-stock ${stock.cls}">${stock.text}</p>
+            ${product.description ? `<p class="product-desc">${product.description}</p>` : ''}
+            <div class="qty-row">
+              <button class="qty-btn" id="qty-minus" aria-label="Decrease">−</button>
+              <input class="qty-val" id="qty-val" type="number" value="1" min="1" max="${product.stock === -1 ? 99 : product.stock || 1}">
+              <button class="qty-btn" id="qty-plus" aria-label="Increase">+</button>
+            </div>
+            <button class="btn-add" id="btn-add" ${!avail ? 'disabled' : ''}>
+              ${avail ? 'Add to Cart' : 'Unavailable'}
+            </button>
+            <a href="cart.html" class="btn-buy">View Cart →</a>
+          </div>
+        </div>`;
+
+      // Quantity controls
+      const qtyInput = document.getElementById('qty-val');
+      const maxQty   = product.stock === -1 ? 99 : (product.stock || 1);
+
+      document.getElementById('qty-minus').addEventListener('click', () => {
+        qtyInput.value = Math.max(1, parseInt(qtyInput.value, 10) - 1);
+      });
+      document.getElementById('qty-plus').addEventListener('click', () => {
+        qtyInput.value = Math.min(maxQty, parseInt(qtyInput.value, 10) + 1);
+      });
+
+      // Add to cart
+      document.getElementById('btn-add').addEventListener('click', () => {
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        addToCart(product, qty);
+        showToast('Added to cart');
+      });
+    }
+
+    async function loadProduct() {
+      const page = document.getElementById('product-page');
+      if (!productId) {
+        page.innerHTML = '<p class="state-msg">No product selected.</p>';
+        return;
+      }
+      try {
+        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products/' + productId);
+        const body = await res.json();
+        if (!body.ok) throw new Error(body.error || 'Not found');
+        document.title = body.data.name + ' — BLACKSTAR';
+        render(body.data);
+      } catch (err) {
+        page.innerHTML = `<p class="state-msg">${err.message}</p>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProduct);
+  </script>
+
+</body>
+</html>

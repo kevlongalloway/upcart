@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: blackstar-site
+    plan: free
+    staticSite: true
+    buildCommand: sh build.sh
+    envVars:
+      - key: API_BASE_URL
+        sync: false

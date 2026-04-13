@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLACKSTAR</title>
+  <meta property="og:title" content="BLACKSTAR">
+  <meta property="og:description" content="The Void Series — BLACKSTAR">
+  <meta property="og:image" content="https://blackstarthebrand.onrender.com/IMG_1306.jpeg">
+  <meta property="og:url" content="https://blackstarthebrand.onrender.com">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://blackstarthebrand.onrender.com/IMG_1306.jpeg">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      overflow-x: hidden;
+    }
+
+    body {
+      background: #080808;
+      color: #f0ede8;
+      font-family: 'Space Mono', monospace;
+      cursor: crosshair;
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 28px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-mark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 0.2em;
+      opacity: 0.8;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      font-size: 10px;
+      color: #f0ede8;
+      text-decoration: none;
+      letter-spacing: 0.2em;
+      opacity: 0.5;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .nav-links a:hover { opacity: 1; }
+
+    /* Hero */
+    .hero {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .hero-logo {
+      position: relative;
+      width: min(680px, 82vw);
+    }
+
+    .logo-sizer {
+      width: 100%;
+      display: block;
+      visibility: hidden;
+    }
+
+    .logo-clip {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      clip-path: inset(0 var(--cr) 0 var(--cl));
+      animation: clip-slam 0.2s cubic-bezier(0.6, 0, 0.1, 1) var(--d) both;
+    }
+
+    @keyframes clip-slam {
+      0% {
+        opacity: 0;
+        transform: translateY(-22px) rotate(calc(var(--rot) * 2)) scale(1.04);
+      }
+      65% {
+        opacity: 1;
+        transform: translateY(1px) rotate(var(--rot)) scale(0.995);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) rotate(var(--rot)) scale(1);
+      }
+    }
+
+    .hero-sub {
+      font-size: 10px;
+      letter-spacing: 0.4em;
+      opacity: 0.35;
+      margin-top: 40px;
+      text-transform: uppercase;
+    }
+
+    .hero-icon {
+      position: absolute;
+      bottom: 14%;
+      right: 7%;
+      width: 90px;
+      opacity: 0.06;
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      opacity: 0.25;
+      text-transform: uppercase;
+    }
+
+    /* Ticker */
+    .ticker {
+      overflow: hidden;
+      background: #f0ede8;
+      padding: 11px 0;
+      white-space: nowrap;
+    }
+
+    .ticker-inner {
+      display: inline-flex;
+      animation: tick 18s linear infinite;
+    }
+
+    .ticker-item {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 13px;
+      color: #080808;
+      padding: 0 32px;
+      letter-spacing: 0.15em;
+    }
+
+    @keyframes tick {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* Shop section */
+    .shop {
+      padding: 80px 24px;
+    }
+
+    @media (min-width: 640px) {
+      .shop { padding: 100px 40px; }
+    }
+
+    .shop-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 40px;
+    }
+
+    .shop-label {
+      font-size: 9px;
+      letter-spacing: 0.35em;
+      opacity: 0.35;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .shop-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(48px, 9vw, 120px);
+      line-height: 0.92;
+    }
+
+    .shop-all-link {
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #f0ede8;
+      text-decoration: none;
+      opacity: 0.45;
+      border-bottom: 1px solid rgba(240,237,232,0.25);
+      padding-bottom: 2px;
+      white-space: nowrap;
+      transition: opacity 0.2s;
+      flex-shrink: 0;
+      margin-bottom: 6px;
+    }
+
+    .shop-all-link:hover { opacity: 1; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+    }
+
+    .card {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .card-img {
+      aspect-ratio: 3/4;
+      background: #121212;
+      overflow: hidden;
+    }
+
+    .card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+
+    .card:hover .card-img img {
+      transform: scale(1.06);
+    }
+
+    .card-info {
+      padding: 12px 2px 4px;
+    }
+
+    .card-name {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-price {
+      display: block;
+      font-size: 10px;
+      opacity: 0.45;
+    }
+
+    /* Shop all CTA */
+    .shop-cta {
+      margin-top: 48px;
+      text-align: center;
+    }
+
+    .shop-cta-btn {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #080808;
+      background: #f0ede8;
+      text-decoration: none;
+      padding: 14px 36px;
+      transition: opacity 0.2s;
+    }
+
+    .shop-cta-btn:hover { opacity: 0.75; }
+
+    /* Footer */
+    footer {
+      background: #f0ede8;
+      color: #080808;
+      padding: 60px 24px 36px;
+    }
+
+    @media (min-width: 640px) {
+      footer { padding: 60px 40px 36px; }
+    }
+
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(8,8,8,0.12);
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    footer img { width: 200px; }
+
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+
+    .footer-links a {
+      font-size: 10px;
+      color: #080808;
+      text-decoration: none;
+      letter-spacing: 0.15em;
+      opacity: 0.4;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .footer-links a:hover { opacity: 1; }
+
+    .footer-copy {
+      font-size: 9px;
+      opacity: 0.3;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <span class="nav-mark">BST★</span>
+    <div class="nav-links">
+      <a href="products.html">Shop</a>
+      <a href="#">Drops</a>
+      <a href="#">About</a>
+      <a href="cart.html" class="cart-nav-link">Cart</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-logo" aria-label="BLACKSTAR">
+      <img class="logo-sizer" src="IMG_1309.png" alt="BLACKSTAR">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:0%;     --cr:88.89%; --rot:-1.8deg; --d:0.00s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:11.11%; --cr:77.78%; --rot: 0.7deg; --d:0.07s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:22.22%; --cr:66.67%; --rot:-0.5deg; --d:0.14s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:33.33%; --cr:55.56%; --rot: 1.4deg; --d:0.21s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:44.44%; --cr:44.44%; --rot:-1.1deg; --d:0.28s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:55.56%; --cr:33.33%; --rot: 1.6deg; --d:0.35s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:66.67%; --cr:22.22%; --rot:-0.4deg; --d:0.42s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:77.78%; --cr:11.11%; --rot: 0.8deg; --d:0.49s">
+      <img class="logo-clip" src="IMG_1309.png" alt="" style="--cl:88.89%; --cr:0%;     --rot:-1.3deg; --d:0.56s">
+    </div>
+    <p class="hero-sub">SS26 — Now Available</p>
+    <img class="hero-icon" src="IMG_1306.jpeg" alt="">
+    <span class="scroll-hint">Scroll</span>
+  </section>
+
+  <div class="ticker">
+    <div class="ticker-inner">
+      <span class="ticker-item">BLACKSTAR</span><span class="ticker-item">★</span>
+      <span class="ticker-item">NEW DROP</span><span class="ticker-item">★</span>
+      <span class="ticker-item">SS26</span><span class="ticker-item">★</span>
+      <span class="ticker-item">LIMITED</span><span class="ticker-item">★</span>
+      <span class="ticker-item">BLACKSTAR</span><span class="ticker-item">★</span>
+      <span class="ticker-item">NEW DROP</span><span class="ticker-item">★</span>
+      <span class="ticker-item">SS26</span><span class="ticker-item">★</span>
+      <span class="ticker-item">LIMITED</span><span class="ticker-item">★</span>
+    </div>
+  </div>
+
+  <section class="shop">
+    <div class="shop-header">
+      <div>
+        <p class="shop-label">— Current Drop</p>
+        <h2 class="shop-title">THE<br>VOID<br>SERIES</h2>
+      </div>
+      <a href="products.html" class="shop-all-link">Shop All →</a>
+    </div>
+
+    <div class="grid" id="products-grid"></div>
+
+    <div class="shop-cta">
+      <a href="products.html" class="shop-cta-btn">View All Products</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-top">
+      <img src="IMG_1309.png" alt="BLACKSTAR">
+      <div class="footer-links">
+        <a href="#">Instagram</a>
+        <a href="#">TikTok</a>
+        <a href="#">Sizing</a>
+        <a href="#">Returns</a>
+      </div>
+    </div>
+    <p class="footer-copy">© 2026 BLACKSTAR</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="cart.js"></script>
+  <script>
+    // Show payment success toast if redirected back from Stripe
+    (function checkPaymentSuccess() {
+      const params = new URLSearchParams(location.search);
+      if (params.get('payment') === 'success') {
+        clearCart();
+        history.replaceState({}, '', location.pathname);
+        const toast = document.createElement('div');
+        toast.style.cssText = [
+          'position:fixed','bottom:32px','left:50%',
+          'transform:translateX(-50%)','background:#f0ede8',
+          'color:#080808','font-family:Space Mono,monospace',
+          'font-size:10px','letter-spacing:0.15em','text-transform:uppercase',
+          'padding:14px 28px','z-index:999','white-space:nowrap',
+          'transition:opacity 0.5s'
+        ].join(';');
+        toast.textContent = 'Order confirmed — thank you!';
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; }, 3500);
+        setTimeout(() => toast.remove(), 4200);
+      }
+    })();
+
+    async function loadProducts() {
+      const grid = document.getElementById('products-grid');
+      try {
+        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products?limit=6');
+        const body = await res.json();
+        if (!body.ok) throw new Error(body.error);
+        const products = body.data.slice(0, 6);
+        if (products.length === 0) {
+          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:0.5;">No products available.</p>';
+          return;
+        }
+        grid.innerHTML = products.map(product => {
+          const image = product.images && product.images[0] ? product.images[0] : null;
+          return `
+          <a href="product.html?id=${product.id}" class="card">
+            <div class="card-img">
+              ${image ? `<img src="${image}" alt="${product.name}" loading="lazy">` : ''}
+            </div>
+            <div class="card-info">
+              <span class="card-name">${product.name}</span>
+              <span class="card-price">${formatPrice(product.price, product.currency)}</span>
+            </div>
+          </a>`;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load products:', err.message);
+        grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:0.5;">Error loading products.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProducts);
+  </script>
+
+</body>
+</html>
