@@ -4,6 +4,11 @@ export type Bindings = {
   // D1 database (used when DB_ADAPTER = "d1")
   DB: D1Database;
 
+  // Platform D1 database — used by tenantMiddleware to resolve store from hostname.
+  // Bind to the same database as platform/wrangler.toml PLATFORM_DB.
+  // Optional: if not bound, the backend runs in single-tenant (legacy) mode.
+  PLATFORM_DB: D1Database | undefined;
+
   // R2 bucket for image storage
   IMAGES: R2Bucket;
 

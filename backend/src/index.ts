@@ -5,6 +5,7 @@ import type { Bindings } from "./types.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { csrfMiddleware } from "./middleware/csrf.js";
 import { adminAuthMiddleware } from "./middleware/auth.js";
+import { tenantMiddleware } from "./middleware/tenant.js";
 import { products } from "./routes/products.js";
 import { admin } from "./routes/admin.js";
 import { adminLogin } from "./routes/adminLogin.js";
@@ -31,6 +32,10 @@ app.use("*", corsMiddleware());
 
 // CSRF origin check — configured via CSRF_ENABLED in wrangler.toml.
 app.use("*", csrfMiddleware());
+
+// Tenant resolution — reads Host header → looks up store in PLATFORM_DB.
+// No-op when PLATFORM_DB is not bound (single-tenant / legacy mode).
+app.use("*", tenantMiddleware);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 

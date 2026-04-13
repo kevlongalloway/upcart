@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upcart Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:    #5c6ac4;
+      --brand-dk: #3f4eae;
+      --accent:   #47c1bf;
+      --text:     #212b36;
+      --muted:    #637381;
+      --border:   #dfe3e8;
+      --bg:       #f9fafb;
+      --white:    #ffffff;
+      --danger:   #de3618;
+      --warn:     #f49342;
+      --success:  #108043;
+      --radius:   8px;
+      --shadow:   0 2px 8px rgba(0,0,0,.08);
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Auth Gate ── */
+    #authGate {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 1.5rem;
+    }
+    .login-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 400px;
+      box-shadow: var(--shadow);
+    }
+    .login-card .logo { font-size: 1.5rem; font-weight: 800; color: var(--brand); margin-bottom: 1.5rem; display: block; }
+    .login-card h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: .3rem; }
+    .login-card .sub { color: var(--muted); font-size: .9rem; margin-bottom: 1.75rem; }
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+    .field input {
+      width: 100%; padding: .65rem .9rem;
+      border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-size: .95rem; color: var(--text);
+      transition: border-color .15s;
+    }
+    .field input:focus { outline: none; border-color: var(--brand); }
+    .btn-primary {
+      width: 100%; padding: .8rem; background: var(--brand); color: var(--white);
+      border: none; border-radius: var(--radius); font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; margin-top: .5rem;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--brand-dk); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+    .msg-error {
+      background: #fef3f2; border: 1px solid #fca5a5; color: var(--danger);
+      padding: .7rem 1rem; border-radius: var(--radius); font-size: .875rem;
+      margin-bottom: 1rem; display: none;
+    }
+    .signup-link { text-align: center; font-size: .9rem; color: var(--muted); margin-top: 1.25rem; }
+    .signup-link a { color: var(--brand); font-weight: 600; text-decoration: none; }
+
+    /* ── Layout ── */
+    #app { display: none; min-height: 100vh; }
+
+    header {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; height: 58px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .header-logo { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
+    .header-right { display: flex; gap: 1rem; align-items: center; }
+    .header-store-name { font-size: .9rem; color: var(--muted); }
+    .btn-sm {
+      padding: .4rem 1rem; border-radius: var(--radius);
+      font-size: .85rem; font-weight: 600; cursor: pointer; border: none;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-sm.outline { background: var(--white); color: var(--brand); border: 1.5px solid var(--brand); }
+    .btn-sm.outline:hover { background: #f4f6ff; }
+    .btn-sm.danger { background: var(--white); color: var(--danger); border: 1.5px solid var(--border); }
+    .btn-sm.danger:hover { border-color: var(--danger); }
+
+    main { max-width: 900px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+    /* ── Banners ── */
+    .banner {
+      border-radius: var(--radius); padding: 1rem 1.25rem;
+      display: flex; align-items: flex-start; gap: .75rem;
+      margin-bottom: 1.5rem; font-size: .9rem;
+    }
+    .banner.warn  { background: #fff8ed; border: 1px solid #f5a623; color: #7d4e00; }
+    .banner.danger { background: #fef3f2; border: 1px solid #fca5a5; color: #7f1d1d; }
+    .banner.info  { background: #f0f4ff; border: 1px solid var(--brand); color: var(--brand-dk); }
+    .banner-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .banner a { color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.75rem; margin-bottom: 1.25rem;
+    }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; }
+    .card-title a, .card-title button { font-size: .85rem; font-weight: 600; color: var(--brand); background: none; border: none; cursor: pointer; text-decoration: none; }
+
+    /* ── Info rows ── */
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: .6rem 0; border-bottom: 1px solid var(--bg); font-size: .9rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--muted); }
+    .info-value { font-weight: 600; text-align: right; }
+    .info-value a { color: var(--brand); text-decoration: none; }
+    .info-value a:hover { text-decoration: underline; }
+
+    /* ── Status badge ── */
+    .badge {
+      display: inline-block; padding: .2rem .65rem; border-radius: 20px;
+      font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .badge.trialing { background: #eef0fb; color: var(--brand); }
+    .badge.active   { background: #e3fcef; color: var(--success); }
+    .badge.past_due { background: #fff8ed; color: var(--warn); }
+    .badge.canceled { background: #fef3f2; color: var(--danger); }
+
+    /* ── Progress bar ── */
+    .progress-bar { background: var(--bg); border-radius: 20px; height: 8px; overflow: hidden; margin: .5rem 0 .25rem; }
+    .progress-fill { height: 100%; border-radius: 20px; background: var(--brand); transition: width .4s; }
+    .progress-fill.warn { background: var(--warn); }
+    .progress-fill.danger { background: var(--danger); }
+
+    /* ── Domain ── */
+    .domain-input-row { display: flex; gap: .75rem; }
+    .domain-input-row input {
+      flex: 1; padding: .65rem .9rem; border: 1.5px solid var(--border);
+      border-radius: var(--radius); font-size: .9rem;
+    }
+    .domain-input-row input:focus { outline: none; border-color: var(--brand); }
+    .domain-instructions {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1rem 1.25rem; margin-top: 1rem;
+      font-size: .85rem;
+    }
+    .dns-record {
+      font-family: monospace; background: var(--white); border: 1px solid var(--border);
+      border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; font-size: .8rem;
+      display: flex; gap: .5rem; flex-wrap: wrap;
+    }
+    .dns-record .type { color: var(--brand); font-weight: 700; min-width: 3rem; }
+    .dns-record .val { color: var(--text); word-break: break-all; }
+
+    /* ── Upgrade grid ── */
+    .upgrade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .upgrade-plan { border: 2px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .upgrade-plan.recommended { border-color: var(--brand); }
+    .upgrade-plan h3 { font-size: 1rem; font-weight: 700; }
+    .upgrade-plan .price { font-size: 1.5rem; font-weight: 800; margin: .25rem 0 .5rem; }
+    .upgrade-plan .price small { font-size: .85rem; font-weight: 400; color: var(--muted); }
+    .upgrade-plan ul { font-size: .82rem; color: var(--muted); padding-left: 1rem; margin-bottom: 1rem; }
+    .upgrade-plan ul li { margin-bottom: .25rem; }
+    .btn-upgrade {
+      width: 100%; padding: .65rem; background: var(--brand); color: var(--white);
+      border: none; border-radius: var(--radius); font-weight: 700; font-size: .9rem;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn-upgrade:hover { background: var(--brand-dk); }
+    .btn-upgrade.outline { background: var(--white); color: var(--brand); border: 2px solid var(--brand); }
+    .btn-upgrade.outline:hover { background: #f4f6ff; }
+
+    @media (max-width: 540px) {
+      .upgrade-grid { grid-template-columns: 1fr; }
+      header { padding: 0 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Gate (shown when not logged in) ──────────────────────────────── -->
+<div id="authGate">
+  <div class="login-card">
+    <span class="logo">Upcart</span>
+    <h2>Sign in to your account</h2>
+    <p class="sub">Manage your store, subscription, and settings.</p>
+    <div class="msg-error" id="loginError"></div>
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" required />
+      </div>
+      <div class="field">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Your password" required />
+      </div>
+      <button type="submit" class="btn-primary" id="loginBtn">Sign in</button>
+    </form>
+    <p class="signup-link">Don't have a store? <a href="/index.html">Start free trial</a></p>
+  </div>
+</div>
+
+<!-- ── Dashboard (shown when logged in) ──────────────────────────────────── -->
+<div id="app">
+  <header>
+    <span class="header-logo">Upcart</span>
+    <div class="header-right">
+      <span class="header-store-name" id="headerStoreName"></span>
+      <a class="btn-sm outline" id="adminLink" href="#" target="_blank">Open Admin</a>
+      <button class="btn-sm danger" id="logoutBtn">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Subscription banners (shown dynamically) -->
+    <div id="bannerArea"></div>
+
+    <!-- Store Info -->
+    <div class="card">
+      <div class="card-title">
+        Your Store
+        <button id="editStoreBtn">Edit</button>
+      </div>
+      <div class="info-row"><span class="info-label">Store name</span>  <span class="info-value" id="infoStoreName">—</span></div>
+      <div class="info-row"><span class="info-label">Store URL</span>   <span class="info-value" id="infoStoreUrl">—</span></div>
+      <div class="info-row"><span class="info-label">Custom domain</span><span class="info-value" id="infoCustomDomain">Not connected</span></div>
+      <div class="info-row"><span class="info-label">Plan</span>        <span class="info-value" id="infoPlan">—</span></div>
+      <div class="info-row"><span class="info-label">Account email</span><span class="info-value" id="infoEmail">—</span></div>
+    </div>
+
+    <!-- Subscription / Trial -->
+    <div class="card" id="subscriptionCard">
+      <div class="card-title">Subscription</div>
+      <div id="subscriptionContent">Loading…</div>
+    </div>
+
+    <!-- Custom Domain -->
+    <div class="card" id="domainCard">
+      <div class="card-title">Custom Domain</div>
+      <div id="domainContent">
+        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem;">Connect your own domain (e.g. <code>shop.mybrand.com</code>). Requires Basic plan or higher.</p>
+        <div class="domain-input-row">
+          <input type="text" id="domainInput" placeholder="shop.mybrand.com" />
+          <button class="btn-sm outline" id="connectDomainBtn">Connect</button>
+        </div>
+        <div id="domainInstructions" style="display:none;"></div>
+        <div style="margin-top:.75rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+          <button class="btn-sm outline" id="verifyDomainBtn">Check verification</button>
+          <button class="btn-sm danger" id="removeDomainBtn" style="display:none;">Remove domain</button>
+        </div>
+        <p id="domainStatus" style="font-size:.85rem;margin-top:.5rem;"></p>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card">
+      <div class="card-title">Quick Links</div>
+      <div class="info-row">
+        <span class="info-label">Admin dashboard</span>
+        <span class="info-value"><a id="quickAdmin" href="#" target="_blank">Open →</a></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Your storefront</span>
+        <span class="info-value"><a id="quickStore" href="#" target="_blank">View store →</a></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Manage billing</span>
+        <span class="info-value"><a href="#" id="billingPortalLink">Stripe billing portal →</a></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // TODO: Replace with real platform API URL after deployment
+  const API_URL = "https://api.yourdomain.com";
+  // TODO: Replace with real base domain after purchase
+  const BASE_DOMAIN = "yourdomain.com";
+
+  let authToken = null;
+  let currentStore = null;
+  let currentUser = null;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  async function api(path, opts = {}) {
+    const headers = { "Content-Type": "application/json", ...(opts.headers ?? {}) };
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const res = await fetch(`${API_URL}${path}`, { ...opts, headers });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function saveSession(token, user, store) {
+    authToken = token;
+    currentUser = user;
+    currentStore = store;
+    localStorage.setItem("upcart_platform_token", token);
+    localStorage.setItem("upcart_user", JSON.stringify(user));
+    localStorage.setItem("upcart_store", JSON.stringify(store));
+  }
+
+  function clearSession() {
+    authToken = currentUser = currentStore = null;
+    localStorage.removeItem("upcart_platform_token");
+    localStorage.removeItem("upcart_user");
+    localStorage.removeItem("upcart_store");
+  }
+
+  // ── Login Form ───────────────────────────────────────────────────────────────
+
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("loginBtn");
+    const err = document.getElementById("loginError");
+    err.style.display = "none";
+    btn.disabled = true; btn.textContent = "Signing in…";
+
+    const { ok, data } = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email:    document.getElementById("loginEmail").value.trim(),
+        password: document.getElementById("loginPassword").value,
+      }),
+    });
+
+    btn.disabled = false; btn.textContent = "Sign in";
+    if (!ok) { err.textContent = data.error ?? "Login failed."; err.style.display = "block"; return; }
+
+    saveSession(data.token, data.user, data.store);
+    showApp();
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    clearSession();
+    showAuthGate();
+  });
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+
+  function init() {
+    const token = localStorage.getItem("upcart_platform_token");
+    const user  = JSON.parse(localStorage.getItem("upcart_user") ?? "null");
+    const store = JSON.parse(localStorage.getItem("upcart_store") ?? "null");
+
+    if (token && user && store) {
+      authToken = token; currentUser = user; currentStore = store;
+      showApp();
+      refreshStoreData(); // Refresh from API in background
+    } else {
+      showAuthGate();
+    }
+  }
+
+  function showAuthGate() {
+    document.getElementById("authGate").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+  }
+
+  function showApp() {
+    document.getElementById("authGate").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    renderDashboard();
+  }
+
+  // ── Dashboard Rendering ───────────────────────────────────────────────────────
+
+  async function refreshStoreData() {
+    const { ok, data } = await api("/stores/me");
+    if (!ok) { if (data.status === 401) { clearSession(); showAuthGate(); } return; }
+    currentStore = data;
+    localStorage.setItem("upcart_store", JSON.stringify(data));
+    renderDashboard();
+  }
+
+  function renderDashboard() {
+    const store = currentStore;
+    const user  = currentUser;
+    if (!store || !user) return;
+
+    const storeUrl = store.store_url ?? `https://${store.subdomain}.${BASE_DOMAIN}`;
+    const adminUrl = `${storeUrl}/admin`;
+
+    // Header
+    document.getElementById("headerStoreName").textContent = store.store_name;
+    document.getElementById("adminLink").href = adminUrl;
+
+    // Info card
+    document.getElementById("infoStoreName").textContent = store.store_name;
+    document.getElementById("infoStoreUrl").innerHTML = `<a href="${storeUrl}" target="_blank">${storeUrl}</a>`;
+    document.getElementById("infoEmail").textContent = user.email;
+    document.getElementById("infoPlan").innerHTML = `<span class="badge ${store.subscription_status ?? 'trialing'}">${(store.plan?.name ?? store.plan_id ?? "Trial").replace(/_/g," ")}</span>`;
+
+    if (store.custom_domain && store.custom_domain_verified) {
+      document.getElementById("infoCustomDomain").innerHTML = `<a href="https://${store.custom_domain}" target="_blank">${store.custom_domain}</a>`;
+    } else if (store.custom_domain) {
+      document.getElementById("infoCustomDomain").textContent = `${store.custom_domain} (pending verification)`;
+    } else {
+      document.getElementById("infoCustomDomain").textContent = "Not connected";
+    }
+
+    // Quick links
+    document.getElementById("quickAdmin").href = adminUrl;
+    document.getElementById("quickStore").href = storeUrl;
+
+    // Domain input prefill
+    if (store.custom_domain) document.getElementById("domainInput").value = store.custom_domain;
+    document.getElementById("removeDomainBtn").style.display = store.custom_domain ? "inline-block" : "none";
+
+    // Subscription card
+    renderSubscription(store);
+
+    // Banners
+    renderBanners(store);
+  }
+
+  function renderSubscription(store) {
+    const el = document.getElementById("subscriptionContent");
+    const status = store.subscription_status ?? "trialing";
+    const daysLeft = store.trial_days_remaining ?? 0;
+
+    if (status === "trialing") {
+      const pct = Math.round((daysLeft / 30) * 100);
+      const barClass = daysLeft <= 3 ? "danger" : daysLeft <= 7 ? "warn" : "";
+      el.innerHTML = `
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="badge trialing">Free Trial</span></span></div>
+        <div class="info-row"><span class="info-label">Trial ends</span><span class="info-value">${new Date(store.trial_ends_at).toLocaleDateString()} (${daysLeft} days left)</span></div>
+        <div class="progress-bar"><div class="progress-fill ${barClass}" style="width:${pct}%"></div></div>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:1.25rem;">After your trial, choose a plan to keep your store online.</p>
+        <div class="upgrade-grid">
+          <div class="upgrade-plan recommended">
+            <h3>Basic</h3>
+            <div class="price">$19.99 <small>/mo</small></div>
+            <ul><li>500 products</li><li>1,000 orders/mo</li><li>Custom domain</li><li>Shipping labels</li></ul>
+            <button class="btn-upgrade" onclick="subscribe('basic')">Upgrade to Basic</button>
+          </div>
+          <div class="upgrade-plan">
+            <h3>Pro</h3>
+            <div class="price">$49.99 <small>/mo</small></div>
+            <ul><li>Unlimited products</li><li>Unlimited orders</li><li>Analytics</li><li>Priority support</li></ul>
+            <button class="btn-upgrade outline" onclick="subscribe('pro')">Upgrade to Pro</button>
+          </div>
+        </div>
+      `;
+    } else if (status === "active") {
+      const periodEnd = store.subscription_current_period_end
+        ? new Date(store.subscription_current_period_end).toLocaleDateString() : "—";
+      el.innerHTML = `
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="badge active">Active</span></span></div>
+        <div class="info-row"><span class="info-label">Plan</span><span class="info-value">${store.plan?.name ?? store.plan_id ?? "—"}</span></div>
+        <div class="info-row"><span class="info-label">Next billing date</span><span class="info-value">${periodEnd}</span></div>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:1rem;">
+          <a href="#" onclick="openBillingPortal(event)">Manage payment method, invoices, or cancel →</a>
+        </p>
+      `;
+    } else if (status === "past_due") {
+      el.innerHTML = `
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="badge past_due">Payment Due</span></span></div>
+        <p style="font-size:.9rem;color:var(--warn);margin:.75rem 0;">Your last payment failed. Please update your payment method to keep your store active.</p>
+        <button class="btn-upgrade" onclick="openBillingPortal()">Update payment method</button>
+      `;
+    } else if (status === "canceled") {
+      el.innerHTML = `
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="badge canceled">Canceled</span></span></div>
+        <p style="font-size:.9rem;color:var(--danger);margin:.75rem 0;">Your subscription is canceled and your store is offline.</p>
+        <div class="upgrade-grid">
+          <div class="upgrade-plan recommended">
+            <h3>Basic</h3><div class="price">$19.99 <small>/mo</small></div>
+            <ul><li>500 products</li><li>Custom domain</li><li>Shipping labels</li></ul>
+            <button class="btn-upgrade" onclick="subscribe('basic')">Reactivate — Basic</button>
+          </div>
+          <div class="upgrade-plan">
+            <h3>Pro</h3><div class="price">$49.99 <small>/mo</small></div>
+            <ul><li>Unlimited everything</li><li>Analytics</li><li>Priority support</li></ul>
+            <button class="btn-upgrade outline" onclick="subscribe('pro')">Reactivate — Pro</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function renderBanners(store) {
+    const area = document.getElementById("bannerArea");
+    area.innerHTML = "";
+
+    const status = store.subscription_status;
+    const daysLeft = store.trial_days_remaining ?? 0;
+
+    if (status === "trialing" && daysLeft <= 7 && daysLeft > 0) {
+      area.innerHTML += `
+        <div class="banner warn">
+          <span class="banner-icon">⏳</span>
+          <span>Your free trial ends in <strong>${daysLeft} day${daysLeft !== 1 ? "s" : ""}</strong>.
+          <a onclick="document.getElementById('subscriptionCard').scrollIntoView({behavior:'smooth'})">Choose a plan</a> to keep your store online.</span>
+        </div>`;
+    }
+    if (status === "past_due") {
+      area.innerHTML += `
+        <div class="banner danger">
+          <span class="banner-icon">⚠️</span>
+          <span>Your last payment failed. <a href="#" onclick="openBillingPortal(event)">Update your payment method</a> to avoid store downtime.</span>
+        </div>`;
+    }
+    if (status === "canceled") {
+      area.innerHTML += `
+        <div class="banner danger">
+          <span class="banner-icon">🔴</span>
+          <span>Your store is offline. <a onclick="document.getElementById('subscriptionCard').scrollIntoView({behavior:'smooth'})">Reactivate your subscription</a> to bring it back online.</span>
+        </div>`;
+    }
+  }
+
+  // ── Subscribe ────────────────────────────────────────────────────────────────
+
+  async function subscribe(planId) {
+    const returnUrl = window.location.href;
+    const { ok, data } = await api("/billing/subscribe", {
+      method: "POST",
+      body: JSON.stringify({
+        plan_id: planId,
+        success_url: returnUrl + "?upgraded=1",
+        cancel_url: returnUrl,
+      }),
+    });
+    if (!ok) { alert(data.error ?? "Could not start checkout. Please try again."); return; }
+    window.location.href = data.url;
+  }
+
+  // ── Billing Portal ────────────────────────────────────────────────────────────
+
+  document.getElementById("billingPortalLink").addEventListener("click", (e) => {
+    e.preventDefault(); openBillingPortal();
+  });
+
+  async function openBillingPortal(e) {
+    if (e) e.preventDefault();
+    const { ok, data } = await api("/billing/portal", {
+      method: "POST",
+      body: JSON.stringify({ return_url: window.location.href }),
+    });
+    if (!ok) { alert(data.error ?? "Could not open billing portal."); return; }
+    window.location.href = data.url;
+  }
+
+  // ── Custom Domain ─────────────────────────────────────────────────────────────
+
+  document.getElementById("connectDomainBtn").addEventListener("click", async () => {
+    const domain = document.getElementById("domainInput").value.trim().toLowerCase();
+    if (!domain) { alert("Please enter a domain name."); return; }
+
+    const { ok, data } = await api("/domains", {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    });
+
+    const instrEl = document.getElementById("domainInstructions");
+    const statusEl = document.getElementById("domainStatus");
+
+    if (!ok) {
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = data.error ?? "Failed to connect domain.";
+      if (data.upgrade_required) {
+        statusEl.textContent += " Please upgrade your plan.";
+      }
+      return;
+    }
+
+    // Show DNS instructions
+    const instr = data.dns_instructions;
+    instrEl.style.display = "block";
+    instrEl.innerHTML = `
+      <p style="margin-bottom:.75rem;"><strong>${instr.message}</strong></p>
+      ${instr.records.map(r => `
+        <div class="dns-record">
+          <span class="type">${r.type}</span>
+          <span class="val"><strong>Name:</strong> ${r.name} &nbsp; <strong>Value:</strong> ${r.value}</span>
+        </div>
+        <p style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem;">${r.note}</p>
+      `).join("")}
+      <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem;">${instr.propagation_note}</p>
+    `;
+    statusEl.style.color = "var(--muted)";
+    statusEl.textContent = "Domain saved. Add the DNS records above, then click 'Check verification'.";
+    document.getElementById("removeDomainBtn").style.display = "inline-block";
+
+    currentStore.custom_domain = domain;
+    currentStore.custom_domain_verified = false;
+  });
+
+  document.getElementById("verifyDomainBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("domainStatus");
+    statusEl.style.color = "var(--muted)";
+    statusEl.textContent = "Checking DNS…";
+
+    const { ok, data } = await api("/domains/verify");
+    if (!ok) { statusEl.style.color = "var(--danger)"; statusEl.textContent = data.error ?? "Verification failed."; return; }
+
+    if (data.verified) {
+      statusEl.style.color = "var(--success)";
+      statusEl.textContent = "✓ Domain verified and active!";
+      currentStore.custom_domain_verified = true;
+      document.getElementById("infoCustomDomain").innerHTML = `<a href="https://${data.domain}" target="_blank">${data.domain}</a>`;
+    } else {
+      statusEl.style.color = "var(--warn)";
+      statusEl.textContent = data.message;
+    }
+  });
+
+  document.getElementById("removeDomainBtn").addEventListener("click", async () => {
+    if (!confirm("Remove your custom domain? Your store will be accessible via the subdomain URL only.")) return;
+    const { ok, data } = await api("/domains", { method: "DELETE" });
+    if (!ok) { alert(data.error ?? "Failed to remove domain."); return; }
+
+    document.getElementById("domainInput").value = "";
+    document.getElementById("domainInstructions").style.display = "none";
+    document.getElementById("domainStatus").textContent = "";
+    document.getElementById("removeDomainBtn").style.display = "none";
+    document.getElementById("infoCustomDomain").textContent = "Not connected";
+    currentStore.custom_domain = null;
+    currentStore.custom_domain_verified = false;
+  });
+
+  // ── Edit Store ────────────────────────────────────────────────────────────────
+
+  document.getElementById("editStoreBtn").addEventListener("click", () => {
+    const newName = prompt("Store name:", currentStore.store_name);
+    if (!newName || newName.trim() === currentStore.store_name) return;
+    api("/stores/me", {
+      method: "PUT",
+      body: JSON.stringify({ store_name: newName.trim() }),
+    }).then(({ ok, data }) => {
+      if (!ok) { alert(data.error ?? "Update failed."); return; }
+      currentStore.store_name = data.store_name;
+      localStorage.setItem("upcart_store", JSON.stringify(currentStore));
+      renderDashboard();
+    });
+  });
+
+  // ── Handle post-upgrade redirect ──────────────────────────────────────────────
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("upgraded") === "1") {
+    history.replaceState({}, "", window.location.pathname);
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────────
+  init();
+</script>
+
+</body>
+</html>

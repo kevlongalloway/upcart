@@ -1,0 +1,35 @@
+name = "upcart-platform"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat_v2"]
+
+# ─── Platform D1 Database ─────────────────────────────────────────────────────
+# Create with: wrangler d1 create upcart-platform
+# Then paste the database_id below.
+[[d1_databases]]
+binding = "PLATFORM_DB"
+database_name = "upcart-platform"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# ─── Public Variables ─────────────────────────────────────────────────────────
+[vars]
+# CORS: comma-separated allowed origins, or "*" for all
+CORS_ORIGINS = "*"
+
+# TODO: Replace with your actual domain after purchase (e.g. "upcart.store")
+# Stores will be hosted at {subdomain}.{BASE_DOMAIN}
+BASE_DOMAIN = "yourdomain.com"
+
+# Free trial length in days
+TRIAL_DAYS = "30"
+
+# ─── Secrets (set via `wrangler secret put <NAME>`) ───────────────────────────
+#
+#   wrangler secret put JWT_SECRET              (openssl rand -hex 32)
+#   wrangler secret put STRIPE_SECRET_KEY
+#   wrangler secret put STRIPE_WEBHOOK_SECRET
+#   wrangler secret put STRIPE_BASIC_PRICE_ID   (from Stripe Dashboard)
+#   wrangler secret put STRIPE_PRO_PRICE_ID     (from Stripe Dashboard)
+#
+# See SAAS_TODO.md Phase 2 for full setup instructions.

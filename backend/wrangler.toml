@@ -3,13 +3,23 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat_v2"]
 
-# ─── D1 Database ─────────────────────────────────────────────────────────────
-# This is filled in automatically by `npm run setup`, or manually after running:
-#   wrangler d1 create ecommaxxing-db
+# ─── Store D1 Database ────────────────────────────────────────────────────────
+# Products, orders, discounts for this store.
+# Create with: wrangler d1 create upcart-store
 [[d1_databases]]
 binding = "DB"
 database_name = "blackstardb"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# ─── Platform D1 Database (multi-tenant resolution) ──────────────────────────
+# Shared with platform/wrangler.toml — same database_id.
+# Used by tenantMiddleware to resolve the requesting store from the Host header.
+# Leave database_id blank to run in single-tenant / legacy mode.
+# Create with: wrangler d1 create upcart-platform
+[[d1_databases]]
+binding = "PLATFORM_DB"
+database_name = "upcart-platform"
+database_id = "REPLACE_WITH_YOUR_PLATFORM_D1_DATABASE_ID"
 
 # ─── R2 Image Storage ────────────────────────────────────────────────────────
 # Create a bucket with: wrangler r2 bucket create <name>

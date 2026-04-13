@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upcart — Launch your online store in minutes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:    #5c6ac4;
+      --brand-dk: #3f4eae;
+      --accent:   #47c1bf;
+      --text:     #212b36;
+      --muted:    #637381;
+      --border:   #dfe3e8;
+      --bg:       #f9fafb;
+      --white:    #ffffff;
+      --danger:   #de3618;
+      --success:  #108043;
+      --radius:   8px;
+      --shadow:   0 2px 12px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+    }
+
+    /* ── Nav ── */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 60px;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--white); z-index: 100;
+    }
+    .nav-logo { font-size: 1.4rem; font-weight: 700; color: var(--brand); letter-spacing: -.5px; text-decoration: none; }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { text-decoration: none; color: var(--muted); font-size: .9rem; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-nav {
+      background: var(--brand); color: var(--white) !important;
+      padding: .45rem 1.1rem; border-radius: var(--radius); font-size: .9rem;
+    }
+    .btn-nav:hover { background: var(--brand-dk) !important; }
+
+    /* ── Hero ── */
+    .hero {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      padding: 6rem 1.5rem 4rem;
+      background: linear-gradient(160deg, #f4f6ff 0%, var(--white) 60%);
+    }
+    .hero-badge {
+      background: #eef0fb; color: var(--brand);
+      font-size: .8rem; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+      padding: .3rem .9rem; border-radius: 20px; margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800;
+      color: var(--text); max-width: 700px; line-height: 1.2; margin-bottom: 1rem;
+    }
+    .hero h1 span { color: var(--brand); }
+    .hero p {
+      font-size: 1.15rem; color: var(--muted);
+      max-width: 520px; margin-bottom: 2.5rem;
+    }
+    .hero-cta { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .btn-primary {
+      background: var(--brand); color: var(--white);
+      padding: .8rem 2rem; border-radius: var(--radius); font-size: 1rem; font-weight: 600;
+      text-decoration: none; border: none; cursor: pointer; transition: background .15s;
+    }
+    .btn-primary:hover { background: var(--brand-dk); }
+    .btn-outline {
+      background: var(--white); color: var(--brand);
+      padding: .8rem 2rem; border-radius: var(--radius); font-size: 1rem; font-weight: 600;
+      text-decoration: none; border: 2px solid var(--brand); cursor: pointer; transition: background .15s;
+    }
+    .btn-outline:hover { background: #f4f6ff; }
+    .hero-note { margin-top: 1rem; font-size: .85rem; color: var(--muted); }
+
+    /* ── Features ── */
+    .section { padding: 5rem 1.5rem; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-label { text-align: center; color: var(--brand); font-size: .85rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: .6rem; }
+    .section-title { text-align: center; font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; margin-bottom: .8rem; }
+    .section-sub { text-align: center; color: var(--muted); max-width: 540px; margin: 0 auto 3rem; }
+
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+    .feature-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.75rem;
+    }
+    .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+    .feature-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: .4rem; }
+    .feature-card p { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+
+    /* ── Pricing ── */
+    .pricing-section { background: var(--bg); }
+    .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; max-width: 960px; margin: 0 auto; }
+    .plan-card {
+      background: var(--white); border: 2px solid var(--border);
+      border-radius: 12px; padding: 2rem; display: flex; flex-direction: column;
+      transition: box-shadow .15s;
+    }
+    .plan-card:hover { box-shadow: var(--shadow); }
+    .plan-card.featured { border-color: var(--brand); }
+    .plan-badge {
+      background: var(--brand); color: var(--white);
+      font-size: .75rem; font-weight: 700; padding: .2rem .7rem; border-radius: 20px;
+      align-self: flex-start; margin-bottom: .75rem; letter-spacing: .5px; text-transform: uppercase;
+    }
+    .plan-name { font-size: 1.2rem; font-weight: 800; margin-bottom: .25rem; }
+    .plan-price { font-size: 2.4rem; font-weight: 800; line-height: 1; margin-bottom: .2rem; }
+    .plan-price span { font-size: 1rem; font-weight: 400; color: var(--muted); }
+    .plan-desc { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    .plan-features { list-style: none; flex: 1; margin-bottom: 2rem; }
+    .plan-features li { font-size: .9rem; padding: .4rem 0; display: flex; gap: .5rem; align-items: flex-start; }
+    .plan-features li::before { content: "✓"; color: var(--success); font-weight: 700; flex-shrink: 0; }
+    .plan-features li.no::before { content: "✗"; color: var(--border); }
+    .plan-cta {
+      background: var(--brand); color: var(--white);
+      padding: .75rem; border-radius: var(--radius); font-size: 1rem; font-weight: 600;
+      text-align: center; text-decoration: none; border: none; cursor: pointer;
+      transition: background .15s;
+    }
+    .plan-cta:hover { background: var(--brand-dk); }
+    .plan-cta.outline {
+      background: var(--white); color: var(--brand); border: 2px solid var(--brand);
+    }
+    .plan-cta.outline:hover { background: #f4f6ff; }
+
+    /* ── Sign-up form ── */
+    .signup-section { background: var(--white); }
+    .signup-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2.5rem; max-width: 520px; margin: 0 auto;
+      box-shadow: var(--shadow);
+    }
+    .signup-card h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: .4rem; }
+    .signup-card .sub { color: var(--muted); font-size: .95rem; margin-bottom: 2rem; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .field { margin-bottom: 1.1rem; }
+    .field label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+    .field input {
+      width: 100%; padding: .65rem .9rem;
+      border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-size: .95rem; color: var(--text); background: var(--white);
+      transition: border-color .15s;
+    }
+    .field input:focus { outline: none; border-color: var(--brand); }
+    .field input.error { border-color: var(--danger); }
+    .subdomain-wrap { display: flex; align-items: center; }
+    .subdomain-wrap input { border-radius: var(--radius) 0 0 var(--radius); flex: 1; }
+    .subdomain-suffix {
+      background: var(--bg); border: 1.5px solid var(--border); border-left: none;
+      padding: .65rem .8rem; border-radius: 0 var(--radius) var(--radius) 0;
+      font-size: .85rem; color: var(--muted); white-space: nowrap;
+    }
+    .field-hint { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+    .field-hint.ok { color: var(--success); }
+    .field-hint.err { color: var(--danger); }
+
+    .form-submit {
+      width: 100%; padding: .85rem; background: var(--brand); color: var(--white);
+      border: none; border-radius: var(--radius); font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; margin-top: .5rem;
+    }
+    .form-submit:hover:not(:disabled) { background: var(--brand-dk); }
+    .form-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+    .form-error {
+      background: #fef3f2; border: 1px solid #fca5a5; color: var(--danger);
+      padding: .75rem 1rem; border-radius: var(--radius); font-size: .9rem; margin-bottom: 1rem;
+      display: none;
+    }
+    .form-success {
+      background: #ecfdf5; border: 1px solid #6ee7b7; color: var(--success);
+      padding: .75rem 1rem; border-radius: var(--radius); font-size: .9rem; margin-bottom: 1rem;
+      display: none;
+    }
+    .login-link { text-align: center; font-size: .9rem; color: var(--muted); margin-top: 1.25rem; }
+    .login-link a { color: var(--brand); text-decoration: none; font-weight: 600; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border); padding: 2rem 1.5rem;
+      text-align: center; color: var(--muted); font-size: .85rem;
+    }
+
+    @media (max-width: 540px) {
+      .form-row { grid-template-columns: 1fr; }
+      .nav-links .hide-mobile { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ────────────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-logo" href="/">Upcart</a>
+  <div class="nav-links">
+    <a class="hide-mobile" href="#features">Features</a>
+    <a class="hide-mobile" href="#pricing">Pricing</a>
+    <a href="/dashboard.html">Sign in</a>
+    <a class="btn-nav" href="#signup">Start free trial</a>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge">30-day free trial — no credit card required</div>
+  <h1>Launch your <span>online store</span><br>in minutes</h1>
+  <p>Upcart gives you everything you need to sell online — products, checkout, orders, discounts, and shipping. All in one place.</p>
+  <div class="hero-cta">
+    <a class="btn-primary" href="#signup">Start free trial</a>
+    <a class="btn-outline" href="#pricing">See pricing</a>
+  </div>
+  <p class="hero-note">Free for 30 days. Then from $19.99/mo. Cancel anytime.</p>
+</section>
+
+<!-- ── Features ───────────────────────────────────────────────────────────── -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <p class="section-label">Everything included</p>
+    <h2 class="section-title">All the tools to run your store</h2>
+    <p class="section-sub">No plugins, no hidden fees. Every plan includes the core features you need.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🛍️</div>
+        <h3>Product Management</h3>
+        <p>Add products with images, variants, and inventory tracking. Connect to Stripe automatically.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💳</div>
+        <h3>Stripe Checkout</h3>
+        <p>Accept payments instantly with Stripe-hosted checkout or embed a custom payment form.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>Order Management</h3>
+        <p>Track every order from payment to delivery. Update fulfillment status and add tracking numbers.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏷️</div>
+        <h3>Discounts & Promos</h3>
+        <p>Create percentage or fixed-amount discount codes. Schedule sales with start and end dates.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚚</div>
+        <h3>Shipping Labels</h3>
+        <p>Generate shipping labels in one click with EasyPost. Supports USPS, UPS, FedEx, and more.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Custom Domain</h3>
+        <p>Connect your own domain (e.g. shop.mybrand.com) on Basic and Pro plans.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pricing ─────────────────────────────────────────────────────────────── -->
+<section class="section pricing-section" id="pricing">
+  <div class="section-inner">
+    <p class="section-label">Simple pricing</p>
+    <h2 class="section-title">Start free. Pay when you're ready.</h2>
+    <p class="section-sub">All plans include a 30-day free trial. No credit card required to start.</p>
+    <div class="plans-grid">
+
+      <!-- Trial / Free -->
+      <div class="plan-card">
+        <div class="plan-name">Free Trial</div>
+        <div class="plan-price">$0 <span>/ 30 days</span></div>
+        <p class="plan-desc">Try everything free. No credit card needed.</p>
+        <ul class="plan-features">
+          <li>Up to 50 products</li>
+          <li>Up to 100 orders/month</li>
+          <li>Stripe checkout</li>
+          <li>Order management</li>
+          <li>Discount codes</li>
+          <li class="no">Custom domain</li>
+          <li class="no">Analytics</li>
+          <li class="no">Priority support</li>
+        </ul>
+        <a class="plan-cta outline" href="#signup">Start for free</a>
+      </div>
+
+      <!-- Basic -->
+      <div class="plan-card featured">
+        <div class="plan-badge">Most popular</div>
+        <div class="plan-name">Basic</div>
+        <div class="plan-price">$19.99 <span>/ month</span></div>
+        <p class="plan-desc">Everything you need to run and grow a store.</p>
+        <ul class="plan-features">
+          <li>Up to 500 products</li>
+          <li>Up to 1,000 orders/month</li>
+          <li>Stripe checkout</li>
+          <li>Order management</li>
+          <li>Discount codes</li>
+          <li>Custom domain</li>
+          <li>Shipping labels</li>
+          <li class="no">Analytics</li>
+          <li class="no">Priority support</li>
+        </ul>
+        <a class="plan-cta" href="#signup">Start free trial</a>
+      </div>
+
+      <!-- Pro -->
+      <div class="plan-card">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$49.99 <span>/ month</span></div>
+        <p class="plan-desc">For high-volume stores that need everything.</p>
+        <ul class="plan-features">
+          <li>Unlimited products</li>
+          <li>Unlimited orders</li>
+          <li>Stripe checkout</li>
+          <li>Order management</li>
+          <li>Discount codes</li>
+          <li>Custom domain</li>
+          <li>Shipping labels</li>
+          <li>Analytics dashboard</li>
+          <li>Priority support</li>
+        </ul>
+        <a class="plan-cta outline" href="#signup">Start free trial</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Sign-up Form ────────────────────────────────────────────────────────── -->
+<section class="section signup-section" id="signup">
+  <div class="section-inner">
+    <div class="signup-card">
+      <h2>Create your store</h2>
+      <p class="sub">Free for 30 days. No credit card required.</p>
+
+      <div class="form-error" id="formError"></div>
+      <div class="form-success" id="formSuccess"></div>
+
+      <form id="signupForm" novalidate>
+        <div class="form-row">
+          <div class="field">
+            <label for="name">Your name</label>
+            <input type="text" id="name" name="name" placeholder="Jane Smith" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" placeholder="jane@example.com" autocomplete="email" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="At least 8 characters" autocomplete="new-password" required />
+          <p class="field-hint">Minimum 8 characters.</p>
+        </div>
+
+        <div class="field">
+          <label for="store_name">Store name</label>
+          <input type="text" id="store_name" name="store_name" placeholder="My Awesome Store" required />
+        </div>
+
+        <div class="field">
+          <label for="subdomain">Store URL</label>
+          <div class="subdomain-wrap">
+            <input type="text" id="subdomain" name="subdomain" placeholder="mystore" autocomplete="off" required />
+            <!-- TODO: Replace yourdomain.com with real domain after purchase -->
+            <span class="subdomain-suffix">.yourdomain.com</span>
+          </div>
+          <p class="field-hint" id="subdomainHint">3–50 characters: lowercase letters, numbers, hyphens.</p>
+        </div>
+
+        <button type="submit" class="form-submit" id="submitBtn">
+          Create my store — free for 30 days
+        </button>
+      </form>
+
+      <p class="login-link">Already have an account? <a href="/dashboard.html">Sign in</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+<footer>
+  <p>© 2025 Upcart. Built on Cloudflare Workers.</p>
+</footer>
+
+<script>
+  // TODO: Replace with real platform API URL after deployment
+  const API_URL = "https://api.yourdomain.com";
+
+  const form        = document.getElementById("signupForm");
+  const submitBtn   = document.getElementById("submitBtn");
+  const formError   = document.getElementById("formError");
+  const formSuccess = document.getElementById("formSuccess");
+  const subInput    = document.getElementById("subdomain");
+  const subHint     = document.getElementById("subdomainHint");
+
+  let subdomainCheckTimer = null;
+
+  function showError(msg) {
+    formError.textContent = msg;
+    formError.style.display = "block";
+    formSuccess.style.display = "none";
+  }
+  function showSuccess(msg) {
+    formSuccess.textContent = msg;
+    formSuccess.style.display = "block";
+    formError.style.display = "none";
+  }
+  function clearMessages() {
+    formError.style.display = "none";
+    formSuccess.style.display = "none";
+  }
+
+  // Live subdomain availability check
+  subInput.addEventListener("input", () => {
+    clearTimeout(subdomainCheckTimer);
+    const val = subInput.value.trim().toLowerCase();
+
+    subInput.classList.remove("error");
+    subHint.className = "field-hint";
+    subHint.textContent = "3–50 characters: lowercase letters, numbers, hyphens.";
+
+    if (val.length < 3) return;
+
+    subdomainCheckTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/stores/check/${encodeURIComponent(val)}`);
+        const data = await res.json();
+        if (data.available) {
+          subHint.className = "field-hint ok";
+          subHint.textContent = `✓ "${val}" is available!`;
+        } else {
+          subHint.className = "field-hint err";
+          subHint.textContent = data.reason ?? "This subdomain is not available.";
+          subInput.classList.add("error");
+        }
+      } catch {
+        // Network error — ignore, validate on submit
+      }
+    }, 500);
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearMessages();
+
+    const body = {
+      name:       document.getElementById("name").value.trim(),
+      email:      document.getElementById("email").value.trim(),
+      password:   document.getElementById("password").value,
+      store_name: document.getElementById("store_name").value.trim(),
+      subdomain:  subInput.value.trim().toLowerCase(),
+    };
+
+    if (!body.name || !body.email || !body.password || !body.store_name || !body.subdomain) {
+      return showError("Please fill in all fields.");
+    }
+    if (body.password.length < 8) return showError("Password must be at least 8 characters.");
+    if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(body.subdomain)) {
+      return showError("Subdomain must be 3–50 chars: lowercase letters, numbers, hyphens (not at start/end).");
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating your store…";
+
+    try {
+      const res = await fetch(`${API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create my store — free for 30 days";
+        return showError(data.error ?? "Something went wrong. Please try again.");
+      }
+
+      // Save token and redirect to dashboard
+      localStorage.setItem("upcart_platform_token", data.token);
+      localStorage.setItem("upcart_store", JSON.stringify(data.store));
+      localStorage.setItem("upcart_user", JSON.stringify(data.user));
+
+      showSuccess(`Store created! Redirecting to your dashboard…`);
+      setTimeout(() => { window.location.href = "/dashboard.html"; }, 1200);
+
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Create my store — free for 30 days";
+      showError("Network error. Please check your connection and try again.");
+    }
+  });
+</script>
+
+</body>
+</html>
