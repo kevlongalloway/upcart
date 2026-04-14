@@ -6,7 +6,7 @@ import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 
 const TOKEN_TTL = 60 * 60 * 8; // 8 hours
-const STARTING_BALANCE = 10000; // $100.00 in cents
+const STARTING_BALANCE = 0; // Balance starts at 0, grows with sales
 
 const signupSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -44,7 +44,10 @@ export const merchantSignup = new Hono<{ Bindings: Bindings }>();
  * - token: string (JWT)
  * - email: string
  * - business_name: string
- * - balance: number (in cents)
+ * - balance: number (in cents, starts at 0)
+ *
+ * Note: Merchants start with $0 balance. Balance grows as they make sales.
+ * Transaction fees are deducted from sales and added to their balance.
  */
 merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
   const {
@@ -119,7 +122,7 @@ merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
     //   business_name: businessName,
     //   business_category: businessCategory,
     //   payout_info: JSON.stringify(payoutInfo),
-    //   balance: STARTING_BALANCE,
+    //   balance: 0, // Starts at $0, grows with sales
     //   created_at: new Date(),
     // });
 
@@ -130,7 +133,7 @@ merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
         email,
         business_name: businessName,
         balance: STARTING_BALANCE,
-        message: "Account created successfully. You have a $100 starting balance.",
+        message: "Account created successfully. Your store is ready to accept payments.",
       }),
       201
     );

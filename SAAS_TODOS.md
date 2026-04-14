@@ -23,18 +23,18 @@ The merchant signup process is a multi-step onboarding with the following flow:
 
 3. **Account Activation (Step 3)**
    - Upon successful signup, create merchant account
-   - Initialize with **$100 starting balance** (1000 cents) for first transactions
-   - This balance is NOT tied to Stripe — it's managed within Upcart's system
+   - Initialize with **$0 starting balance** — balance grows as they make sales
    - Issue JWT token for immediate login access
    - User redirected to dashboard
 
 ### Key Points About Signup Process
 - **NO Stripe API Key Setup**: Unlike traditional e-commerce platforms, merchants do NOT manage their own Stripe API keys. This is handled at the platform level for security and simplicity.
-- **Starting Balance Model**: Each new merchant receives a $100 starting balance in their Upcart account. This covers initial transaction costs while they set up their products and begin selling.
-- **Bank Connection for Payouts**: Merchants connect their bank account during onboarding to receive payouts of their earnings. Payouts are processed separately from their starting balance.
+- **Zero Starting Balance**: Each new merchant starts with a $0 balance. Their balance grows as they make sales.
+- **Bank Connection for Payouts**: Merchants connect their bank account during onboarding to receive payouts of their earnings.
 - **Automatic Payment Handling**: Upcart processes all payments through its own Stripe account, not the merchant's. This means:
-  - Customers pay Upcart
-  - Upcart deducts transaction fees and payout the merchant's balance
+  - Customers pay Upcart via the main Stripe account
+  - Upcart deducts transaction fees from the payment
+  - Remaining amount is added to the merchant's balance
   - Funds accumulate in the merchant's account until they request a payout
 
 ### Onboarding Pages
@@ -129,7 +129,7 @@ CREATE TABLE merchants (
   password_hash TEXT NOT NULL,
   business_name TEXT NOT NULL,
   business_category TEXT,
-  balance INTEGER DEFAULT 10000, -- in cents ($100)
+  balance INTEGER DEFAULT 0, -- in cents, starts at $0
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -281,7 +281,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 ### For Merchants
 - [ ] Getting started guide
-- [ ] FAQ about starting balance and payouts
+- [ ] FAQ about how balance accrual and transaction fees work
 - [ ] Bank connection guide
 - [ ] Payout schedule documentation
 - [ ] Troubleshooting guide
@@ -307,7 +307,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 5. **Rate Limiting**: Currently no rate limiting on signup endpoint. Add before production.
 
-6. **Starting Balance**: Currently fixed at $100. Consider making configurable or dynamic based on tier.
+6. **Balance Model**: Merchants start at $0. The core revenue model is transaction fee deductions from sales.
 
 7. **Business Category**: Used for basic segmentation. Could be extended for tier-based pricing.
 
