@@ -16,6 +16,7 @@ import { shipping } from "./routes/shipping.js";
 import { orderStatus } from "./routes/orderStatus.js";
 import { discounts } from "./routes/discounts.js";
 import { discountValidate } from "./routes/discountValidate.js";
+import { setup } from "./routes/setup.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -63,6 +64,9 @@ app.route("/orders", orderStatus);
 
 // Public discount validation (customer enters code before checkout)
 app.route("/discounts", discountValidate);
+
+// Self-serve setup/onboarding (public — no auth; 409s after first run)
+app.route("/setup", setup);
 
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 
