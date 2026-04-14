@@ -1,56 +1,38 @@
-# Upcart SaaS Platform — Implementation TODOs
+# Upcart SaaS Platform — Implementation Status & Roadmap
 
 ## Overview
 
-Upcart is a modern e-commerce SaaS platform that allows merchants to create and manage online stores without technical knowledge. The platform handles payments, inventory, orders, and shipping.
+Upcart is a self-service e-commerce SaaS platform (Shopify model). Merchants sign up, create their own online store, list products, and sell directly to customers. Upcart handles all payment processing through its own Stripe account — merchants never touch Stripe keys. Revenue is earned via transaction fees deducted from each sale. Merchants accumulate a balance and can request payouts to their connected bank account.
 
-## Authentication & Onboarding
+**Tech Stack**: Hono.js on Cloudflare Workers, D1 (SQLite), R2 for images, Stripe for payments.
 
-### Signup Flow ✓ (In Progress)
-The merchant signup process is a multi-step onboarding with the following flow:
+---
 
-1. **Account Registration (Step 1)**
-   - Collect merchant information: First name, last name, email, password
-   - Collect business details: Business name, business category
-   - Form validation on client-side and server-side
-   - Check email uniqueness before allowing registration
-   - Password requirements: minimum 8 characters
+## Phase 1: Onboarding & Landing Page — COMPLETE
 
-2. **Payout Setup (Step 2)**
-   - Collect bank account information: Bank name, account holder name, account number, routing number
-   - Securely store payout information (encrypt sensitive data in production)
-   - Do NOT expose full account numbers in responses (only last 4 digits)
+### Landing Page (`onboarding/index.html`)
+- [x] Modern dark-theme landing page with hero, features, pricing, how-it-works, FAQ
+- [x] Responsive design (mobile, tablet, desktop)
+- [x] Embedded signup wizard (no separate page)
 
-3. **Account Activation (Step 3)**
-   - Upon successful signup, create merchant account
-   - Initialize with **$0 starting balance** — balance grows as they make sales
-   - Issue JWT token for immediate login access
-   - User redirected to dashboard
+### Signup Flow (2-step, low friction — Shopify model)
+- [x] **Step 1 — Account**: Email + Password (just 2 fields)
+- [x] **Step 2 — Store Details**: First name, last name, store name (with live URL slug preview), business category dropdown
+- [x] **Step 3 — Success**: Confirmation with store URL, redirect to dashboard
+- [x] Client-side validation with inline error messages
+- [x] Email availability check (`GET /auth/signup/check-email`)
+- [x] Store URL slug auto-generated from business name (e.g., `my-store.upcart.online`)
 
-### Key Points About Signup Process
-- **NO Stripe API Key Setup**: Unlike traditional e-commerce platforms, merchants do NOT manage their own Stripe API keys. This is handled at the platform level for security and simplicity.
-- **Zero Starting Balance**: Each new merchant starts with a $0 balance. Their balance grows as they make sales.
-- **Bank Connection for Payouts**: Merchants connect their bank account during onboarding to receive payouts of their earnings.
-- **Automatic Payment Handling**: Upcart processes all payments through its own Stripe account, not the merchant's. This means:
-  - Customers pay Upcart via the main Stripe account
-  - Upcart deducts transaction fees from the payment
-  - Remaining amount is added to the merchant's balance
-  - Funds accumulate in the merchant's account until they request a payout
-
-### Onboarding Pages
-- **File**: `admin-dashboard/public/onboarding.html`
-- **Design**: Modern dark theme with neon accents (matching landing page design)
-- **Features**:
-  - Three-step progress indicator
-  - Smooth transitions between steps
-  - Client-side validation with error messages
-  - Responsive design (mobile, tablet, desktop)
-  - Integration with `/api/auth/signup` endpoint
+### Key Design Decisions
+- **No payout/bank info during signup** — low friction first, bank details added later in dashboard
+- **No Stripe key setup for merchants** — Upcart processes all payments centrally
+- **$0 starting balance** — balance grows as merchants make sales
+- **Self-service model** — merchants build and manage their own stores
 
 ### Backend Signup Endpoint
 - **File**: `backend/src/routes/merchantSignup.ts`
 - **Route**: `POST /auth/signup`
-- **Request Body**:
+- **Request**:
   ```json
   {
     "firstName": "string",
@@ -58,270 +40,174 @@ The merchant signup process is a multi-step onboarding with the following flow:
     "email": "string (unique)",
     "password": "string (min 8 chars)",
     "businessName": "string",
-    "businessCategory": "string",
-    "businessCategory": "clothing|electronics|physical|digital|services|other",
-    "bankName": "string",
-    "accountHolder": "string",
-    "accountNumber": "string",
-    "routingNumber": "string"
+    "businessCategory": "string"
   }
   ```
-- **Success Response** (201):
-  ```json
-  {
-    "ok": true,
-    "data": {
-      "merchant_id": "merchant_...",
-      "token": "eyJhbGc...",
-      "email": "user@example.com",
-      "business_name": "My Store",
-      "balance": 10000,
-      "message": "Account created successfully. You have a $100 starting balance."
-    }
-  }
-  ```
+- **Response** (201): JWT token, merchant_id, email, business_name, store_slug, balance (0)
+- **Route**: `GET /auth/signup/check-email?email=...` — returns `{ available: true/false }`
 
 ---
 
-## Merchant Dashboard
+## Phase 2: Merchant Authentication — COMPLETE
 
-### Login
-- **File**: `admin-dashboard/public/index.html`
-- **Route**: `/login` (to be created)
-- Merchants login with email and password
-- JWT token returned and stored in sessionStorage
-- Redirect to dashboard on successful login
+### Login Endpoint
+- **File**: `backend/src/routes/merchantLogin.ts`
+- **Route**: `POST /auth/login`
+- [x] Email + password authentication against D1
+- [x] SHA-256 password hashing with timing-safe comparison
+- [x] Account suspension check (`active` flag)
+- [x] JWT token issued (7-day TTL, `type: "merchant"` claim)
+- [x] Returns token + merchant profile (id, email, names, business_name, store_slug, balance)
 
-### Dashboard Features (TODO)
-- [ ] View starting balance and account balance
-- [ ] Track account balance changes (transactions, payouts)
-- [ ] Manage payout settings (update bank account)
-- [ ] View upcoming payouts
-- [ ] Request immediate payout (if balance threshold met)
-- [ ] View transaction history
+### Auth Middleware
+- **File**: `backend/src/middleware/merchantAuth.ts`
+- [x] Verifies JWT with `type: "merchant"` in payload
+- [x] Sets `merchantId` and `merchantEmail` on request context
+- [x] Protects all `/merchant/*` routes
 
----
-
-## Payment Processing
-
-### Transaction Flow
-1. Customer submits payment through store checkout
-2. Stripe processes payment through Upcart's account
-3. Transaction fee deducted from merchant's balance
-4. Remaining amount added to merchant's account balance
-5. Merchant can payout when balance threshold is met
-
-### Balance Management (TODO)
-- [ ] Create balance management endpoints
-- [ ] Implement transaction logging
-- [ ] Setup payout processing (bank transfers)
-- [ ] Handle failed payouts and retries
-- [ ] Create audit trail for all balance changes
-
-### Database Schema (TODO)
-```sql
--- Merchants table
-CREATE TABLE merchants (
-  id TEXT PRIMARY KEY,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  business_name TEXT NOT NULL,
-  business_category TEXT,
-  balance INTEGER DEFAULT 0, -- in cents, starts at $0
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Payout information table
-CREATE TABLE merchant_payouts (
-  id TEXT PRIMARY KEY,
-  merchant_id TEXT NOT NULL REFERENCES merchants(id),
-  bank_name TEXT,
-  account_holder TEXT,
-  account_number_encrypted TEXT, -- store encrypted, display last 4
-  routing_number_encrypted TEXT,
-  verified BOOLEAN DEFAULT FALSE,
-  created_at DATETIME,
-  FOREIGN KEY (merchant_id) REFERENCES merchants(id)
-);
-
--- Balance transactions table
-CREATE TABLE balance_transactions (
-  id TEXT PRIMARY KEY,
-  merchant_id TEXT NOT NULL REFERENCES merchants(id),
-  amount INTEGER, -- in cents (positive = credit, negative = debit)
-  transaction_type TEXT, -- 'sale', 'payout', 'refund', 'fee'
-  reference_id TEXT, -- order_id, payout_id, etc.
-  description TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (merchant_id) REFERENCES merchants(id)
-);
-```
+### Profile Endpoint
+- **File**: `backend/src/routes/merchantProfile.ts`
+- **Route**: `GET /merchant/me`
+- [x] Returns full merchant profile (name, email, business, store slug, balance, active status)
+- [x] Includes default payout account details if connected
 
 ---
 
-## Security Considerations
+## Phase 3: Balance & Payout Management — COMPLETE
 
-### Data Protection
-- [ ] Encrypt bank account details using AES-256 or similar
-- [ ] Hash passwords using bcrypt or Argon2
-- [ ] Never log or expose full account numbers
-- [ ] Implement rate limiting on signup endpoint
-- [ ] Add CAPTCHA to prevent automated signup abuse
+### Database Migration
+- **File**: `backend/migrations/0004_create_merchants.sql`
+- [x] `merchants` table (id, names, email, password_hash, business_name, category, store_slug, balance in cents, active flag)
+- [x] `merchant_payouts` table (bank details — only stores last 4 digits of account/routing numbers)
+- [x] `balance_transactions` table (amount in cents +/-, type: sale/payout/refund/fee/adjustment, status, reference)
+- [x] `payout_requests` table (amount, status: pending/processing/completed/failed, timestamps)
 
-### API Security
-- [ ] Validate all input on server-side (in addition to client-side)
-- [ ] Implement request signing for payout endpoints
-- [ ] Add IP whitelisting for sensitive operations
-- [ ] Implement API key rotation for service accounts
-- [ ] Use HTTPS everywhere (required)
+### Balance Endpoints
+- **File**: `backend/src/routes/merchantBalance.ts`
+- **Route**: `GET /merchant/balance`
+  - [x] Current balance
+  - [x] Pending payout total
+  - [x] Lifetime totals (sales, payouts, refunds, fees)
+- **Route**: `GET /merchant/balance/transactions?type=sale&limit=20&offset=0`
+  - [x] Paginated transaction history
+  - [x] Optional filter by type (sale, payout, refund, fee)
 
-### Compliance
-- [ ] Implement PCI-DSS compliance for payment handling
-- [ ] Add KYC/KYB verification for high-risk merchants
-- [ ] Implement AML checks for suspicious activity
-- [ ] Setup audit logging for all sensitive operations
-- [ ] Create data retention and deletion policies
+### Payout Endpoints
+- **File**: `backend/src/routes/merchantPayouts.ts`
+- **Route**: `PUT /merchant/payouts/settings`
+  - [x] Add or update bank account (bank name, account holder, account number, routing number)
+  - [x] Only stores last 4 digits of account/routing numbers
+  - [x] Upserts default payout account
+- **Route**: `GET /merchant/payouts/settings`
+  - [x] Returns connected payout account (masked details)
+- **Route**: `POST /merchant/payouts`
+  - [x] Request a payout (minimum $10.00 / 1000 cents)
+  - [x] Validates sufficient balance
+  - [x] Validates payout account is connected
+  - [x] Prevents duplicate pending payouts
+  - [x] Debits balance + creates transaction log entry
+- **Route**: `GET /merchant/payouts?limit=20&offset=0`
+  - [x] Lists payout request history (paginated)
+
+### Route Registration
+- **File**: `backend/src/index.ts`
+- [x] All merchant routes registered under `/merchant/*` with auth middleware
+- [x] Auth routes (`/auth/signup`, `/auth/login`) are public (no JWT required)
 
 ---
 
-## Development Roadmap
+## Phase 4: Merchant Dashboard UI (TODO)
+- [ ] Login page (email + password → store JWT → redirect to dashboard)
+- [ ] Dashboard home with balance overview, recent transactions, quick actions
+- [ ] Payout settings page (connect/update bank account)
+- [ ] Request payout flow
+- [ ] Transaction history view with filters
+- [ ] Store settings page (edit business name, category, etc.)
+- [ ] Product management (CRUD for store products)
+- [ ] Order management (view orders, update status)
 
-### Phase 1: Core Onboarding ✓ (Current)
-- [x] Create onboarding HTML with landing page design
-- [x] Create merchant signup endpoint
-- [x] Implement three-step onboarding flow
-- [x] Starting balance initialization ($100)
-- [x] Bank account collection
+## Phase 5: Store & Product Management (TODO)
+- [ ] Product CRUD scoped to merchant (create, edit, delete, list)
+- [ ] Product image upload via R2
+- [ ] Inventory tracking
+- [ ] Category & collection management
+- [ ] Store customization (theme, logo, description)
+- [ ] Public storefront at `{slug}.upcart.online`
 
-### Phase 2: Merchant Authentication (TODO)
-- [ ] Implement merchant login endpoint
-- [ ] Create login page UI
-- [ ] Add password reset functionality
-- [ ] Setup email verification (optional but recommended)
-- [ ] Implement session management
+## Phase 6: Order & Checkout Flow (TODO)
+- [ ] Customer-facing storefront with product browsing
+- [ ] Cart + Stripe checkout integration per merchant store
+- [ ] Webhook handler: on successful payment, credit merchant balance (minus fees)
+- [ ] Order creation + tracking
+- [ ] Email notifications (order confirmation, shipping updates)
 
-### Phase 3: Balance & Payout Management (TODO)
-- [ ] Create balance endpoints (GET merchant balance)
-- [ ] Implement transaction logging
-- [ ] Create payout request endpoint
-- [ ] Integrate with Stripe for bank transfers
-- [ ] Build payout tracking dashboard
+## Phase 7: Platform Admin (TODO)
+- [ ] Admin dashboard for platform-wide management
+- [ ] Merchant account management (view, suspend, reactivate)
+- [ ] Balance adjustments and dispute resolution
+- [ ] Platform-wide analytics (GMV, active merchants, revenue)
+- [ ] Payout approval workflow
 
-### Phase 4: Admin Features (TODO)
-- [ ] Create admin dashboard for platform management
-- [ ] Merchant account management and suspension
-- [ ] Balance adjustment tools
-- [ ] Dispute resolution interface
-- [ ] Analytics and reporting
-
-### Phase 5: Advanced Features (TODO)
+## Phase 8: Advanced Features (TODO)
+- [ ] Password reset flow (email-based)
+- [ ] Email verification on signup
+- [ ] Two-factor authentication
+- [ ] Custom domain support for merchant stores
 - [ ] Multi-currency support
-- [ ] Subscription-based pricing
-- [ ] Affiliate program
-- [ ] Advanced analytics
-- [ ] Custom domain support
+- [ ] Subscription/recurring billing
+- [ ] Discount/coupon system per merchant store
+- [ ] Advanced analytics per merchant
 
 ---
 
-## Testing Checklist
+## Transaction & Revenue Model
 
-### Signup Flow
-- [ ] Test all validation rules
-- [ ] Test duplicate email detection
-- [ ] Test weak password rejection
-- [ ] Test form step navigation
-- [ ] Test error message display
-- [ ] Test mobile responsiveness
-- [ ] Test accessibility (keyboard navigation, screen readers)
+### How Money Flows
+1. Customer pays through merchant's Upcart storefront
+2. Stripe processes payment to Upcart's account
+3. Upcart deducts platform fee (e.g., 2.9% + $0.30 per transaction)
+4. Net amount credited to merchant's balance (`balance_transactions` with type `sale`)
+5. Merchant requests payout when ready (minimum $10)
+6. Payout processed to merchant's connected bank account
 
-### Backend API
-- [ ] Test 201 response on successful signup
-- [ ] Test 409 response on duplicate email
-- [ ] Test 400 response on invalid input
-- [ ] Test JWT token generation and validity
-- [ ] Test starting balance initialization
-- [ ] Load test signup endpoint
-
-### Security
-- [ ] Test SQL injection prevention
-- [ ] Test XSS prevention in forms
-- [ ] Test CSRF protection
-- [ ] Test rate limiting
-- [ ] Test password encryption
+### Balance Rules
+- All amounts stored in **cents** (integer) to avoid floating-point issues
+- Balance starts at **$0** — no free credits
+- Balance can only decrease via payouts or refunds
+- Pending payouts are tracked separately from available balance
+- Minimum payout: **$10.00** (1000 cents)
+- One pending payout at a time per merchant
 
 ---
 
-## Deployment
-
-### Environment Variables Required
+## Environment Variables
 ```
+JWT_SECRET=your_jwt_secret_key
 ADMIN_USERNAME=admin_email@example.com
 ADMIN_PASSWORD=secure_password
-JWT_SECRET=your_jwt_secret_key
 CORS_ORIGINS=https://yourdomain.com,http://localhost:3000
-DB_ADAPTER=d1 # or 'mongodb'
+DB_ADAPTER=d1
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_PUBLISHABLE_KEY=pk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-### Database Migrations
-- [ ] Create merchants table
-- [ ] Create merchant_payouts table
-- [ ] Create balance_transactions table
-- [ ] Create merchants email index
-- [ ] Setup database backups
+---
+
+## Security Notes
+
+- Passwords hashed with SHA-256 (upgrade to bcrypt/Argon2 before production)
+- Bank account numbers are **never stored in full** — only last 4 digits
+- JWT tokens expire after 7 days
+- Merchant and admin tokens are distinguished by `type` claim
+- Timing-safe password comparison to prevent timing attacks
+- All input validated server-side with Zod schemas
+- CORS, CSRF, and secure headers enabled globally
 
 ---
 
-## Documentation
-
-### For Merchants
-- [ ] Getting started guide
-- [ ] FAQ about how balance accrual and transaction fees work
-- [ ] Bank connection guide
-- [ ] Payout schedule documentation
-- [ ] Troubleshooting guide
-
-### For Developers
-- [ ] API documentation for signup endpoint
-- [ ] Database schema documentation
-- [ ] Architecture overview
-- [ ] Deployment guide
-- [ ] Contribution guidelines
-
----
-
-## Known Limitations & Future Improvements
-
-1. **Bank Account Encryption**: Currently, bank details are stored with basic encryption. Consider hardware security modules for production.
-
-2. **Payout Processing**: Bank transfers need to be integrated with Stripe Connect or similar service. Currently placeholder only.
-
-3. **Email Verification**: Consider requiring email verification before account activation for security.
-
-4. **Two-Factor Authentication**: Add optional 2FA for additional security.
-
-5. **Rate Limiting**: Currently no rate limiting on signup endpoint. Add before production.
-
-6. **Balance Model**: Merchants start at $0. The core revenue model is transaction fee deductions from sales.
-
-7. **Business Category**: Used for basic segmentation. Could be extended for tier-based pricing.
-
-8. **Payout Verification**: Bank account details not verified until first payout. Implement micro-deposits for verification.
-
----
-
-## Support & Maintenance
-
-- Set up monitoring for signup endpoint performance
-- Track signup funnel metrics (drop-off rates per step)
-- Monitor authentication failures
-- Setup alerts for suspicious activity (multiple failed logins, etc.)
-- Regular security audits (quarterly minimum)
-- Backup database daily
-- Review logs for errors and edge cases weekly
-
+## Database Migrations
+- `0001` — Products, orders, order items
+- `0002` — Discounts
+- `0003` — Shipping labels
+- `0004` — Merchants, merchant payouts, balance transactions, payout requests

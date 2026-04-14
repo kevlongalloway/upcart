@@ -5,8 +5,11 @@ import { sign } from "hono/jwt";
 import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 
-const TOKEN_TTL = 60 * 60 * 8; // 8 hours
-const STARTING_BALANCE = 0; // Balance starts at 0, grows with sales
+const TOKEN_TTL = 60 * 60 * 24 * 7; // 7 days
+
+function toSlug(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+}
 
 const signupSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -15,139 +18,83 @@ const signupSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   businessName: z.string().min(1, "Business name is required"),
   businessCategory: z.string().min(1, "Business category is required"),
-  bankName: z.string().optional(),
-  accountHolder: z.string().optional(),
-  accountNumber: z.string().optional(),
-  routingNumber: z.string().optional(),
 });
 
 export const merchantSignup = new Hono<{ Bindings: Bindings }>();
 
 /**
  * POST /auth/signup
- * Register a new merchant account
- *
- * Body:
- * - firstName: string
- * - lastName: string
- * - email: string (unique)
- * - password: string (min 8 chars)
- * - businessName: string
- * - businessCategory: string
- * - bankName: string (optional, can be set up later in dashboard)
- * - accountHolder: string (optional)
- * - accountNumber: string (optional)
- * - routingNumber: string (optional)
- *
- * Returns:
- * - merchant_id: string
- * - token: string (JWT)
- * - email: string
- * - business_name: string
- * - balance: number (in cents, starts at 0)
- *
- * Note: Merchants start with $0 balance. Balance grows as they make sales.
- * Transaction fees are deducted from sales and added to their balance.
+ * Register a new merchant account. Writes to D1 merchants table.
  */
 merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
-  const {
-    firstName,
-    lastName,
-    email,
-    password,
-    businessName,
-    businessCategory,
-    bankName,
-    accountHolder,
-    accountNumber,
-    routingNumber,
-  } = c.req.valid("json");
+  const { firstName, lastName, email, password, businessName, businessCategory } =
+    c.req.valid("json");
 
-  const hasPayout = bankName && accountHolder && accountNumber && routingNumber;
+  if (!c.env.JWT_SECRET) {
+    return c.json(err("Server misconfiguration: JWT_SECRET not set"), 500);
+  }
 
   try {
-    // Hash password (in production, use bcrypt or similar)
-    // For now, we'll use a simple SHA-256 hash
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    // Check if email is already taken
+    const existing = await c.env.DB.prepare(
+      "SELECT id FROM merchants WHERE email = ?"
+    ).bind(email.toLowerCase()).first();
 
-    // Check if merchant with this email already exists
-    // This is a placeholder - in real implementation, query your database
-    // const existingMerchant = await db.query(
-    //   "SELECT id FROM merchants WHERE email = ?",
-    //   [email]
-    // );
-    // if (existingMerchant.length > 0) {
-    //   return c.json(err("Email already registered"), 409);
-    // }
-
-    // Create merchant account
-    // In production, use your database to insert the merchant record
-    const merchantId = `merchant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Store payout information securely if provided (can be added later via dashboard)
-    const payoutInfo = hasPayout ? {
-      bankName,
-      accountHolder,
-      accountNumber: `****${accountNumber!.slice(-4)}`,
-      routingNumber: `****${routingNumber!.slice(-4)}`,
-    } : null;
-
-    // Create JWT token
-    if (!c.env.JWT_SECRET) {
-      return c.json(err("Server misconfiguration: JWT_SECRET not set"), 500);
+    if (existing) {
+      return c.json(err("An account with this email already exists"), 409);
     }
 
+    // Hash password with SHA-256 (use bcrypt/argon2 in production)
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(password));
+    const hashHex = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const merchantId = `merchant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storeSlug = toSlug(businessName);
+
+    // Insert merchant into D1
+    await c.env.DB.prepare(
+      `INSERT INTO merchants (id, first_name, last_name, email, password_hash, business_name, business_category, store_slug, balance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+    )
+      .bind(merchantId, firstName, lastName, email.toLowerCase(), hashHex, businessName, businessCategory, storeSlug)
+      .run();
+
+    // Issue JWT
     const now = Math.floor(Date.now() / 1000);
     const token = await sign(
-      {
-        sub: merchantId,
-        email,
-        iat: now,
-        exp: now + TOKEN_TTL,
-        type: "merchant",
-      },
+      { sub: merchantId, email: email.toLowerCase(), iat: now, exp: now + TOKEN_TTL, type: "merchant" },
       c.env.JWT_SECRET,
       "HS256"
     );
-
-    // In production, save all this to your database:
-    // await db.insertMerchant({
-    //   id: merchantId,
-    //   firstName,
-    //   lastName,
-    //   email,
-    //   password_hash: hashHex,
-    //   business_name: businessName,
-    //   business_category: businessCategory,
-    //   payout_info: JSON.stringify(payoutInfo),
-    //   balance: 0, // Starts at $0, grows with sales
-    //   created_at: new Date(),
-    // });
 
     return c.json(
       ok({
         merchant_id: merchantId,
         token,
-        email,
+        email: email.toLowerCase(),
         business_name: businessName,
-        balance: STARTING_BALANCE,
-        message: "Account created successfully. Your store is ready to accept payments.",
+        store_slug: storeSlug,
+        balance: 0,
+        message: "Account created successfully. Your store is ready.",
       }),
       201
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Signup error:", error);
+    // Handle unique constraint violations
+    if (error?.message?.includes("UNIQUE constraint")) {
+      return c.json(err("An account with this email already exists"), 409);
+    }
     return c.json(err("Failed to create account"), 500);
   }
 });
 
 /**
  * GET /auth/check-email
- * Check if an email is already registered
+ * Check if an email is available for registration.
  */
 merchantSignup.get("/check-email", async (c) => {
   const email = c.req.query("email");
@@ -156,14 +103,9 @@ merchantSignup.get("/check-email", async (c) => {
     return c.json(err("Email is required"), 400);
   }
 
-  // In production, query your database
-  // const exists = await db.query("SELECT id FROM merchants WHERE email = ?", [email]);
-  const exists = false;
+  const existing = await c.env.DB.prepare(
+    "SELECT id FROM merchants WHERE email = ?"
+  ).bind(email.toLowerCase()).first();
 
-  return c.json(
-    ok({
-      available: !exists,
-      email,
-    })
-  );
+  return c.json(ok({ available: !existing, email }));
 });
