@@ -5,9 +5,15 @@ import type { Bindings } from "./types.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { csrfMiddleware } from "./middleware/csrf.js";
 import { adminAuthMiddleware } from "./middleware/auth.js";
+import { merchantAuthMiddleware } from "./middleware/merchantAuth.js";
 import { products } from "./routes/products.js";
 import { admin } from "./routes/admin.js";
 import { adminLogin } from "./routes/adminLogin.js";
+import { merchantSignup } from "./routes/merchantSignup.js";
+import { merchantLogin } from "./routes/merchantLogin.js";
+import { merchantProfile } from "./routes/merchantProfile.js";
+import { merchantBalance } from "./routes/merchantBalance.js";
+import { merchantPayouts } from "./routes/merchantPayouts.js";
 import { checkout } from "./routes/checkout.js";
 import { webhooks } from "./routes/webhooks.js";
 import images from "./routes/images.js";
@@ -68,6 +74,26 @@ app.route("/discounts", discountValidate);
 
 // Login is public — no auth required.
 app.route("/admin/login", adminLogin);
+
+// Merchant signup (public — no auth required)
+app.route("/auth/signup", merchantSignup);
+
+// Merchant login (public — no auth required)
+app.route("/auth/login", merchantLogin);
+
+// ─── Merchant Routes (JWT-protected) ─────────────────────────────────────────
+
+// Protect all /merchant/* routes with merchant JWT auth.
+app.use("/merchant/*", merchantAuthMiddleware());
+
+// Merchant profile
+app.route("/merchant/me", merchantProfile);
+
+// Balance & transaction history
+app.route("/merchant/balance", merchantBalance);
+
+// Payout settings & payout requests
+app.route("/merchant/payouts", merchantPayouts);
 
 // Protect all other /admin/* routes with JWT auth.
 // Explicitly exclude /admin/login so the middleware never runs on it.
