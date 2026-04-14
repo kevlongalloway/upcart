@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upcart — Start Your Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void:         #000000;
+      --deep-teal:    #02090A;
+      --dark-forest:  #061A1C;
+      --forest:       #102620;
+      --border-dark:  #1E2C31;
+      --shade-70:     #3F3F46;
+      --shade-60:     #52525B;
+      --shade-50:     #71717A;
+      --muted:        #A1A1AA;
+      --shade-30:     #D4D4D8;
+      --white:        #FFFFFF;
+      --black:        #000000;
+      --neon:         #36F4A4;
+      --aloe:         #C1FBD4;
+      --pistachio:    #D4F9E0;
+
+      --card-shadow:
+      rgba(0,0,0,0.10) 0px 0px 0px 1px,
+      rgba(0,0,0,0.10) 0px 2px 2px,
+      rgba(0,0,0,0.10) 0px 4px 4px,
+      rgba(0,0,0,0.10) 0px 8px 8px,
+      rgba(255,255,255,0.03) 0px 1px 0px inset;
+
+      --card-shadow-lg:
+      rgba(0,0,0,0.20) 0px 0px 0px 1px,
+      rgba(0,0,0,0.15) 0px 4px 8px,
+      rgba(0,0,0,0.15) 0px 8px 16px,
+      rgba(0,0,0,0.10) 0px 16px 32px,
+      rgba(255,255,255,0.04) 0px 1px 0px inset;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      background: var(--void);
+      color: var(--white);
+      font-feature-settings: 'ss03';
+      overflow-x: hidden;
+      font-size: 18px;
+      line-height: 1.56;
+      font-weight: 400;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      padding: 0 64px;
+      background: transparent;
+      transition: background 300ms ease;
+    }
+    nav.scrolled { background: var(--forest); }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    .nav-logo {
+      font-size: 22px;
+      font-weight: 550;
+      color: var(--white);
+      text-decoration: none;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-logo-dot {
+      width: 8px; height: 8px;
+      background: var(--neon);
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.4px;
+      transition: color 200ms ease;
+    }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { display: flex; gap: 12px; align-items: center; }
+
+    .btn-pill-white {
+      background: var(--white);
+      color: var(--black);
+      padding: 11px 26px 11px 20px;
+      border-radius: 9999px;
+      font-size: 16px;
+      font-weight: 500;
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      border: 2px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 200ms ease;
+      white-space: nowrap;
+    }
+    .btn-pill-white:hover { opacity: 0.88; }
+
+    .btn-pill-ghost {
+      background: transparent;
+      color: var(--white);
+      padding: 11px 26px 11px 20px;
+      border-radius: 9999px;
+      font-size: 16px;
+      font-weight: 500;
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      border: 2px solid rgba(255,255,255,0.35);
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 200ms ease, border-color 200ms ease;
+    }
+    .btn-pill-ghost:hover { background: rgba(255,255,255,0.06); border-color: var(--white); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 140px 64px 100px;
+      position: relative;
+      overflow: hidden;
+      background: var(--void);
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 700px;
+      background: radial-gradient(ellipse, rgba(16, 38, 32, 0.9) 0%, rgba(6, 26, 28, 0.5) 45%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-headline {
+      font-size: clamp(52px, 7vw, 96px);
+      font-weight: 400;
+      line-height: 1.0;
+      letter-spacing: -1px;
+      color: var(--white);
+      max-width: 900px;
+      margin: 0 auto 28px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.2s forwards;
+    }
+
+    .hero-sub {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 52px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.3s forwards;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.4s forwards;
+    }
+
+    .btn-pill-white-lg {
+      background: var(--white);
+      color: var(--black);
+      padding: 15px 34px 15px 26px;
+      border-radius: 9999px;
+      font-size: 17px;
+      font-weight: 500;
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      border: 2px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 200ms ease;
+    }
+    .btn-pill-white-lg:hover { opacity: 0.88; }
+
+    /* ── FORM ── */
+    .form-section {
+      padding: 100px 64px;
+      background: var(--void);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .form-glow {
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 600px;
+      background: radial-gradient(ellipse, rgba(16,38,32,0.6) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .form-inner {
+      max-width: 580px;
+      margin: 0 auto;
+      text-align: center;
+      position: relative;
+    }
+
+    .form-heading {
+      font-size: clamp(40px, 5vw, 70px);
+      font-weight: 330;
+      line-height: 1.0;
+      letter-spacing: -1px;
+      color: var(--white);
+      margin-bottom: 18px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.1s forwards;
+    }
+
+    .form-sub {
+      font-size: 18px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 52px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.2s forwards;
+    }
+
+    .onboarding-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.3s forwards;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 7px; }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .form-input, .form-select, .form-textarea {
+      background: var(--dark-forest);
+      color: var(--white);
+      border: 1px solid var(--shade-70);
+      border-radius: 8px;
+      padding: 13px 16px;
+      font-size: 16px;
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      font-weight: 400;
+      transition: border-color 200ms ease;
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--shade-50); }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: 2px solid var(--neon);
+      outline-offset: 0;
+      border-color: transparent;
+    }
+
+    .form-select { color: var(--white); cursor: pointer; }
+    .form-select option { background: var(--dark-forest); }
+
+    .form-submit {
+      background: var(--white);
+      color: var(--black);
+      padding: 15px 34px;
+      border-radius: 9999px;
+      font-size: 16px;
+      font-weight: 500;
+      font-family: 'Inter', Helvetica, Arial, sans-serif;
+      border: 2px solid transparent;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 200ms ease;
+      margin-top: 6px;
+    }
+    .form-submit:hover { opacity: 0.88; }
+
+    .form-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .form-note {
+      font-size: 13px;
+      color: var(--shade-50);
+      text-align: center;
+      margin-top: 14px;
+      line-height: 1.5;
+    }
+
+    .form-error {
+      color: #ff6b6b;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .form-success {
+      color: var(--neon);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .steps-progress {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 40px;
+      justify-content: center;
+    }
+
+    .step-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--shade-70);
+      transition: background 200ms ease;
+    }
+
+    .step-indicator.active {
+      background: var(--neon);
+    }
+
+    .step-indicator.completed {
+      background: var(--neon);
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── RESPONSIVENESS ── */
+    @media (max-width: 768px) {
+      nav { padding: 0 32px; }
+      .hero { padding: 120px 32px 80px; }
+      .form-section { padding: 60px 32px; }
+      .nav-links { gap: 20px; }
+      .form-row { grid-template-columns: 1fr; }
+      .hero-glow { width: 600px; height: 500px; }
+      .form-glow { width: 500px; height: 400px; }
+    }
+
+    @media (max-width: 480px) {
+      nav { padding: 0 16px; }
+      .hero { padding: 100px 16px 60px; }
+      .form-section { padding: 40px 16px; }
+      .nav-links { display: none; }
+      .nav-cta { gap: 8px; }
+      .btn-pill-white, .btn-pill-ghost { padding: 10px 16px; font-size: 14px; }
+      .btn-pill-white-lg, .btn-pill-ghost-lg { padding: 12px 20px; font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="nav-logo-dot"></span>
+        Upcart
+      </a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/#features">Features</a></li>
+        <li><a href="/#pricing">Pricing</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="/login" class="btn-pill-ghost">Sign in</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <h1 class="hero-headline">Start your store,<br><em>instantly</em></h1>
+    <p class="hero-sub">No setup fees. No developers. Just your store, ready to sell on day one.</p>
+  </section>
+
+  <section class="form-section" id="signup">
+    <div class="form-glow" aria-hidden="true"></div>
+    <div class="form-inner">
+      <div class="steps-progress">
+        <div class="step-indicator active" id="step-1-indicator"></div>
+        <div class="step-indicator" id="step-2-indicator"></div>
+        <div class="step-indicator" id="step-3-indicator"></div>
+      </div>
+
+      <div id="step-1" class="form-step">
+        <h2 class="form-heading">Let's get started</h2>
+        <p class="form-sub">Tell us about your business</p>
+
+        <form class="onboarding-form" id="signup-form" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="firstName">First Name</label>
+              <input class="form-input" type="text" id="firstName" name="firstName" placeholder="Jordan" required>
+              <div class="form-error" id="firstName-error"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="lastName">Last Name</label>
+              <input class="form-input" type="text" id="lastName" name="lastName" placeholder="Smith" required>
+              <div class="form-error" id="lastName-error"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input class="form-input" type="email" id="email" name="email" placeholder="you@yourbusiness.com" required>
+            <div class="form-error" id="email-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" type="password" id="password" name="password" placeholder="At least 8 characters" required>
+            <div class="form-error" id="password-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="businessName">Business Name</label>
+            <input class="form-input" type="text" id="businessName" name="businessName" placeholder="Your brand or business name" required>
+            <div class="form-error" id="businessName-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="businessCategory">What do you sell?</label>
+            <select class="form-select" id="businessCategory" name="businessCategory" required>
+              <option value="">Select a category</option>
+              <option value="clothing">Clothing & Apparel</option>
+              <option value="electronics">Electronics</option>
+              <option value="physical">Physical Products</option>
+              <option value="digital">Digital Products</option>
+              <option value="services">Services</option>
+              <option value="other">Other</option>
+            </select>
+            <div class="form-error" id="businessCategory-error"></div>
+          </div>
+
+          <button type="submit" class="form-submit">Continue →</button>
+          <p class="form-note">Already have an account? <a href="/login" style="color: var(--neon); text-decoration: none; font-weight: 500;">Sign in</a></p>
+        </form>
+      </div>
+
+      <div id="step-2" class="form-step" style="display: none;">
+        <h2 class="form-heading">Set up payouts</h2>
+        <p class="form-sub">Connect your bank account to receive funds</p>
+
+        <form class="onboarding-form" id="payout-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="bankName">Bank Name</label>
+            <input class="form-input" type="text" id="bankName" name="bankName" placeholder="Your bank name" required>
+            <div class="form-error" id="bankName-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="accountHolder">Account Holder Name</label>
+            <input class="form-input" type="text" id="accountHolder" name="accountHolder" placeholder="Name on bank account" required>
+            <div class="form-error" id="accountHolder-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="accountNumber">Account Number</label>
+            <input class="form-input" type="text" id="accountNumber" name="accountNumber" placeholder="•••• •••• •••• ••••" required>
+            <div class="form-error" id="accountNumber-error"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="routingNumber">Routing Number (US) / Sort Code (UK)</label>
+            <input class="form-input" type="text" id="routingNumber" name="routingNumber" placeholder="Routing number" required>
+            <div class="form-error" id="routingNumber-error"></div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <button type="button" class="form-submit" style="background: var(--dark-forest); color: var(--white); flex: 1;" onclick="goBack(1)">← Back</button>
+            <button type="submit" class="form-submit" style="flex: 1;">Continue →</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="step-3" class="form-step" style="display: none;">
+        <h2 class="form-heading">Welcome to Upcart!</h2>
+        <p class="form-sub">Your store is ready. Start adding products.</p>
+
+        <div style="text-align: center; padding: 40px 0;">
+          <div style="font-size: 64px; margin-bottom: 20px;">✓</div>
+          <p style="color: var(--muted); margin-bottom: 30px;">Your account is all set. You now have a $100 starting balance to cover your first transactions.</p>
+          <a href="/dashboard" class="btn-pill-white-lg" style="justify-content: center;">Go to Dashboard →</a>
+          <p class="form-note" style="margin-top: 20px;">Need help? <a href="/help" style="color: var(--neon); text-decoration: none; font-weight: 500;">View documentation</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const apiBase = '/api'; // Configure your API base URL
+    let currentStep = 1;
+    let signupData = {};
+
+    function showStep(step) {
+      document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
+      document.getElementById(`step-${step}`).style.display = 'block';
+
+      // Update progress indicators
+      for (let i = 1; i <= 3; i++) {
+        const indicator = document.getElementById(`step-${i}-indicator`);
+        if (i < step) {
+          indicator.classList.add('completed');
+          indicator.classList.remove('active');
+        } else if (i === step) {
+          indicator.classList.add('active');
+          indicator.classList.remove('completed');
+        } else {
+          indicator.classList.remove('active', 'completed');
+        }
+      }
+
+      currentStep = step;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goBack(step) {
+      showStep(step);
+    }
+
+    function clearErrors() {
+      document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    }
+
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+
+      // Basic validation
+      if (!data.firstName.trim()) {
+        document.getElementById('firstName-error').textContent = 'First name is required';
+        return;
+      }
+      if (!data.lastName.trim()) {
+        document.getElementById('lastName-error').textContent = 'Last name is required';
+        return;
+      }
+      if (!data.email.trim()) {
+        document.getElementById('email-error').textContent = 'Email is required';
+        return;
+      }
+      if (data.password.length < 8) {
+        document.getElementById('password-error').textContent = 'Password must be at least 8 characters';
+        return;
+      }
+      if (!data.businessName.trim()) {
+        document.getElementById('businessName-error').textContent = 'Business name is required';
+        return;
+      }
+      if (!data.businessCategory) {
+        document.getElementById('businessCategory-error').textContent = 'Please select a category';
+        return;
+      }
+
+      signupData = data;
+      showStep(2);
+    });
+
+    document.getElementById('payout-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+
+      // Basic validation
+      if (!data.bankName.trim()) {
+        document.getElementById('bankName-error').textContent = 'Bank name is required';
+        return;
+      }
+      if (!data.accountHolder.trim()) {
+        document.getElementById('accountHolder-error').textContent = 'Account holder name is required';
+        return;
+      }
+      if (!data.accountNumber.trim()) {
+        document.getElementById('accountNumber-error').textContent = 'Account number is required';
+        return;
+      }
+      if (!data.routingNumber.trim()) {
+        document.getElementById('routingNumber-error').textContent = 'Routing number is required';
+        return;
+      }
+
+      // Combine all data and submit
+      const fullData = {
+        ...signupData,
+        ...data
+      };
+
+      try {
+        const button = e.target.querySelector('button[type="submit"]');
+        button.disabled = true;
+        button.textContent = 'Creating account...';
+
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fullData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Signup failed');
+        }
+
+        // Success - move to step 3
+        showStep(3);
+      } catch (error) {
+        document.getElementById('bankName-error').textContent = error.message;
+        const button = e.target.querySelector('button[type="submit"]');
+        button.disabled = false;
+        button.textContent = 'Continue →';
+      }
+    });
+
+    // Update nav background on scroll
+    window.addEventListener('scroll', () => {
+      const nav = document.getElementById('nav');
+      if (window.scrollY > 50) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
+  </script>
+</body>
+</html>

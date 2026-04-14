@@ -8,6 +8,7 @@ import { adminAuthMiddleware } from "./middleware/auth.js";
 import { products } from "./routes/products.js";
 import { admin } from "./routes/admin.js";
 import { adminLogin } from "./routes/adminLogin.js";
+import { merchantSignup } from "./routes/merchantSignup.js";
 import { checkout } from "./routes/checkout.js";
 import { webhooks } from "./routes/webhooks.js";
 import images from "./routes/images.js";
@@ -68,6 +69,9 @@ app.route("/discounts", discountValidate);
 
 // Login is public — no auth required.
 app.route("/admin/login", adminLogin);
+
+// Merchant signup (public — no auth required)
+app.route("/auth/signup", merchantSignup);
 
 // Protect all other /admin/* routes with JWT auth.
 // Explicitly exclude /admin/login so the middleware never runs on it.
