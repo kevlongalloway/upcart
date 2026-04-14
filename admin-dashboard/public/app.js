@@ -1860,5 +1860,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // Redirect to the onboarding wizard if the store hasn't been configured yet.
+  try {
+    const res  = await fetch(`${Config.workerUrl}/setup/status`);
+    const body = await res.json();
+    if (!body.data?.configured) {
+      window.location.replace('/onboarding.html');
+      return;
+    }
+  } catch { /* network error — fall through; the login form will surface the issue */ }
+
   Router.init();
 });
