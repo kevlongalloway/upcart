@@ -1134,6 +1134,32 @@ font-family: 'Inter', Helvetica, Arial, sans-serif; border: none;
 cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
 }
 .wizard-success-cta:hover { opacity: 0.88; }
+
+/* ── STORE URL PREVIEW ── */
+.store-url-preview {
+background: var(--deep-teal);
+border: 1px solid var(--border-dark);
+border-radius: 8px;
+padding: 14px 18px;
+margin-bottom: 8px;
+}
+.store-url-label {
+font-size: 11px;
+font-weight: 500;
+letter-spacing: 0.8px;
+text-transform: uppercase;
+color: var(--shade-50);
+margin-bottom: 6px;
+}
+.store-url-value {
+font-size: 15px;
+color: var(--muted);
+font-family: 'Inter', monospace;
+}
+.store-url-slug {
+color: var(--aloe);
+font-weight: 500;
+}
 </style>
 
 </head>
@@ -1408,22 +1434,22 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
 <section class="hiw-section" id="how-it-works">
   <div class="section-inner">
     <div class="overline reveal">Simple Process</div>
-    <h2 class="section-heading reveal">From inquiry to<br>open for business.</h2>
+    <h2 class="section-heading reveal">Live in minutes,<br>not weeks.</h2>
     <div class="hiw-grid">
       <div class="hiw-card reveal">
         <div class="hiw-num">01</div>
-        <div class="hiw-title">Tell us about your store</div>
-        <div class="hiw-body">Fill out a quick form — your business name, what you sell, and how you want it to look. No technical knowledge needed.</div>
+        <div class="hiw-title">Create your account</div>
+        <div class="hiw-body">Sign up with your email and a password. Name your store and pick your category. The whole thing takes under two minutes.</div>
       </div>
       <div class="hiw-card reveal">
         <div class="hiw-num">02</div>
-        <div class="hiw-title">We build it for you</div>
-        <div class="hiw-body">Our team sets up your store, connects your payment processing, and gets everything configured to your specifications.</div>
+        <div class="hiw-title">Set up your store</div>
+        <div class="hiw-body">Add products, configure checkout, and connect your payout account from your private admin dashboard — no code required.</div>
       </div>
       <div class="hiw-card reveal">
         <div class="hiw-num">03</div>
-        <div class="hiw-title">You start selling</div>
-        <div class="hiw-body">You get the keys to your admin dashboard and your store goes live. Add products, create discounts, and watch orders come in.</div>
+        <div class="hiw-title">Start selling</div>
+        <div class="hiw-body">Share your store link and start accepting payments immediately. Track orders, manage inventory, and grow your business.</div>
       </div>
     </div>
   </div>
@@ -1557,7 +1583,7 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
       <div class="ws-line" id="ws-line-1"></div>
       <div class="wizard-step" id="wstep-2">
         <div class="ws-dot">2</div>
-        <div class="ws-label">Payout</div>
+        <div class="ws-label">Store</div>
       </div>
       <div class="ws-line" id="ws-line-2"></div>
       <div class="wizard-step" id="wstep-3">
@@ -1570,20 +1596,8 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
     <div class="wizard-page active" id="wizard-step-1">
       <div class="overline reveal" style="justify-content:center;display:flex;">Step 1 of 2</div>
       <h2 class="form-heading reveal">Create your<br>account.</h2>
-      <p class="form-sub reveal" style="margin-bottom:36px;">Set up your merchant account and tell us about your business.</p>
+      <p class="form-sub reveal" style="margin-bottom:36px;">Enter your email and choose a password to get started. It takes less than a minute.</p>
       <form class="inquiry-form" id="account-form" novalidate autocomplete="on">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="w-fname">First Name</label>
-            <input class="form-input" type="text" id="w-fname" placeholder="Jordan" autocomplete="given-name" required>
-            <div class="input-error-msg" id="err-fname">First name is required.</div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="w-lname">Last Name</label>
-            <input class="form-input" type="text" id="w-lname" placeholder="Smith" autocomplete="family-name" required>
-            <div class="input-error-msg" id="err-lname">Last name is required.</div>
-          </div>
-        </div>
         <div class="form-group">
           <label class="form-label" for="w-email">Email Address</label>
           <input class="form-input" type="email" id="w-email" placeholder="you@yourbusiness.com" autocomplete="email" required>
@@ -1600,10 +1614,38 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
           </div>
           <div class="input-error-msg" id="err-password">Password must be at least 8 characters.</div>
         </div>
+        <div class="wizard-footer">
+          <button type="submit" class="form-submit" style="width:auto;padding:14px 36px;">Continue →</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Step 2: Store Details ── -->
+    <div class="wizard-page" id="wizard-step-2">
+      <div class="overline" style="justify-content:center;display:flex;opacity:0.55;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--shade-50);margin-bottom:14px;">Step 2 of 2</div>
+      <h2 class="form-heading" style="font-size:clamp(32px,4vw,52px);margin-bottom:14px;">Set up your<br>store.</h2>
+      <p class="form-sub" style="margin-bottom:28px;">Tell us about yourself and your business so we can get you started.</p>
+      <form class="inquiry-form" id="store-form" novalidate autocomplete="on">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="w-fname">First Name</label>
+            <input class="form-input" type="text" id="w-fname" placeholder="Jordan" autocomplete="given-name" required>
+            <div class="input-error-msg" id="err-fname">First name is required.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="w-lname">Last Name</label>
+            <input class="form-input" type="text" id="w-lname" placeholder="Smith" autocomplete="family-name" required>
+            <div class="input-error-msg" id="err-lname">Last name is required.</div>
+          </div>
+        </div>
         <div class="form-group">
-          <label class="form-label" for="w-bizname">Business Name</label>
+          <label class="form-label" for="w-bizname">Store Name</label>
           <input class="form-input" type="text" id="w-bizname" placeholder="Your brand or store name" autocomplete="organization" required>
-          <div class="input-error-msg" id="err-bizname">Business name is required.</div>
+          <div class="input-error-msg" id="err-bizname">Store name is required.</div>
+        </div>
+        <div class="store-url-preview">
+          <div class="store-url-label">Your store URL</div>
+          <div class="store-url-value"><span class="store-url-slug" id="url-slug">yourstore</span>.upcart.online</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="w-category">What do you sell?</label>
@@ -1622,42 +1664,6 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
           </select>
           <div class="input-error-msg" id="err-category">Please select a category.</div>
         </div>
-        <div class="wizard-footer">
-          <button type="submit" class="form-submit" style="width:auto;padding:14px 36px;">Continue →</button>
-        </div>
-      </form>
-    </div>
-
-    <!-- ── Step 2: Payout ── -->
-    <div class="wizard-page" id="wizard-step-2">
-      <div class="overline" style="justify-content:center;display:flex;opacity:0.55;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--shade-50);margin-bottom:14px;">Step 2 of 2</div>
-      <h2 class="form-heading" style="font-size:clamp(32px,4vw,52px);margin-bottom:14px;">Set up your<br>payout account.</h2>
-      <p class="form-sub" style="margin-bottom:28px;">Where should we send your earnings? Enter your US bank account details below.</p>
-      <div class="wizard-security-note">
-        <svg class="wizard-security-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <div class="wizard-security-text"><strong>Bank-grade encryption.</strong> Your account details are encrypted in transit. We only store the last four digits of your account and routing numbers.</div>
-      </div>
-      <form class="inquiry-form" id="payout-form" novalidate>
-        <div class="form-group">
-          <label class="form-label" for="w-bankname">Bank Name</label>
-          <input class="form-input" type="text" id="w-bankname" placeholder="e.g. Chase, Wells Fargo, Bank of America" required>
-          <div class="input-error-msg" id="err-bankname">Bank name is required.</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="w-accholder">Account Holder Name</label>
-          <input class="form-input" type="text" id="w-accholder" placeholder="Name as it appears on the account" required>
-          <div class="input-error-msg" id="err-accholder">Account holder name is required.</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="w-accnum">Account Number</label>
-          <input class="form-input" type="text" id="w-accnum" inputmode="numeric" placeholder="Your checking account number" required>
-          <div class="input-error-msg" id="err-accnum">Account number is required.</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="w-routing">Routing Number</label>
-          <input class="form-input" type="text" id="w-routing" inputmode="numeric" maxlength="9" placeholder="9-digit ABA routing number" required>
-          <div class="input-error-msg" id="err-routing">Must be exactly 9 digits.</div>
-        </div>
         <div class="wizard-api-error" id="api-error"></div>
         <div class="wizard-footer">
           <button type="button" class="wizard-back-btn" id="wizard-back">← Back</button>
@@ -1673,7 +1679,7 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon)"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div class="wizard-success-title">You're all set!</div>
-        <p class="wizard-success-sub">Your merchant account is ready. Head to your admin dashboard to add products and go live.</p>
+        <p class="wizard-success-sub">Your store is ready. Head to your dashboard to add products, connect your payout account, and go live.</p>
         <div class="wizard-id-box">
           <div class="wizard-id-label">Merchant ID</div>
           <div class="wizard-id-value" id="success-merchant-id">—</div>
@@ -1736,7 +1742,6 @@ cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-// Update to your deployed Cloudflare Worker URL or custom API domain.
 const API_BASE = 'https://api.upcart.online';
 
 // ── Nav scroll ────────────────────────────────────────────────────────────────
@@ -1790,11 +1795,9 @@ function clearError(inputId, errId) {
 
 // Wire up live error clearing on all wizard inputs
 [
-  ['w-fname','err-fname'], ['w-lname','err-lname'],
   ['w-email','err-email'], ['w-password','err-password'],
+  ['w-fname','err-fname'], ['w-lname','err-lname'],
   ['w-bizname','err-bizname'], ['w-category','err-category'],
-  ['w-bankname','err-bankname'], ['w-accholder','err-accholder'],
-  ['w-accnum','err-accnum'], ['w-routing','err-routing'],
 ].forEach(([inp, err]) => {
   const el = document.getElementById(inp);
   if (el) {
@@ -1812,14 +1815,23 @@ document.getElementById('pw-toggle').addEventListener('click', () => {
   document.getElementById('pw-eye-off').style.display = visible ? '' : 'none';
 });
 
-// ── Step 1 submit ─────────────────────────────────────────────────────────────
+// ── Store URL slug from business name ────────────────────────────────────────
+function toSlug(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'yourstore';
+}
+const bizInput = document.getElementById('w-bizname');
+const slugEl = document.getElementById('url-slug');
+if (bizInput && slugEl) {
+  bizInput.addEventListener('input', () => {
+    slugEl.textContent = toSlug(bizInput.value) || 'yourstore';
+  });
+}
+
+// ── Step 1 submit (email + password) ─────────────────────────────────────────
 document.getElementById('account-form').addEventListener('submit', e => {
   e.preventDefault();
   let ok = true;
   const v = id => document.getElementById(id).value.trim();
-
-  if (!v('w-fname'))  { markError('w-fname', 'err-fname'); ok = false; }
-  if (!v('w-lname'))  { markError('w-lname', 'err-lname'); ok = false; }
 
   const email = v('w-email');
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -1829,30 +1841,17 @@ document.getElementById('account-form').addEventListener('submit', e => {
   const pw = document.getElementById('w-password').value;
   if (pw.length < 8) { markError('w-password', 'err-password'); ok = false; }
 
-  if (!v('w-bizname')) { markError('w-bizname', 'err-bizname'); ok = false; }
-
-  const cat = document.getElementById('w-category').value;
-  if (!cat) { markError('w-category', 'err-category'); ok = false; }
-
   if (!ok) return;
 
-  Object.assign(stepData, {
-    firstName: v('w-fname'),
-    lastName:  v('w-lname'),
-    email,
-    password: pw,
-    businessName: v('w-bizname'),
-    businessCategory: cat,
-  });
-
+  Object.assign(stepData, { email, password: pw });
   showStep(2);
 });
 
 // ── Back button ───────────────────────────────────────────────────────────────
 document.getElementById('wizard-back').addEventListener('click', () => showStep(1));
 
-// ── Step 2 submit → API call ──────────────────────────────────────────────────
-document.getElementById('payout-form').addEventListener('submit', async e => {
+// ── Step 2 submit → API call ─────────────────────────────────────────────────
+document.getElementById('store-form').addEventListener('submit', async e => {
   e.preventDefault();
 
   const apiErr = document.getElementById('api-error');
@@ -1861,20 +1860,18 @@ document.getElementById('payout-form').addEventListener('submit', async e => {
   let ok = true;
   const v = id => document.getElementById(id).value.trim();
 
-  if (!v('w-bankname'))  { markError('w-bankname',  'err-bankname'); ok = false; }
-  if (!v('w-accholder')) { markError('w-accholder', 'err-accholder'); ok = false; }
-  if (!v('w-accnum'))    { markError('w-accnum',    'err-accnum'); ok = false; }
+  if (!v('w-fname'))  { markError('w-fname', 'err-fname'); ok = false; }
+  if (!v('w-lname'))  { markError('w-lname', 'err-lname'); ok = false; }
+  if (!v('w-bizname')) { markError('w-bizname', 'err-bizname'); ok = false; }
 
-  const routing = v('w-routing');
-  if (!routing || routing.length !== 9 || !/^\d{9}$/.test(routing)) {
-    markError('w-routing', 'err-routing', 'Routing number must be exactly 9 digits.'); ok = false;
-  }
+  const cat = document.getElementById('w-category').value;
+  if (!cat) { markError('w-category', 'err-category'); ok = false; }
 
   if (!ok) return;
 
   const btn = document.getElementById('wizard-submit');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Creating account…';
+  btn.innerHTML = '<span class="spinner"></span>Creating your store…';
 
   try {
     const res = await fetch(`${API_BASE}/auth/signup`, {
@@ -1882,20 +1879,20 @@ document.getElementById('payout-form').addEventListener('submit', async e => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...stepData,
-        bankName:      v('w-bankname'),
-        accountHolder: v('w-accholder'),
-        accountNumber: v('w-accnum'),
-        routingNumber: routing,
+        firstName: v('w-fname'),
+        lastName: v('w-lname'),
+        businessName: v('w-bizname'),
+        businessCategory: cat,
       }),
     });
 
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'Failed to create account. Please try again.');
+    if (!json.ok) throw new Error(json.error || 'Something went wrong. Please try again.');
 
     const { merchant_id, token, business_name } = json.data;
-    localStorage.setItem('upcart_token',       token);
+    localStorage.setItem('upcart_token', token);
     localStorage.setItem('upcart_merchant_id', merchant_id);
-    localStorage.setItem('upcart_business',    business_name);
+    localStorage.setItem('upcart_business', business_name);
 
     document.getElementById('success-merchant-id').textContent = merchant_id;
     showStep(3);

@@ -15,10 +15,10 @@ const signupSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   businessName: z.string().min(1, "Business name is required"),
   businessCategory: z.string().min(1, "Business category is required"),
-  bankName: z.string().min(1, "Bank name is required"),
-  accountHolder: z.string().min(1, "Account holder name is required"),
-  accountNumber: z.string().min(1, "Account number is required"),
-  routingNumber: z.string().min(1, "Routing number is required"),
+  bankName: z.string().optional(),
+  accountHolder: z.string().optional(),
+  accountNumber: z.string().optional(),
+  routingNumber: z.string().optional(),
 });
 
 export const merchantSignup = new Hono<{ Bindings: Bindings }>();
@@ -34,10 +34,10 @@ export const merchantSignup = new Hono<{ Bindings: Bindings }>();
  * - password: string (min 8 chars)
  * - businessName: string
  * - businessCategory: string
- * - bankName: string
- * - accountHolder: string
- * - accountNumber: string
- * - routingNumber: string
+ * - bankName: string (optional, can be set up later in dashboard)
+ * - accountHolder: string (optional)
+ * - accountNumber: string (optional)
+ * - routingNumber: string (optional)
  *
  * Returns:
  * - merchant_id: string
@@ -63,6 +63,8 @@ merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
     routingNumber,
   } = c.req.valid("json");
 
+  const hasPayout = bankName && accountHolder && accountNumber && routingNumber;
+
   try {
     // Hash password (in production, use bcrypt or similar)
     // For now, we'll use a simple SHA-256 hash
@@ -86,13 +88,13 @@ merchantSignup.post("/", zValidator("json", signupSchema), async (c) => {
     // In production, use your database to insert the merchant record
     const merchantId = `merchant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Store payout information securely (in production, encrypt sensitive data)
-    const payoutInfo = {
+    // Store payout information securely if provided (can be added later via dashboard)
+    const payoutInfo = hasPayout ? {
       bankName,
       accountHolder,
-      accountNumber: `****${accountNumber.slice(-4)}`, // Never store full account number
-      routingNumber: `****${routingNumber.slice(-4)}`,
-    };
+      accountNumber: `****${accountNumber!.slice(-4)}`,
+      routingNumber: `****${routingNumber!.slice(-4)}`,
+    } : null;
 
     // Create JWT token
     if (!c.env.JWT_SECRET) {
