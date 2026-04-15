@@ -119,6 +119,19 @@ const Api = {
   generateShippingLabel(id, data) {
     return this._fetch(`/admin/orders/${id}/shipping-label`, { method: 'POST', body: JSON.stringify(data) });
   },
+
+  // Discounts
+  getDiscounts(params = {}) {
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const qs = new URLSearchParams(clean).toString();
+    return this._fetch(`/admin/discounts${qs ? `?${qs}` : ''}`);
+  },
+  getDiscount(id)       { return this._fetch(`/admin/discounts/${id}`); },
+  createDiscount(data)  { return this._fetch('/admin/discounts', { method: 'POST', body: JSON.stringify(data) }); },
+  updateDiscount(id, d) { return this._fetch(`/admin/discounts/${id}`, { method: 'PUT', body: JSON.stringify(d) }); },
+  deleteDiscount(id)    { return this._fetch(`/admin/discounts/${id}`, { method: 'DELETE' }); },
 };
 
 // ── Toast ───────────────────────────────────────────────────────
@@ -249,9 +262,10 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
 
 // ── Shared navbar ───────────────────────────────────────────────
 function renderNavbar() {
-  const hash       = location.hash.replace(/^#/, '');
-  const onOrders   = hash.startsWith('/orders');
-  const onProducts = !onOrders;
+  const hash          = location.hash.replace(/^#/, '');
+  const onOrders      = hash.startsWith('/orders');
+  const onDiscounts   = hash.startsWith('/discounts');
+  const onProducts    = !onOrders && !onDiscounts;
   return `
     <nav class="navbar border-bottom">
       <div class="container-fluid d-flex align-items-center justify-content-between" style="height:56px">
@@ -269,6 +283,11 @@ function renderNavbar() {
             <li class="nav-item">
               <a class="nav-link py-1 px-2 ${onOrders ? 'active' : ''}" href="#/orders">
                 <i class="bi bi-receipt"></i><span class="nav-label ms-1">Orders</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link py-1 px-2 ${onDiscounts ? 'active' : ''}" href="#/discounts">
+                <i class="bi bi-tag"></i><span class="nav-label ms-1">Discounts</span>
               </a>
             </li>
           </ul>
@@ -1766,6 +1785,552 @@ const OrderDetailView = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// Discount Helpers
+// ═══════════════════════════════════════════════════════════════
+
+function discountValueDisplay(type, value, currency = 'usd') {
+  if (type === 'percentage')   return `${value}% off`;
+  if (type === 'free_shipping') return 'Free shipping';
+  return `${formatPrice(value, currency)} off`;
+}
+
+function discountTypeBadge(type) {
+  const map = {
+    percentage:   'text-bg-info',
+    fixed_amount: 'text-bg-primary',
+    free_shipping:'text-bg-success',
+  };
+  const label = { percentage: 'Percentage', fixed_amount: 'Fixed Amount', free_shipping: 'Free Shipping' };
+  return `<span class="badge ${map[type] ?? 'text-bg-secondary'}">${label[type] ?? type}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// View: Discounts List
+// ═══════════════════════════════════════════════════════════════
+const DiscountsListView = {
+  _filter: '',
+
+  render() {
+    return `
+      ${renderNavbar()}
+      <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
+          <div>
+            <h1 class="fw-black mb-0" style="font-size:1.4rem;letter-spacing:-0.01em">Discounts</h1>
+            <p class="mb-0 mt-1" style="font-size:0.75rem;color:var(--text-muted)">Promo codes, sales, and automatic promotions</p>
+          </div>
+          <a href="#/discounts/new" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Discount
+          </a>
+        </div>
+
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="btn-group btn-group-sm" id="discount-filter-group">
+              <input type="radio" class="btn-check" name="disc-filter" id="df-all"      value=""      checked>
+              <label class="btn btn-outline-secondary" for="df-all">All</label>
+              <input type="radio" class="btn-check" name="disc-filter" id="df-active"   value="true">
+              <label class="btn btn-outline-secondary" for="df-active">Active</label>
+              <input type="radio" class="btn-check" name="disc-filter" id="df-inactive" value="false">
+              <label class="btn btn-outline-secondary" for="df-inactive">Inactive</label>
+            </div>
+            <span class="text-secondary small" id="discount-count"></span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-3">Code / Name</th>
+                  <th>Type</th>
+                  <th>Value</th>
+                  <th>Usage</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th class="pe-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="discounts-tbody">
+                <tr>
+                  <td colspan="7" class="text-center py-5">
+                    <div class="spinner-border text-success" role="status"></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    document.getElementById('discount-filter-group').addEventListener('change', e => {
+      this._filter = e.target.value;
+      this._load();
+    });
+
+    document.getElementById('discounts-tbody').addEventListener('click', async e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id, name, active } = btn.dataset;
+
+      if (action === 'edit') { Router.go(`/discounts/${id}/edit`); return; }
+
+      if (action === 'toggle') {
+        const nowActive = active === 'true';
+        btn.disabled = true;
+        try {
+          await Api.updateDiscount(id, { active: !nowActive });
+          Toast.success(`Discount ${!nowActive ? 'activated' : 'deactivated'}`);
+          this._load();
+        } catch (err) {
+          Toast.error(err.message);
+          btn.disabled = false;
+        }
+        return;
+      }
+
+      if (action === 'delete') {
+        const ok = await confirmModal(
+          'Delete discount',
+          `<p class="mb-0">Permanently delete <strong>${escHtml(name)}</strong>?</p>`,
+          'Delete', 'btn-danger'
+        );
+        if (!ok) return;
+        try {
+          await Api.deleteDiscount(id);
+          Toast.success('Discount deleted');
+          this._load();
+        } catch (err) {
+          Toast.error(err.message);
+        }
+      }
+    });
+
+    await this._load();
+  },
+
+  async _load() {
+    const tbody = document.getElementById('discounts-tbody');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center py-5">
+          <div class="spinner-border text-success" role="status"></div>
+        </td>
+      </tr>`;
+
+    try {
+      const params = this._filter ? { active: this._filter } : {};
+      const discounts = await Api.getDiscounts(params);
+      const countEl  = document.getElementById('discount-count');
+      countEl.textContent = `${discounts.length} discount${discounts.length !== 1 ? 's' : ''}`;
+
+      if (discounts.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center py-5 text-secondary">
+              <i class="bi bi-tag fs-2 d-block mb-2 opacity-50"></i>
+              No discounts found
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = discounts.map(d => `
+        <tr>
+          <td class="ps-3">
+            <div class="fw-semibold">${d.code ? escHtml(d.code) : '<span class="text-secondary fst-italic">Automatic</span>'}</div>
+            <div class="text-secondary small">${escHtml(d.name)}</div>
+          </td>
+          <td>${discountTypeBadge(d.type)}</td>
+          <td class="fw-semibold">${discountValueDisplay(d.type, d.value)}</td>
+          <td class="text-secondary small">
+            ${d.usage_limit !== null
+              ? `${d.usage_count} / ${d.usage_limit}`
+              : `${d.usage_count} <span class="opacity-50">/ ∞</span>`}
+          </td>
+          <td class="text-secondary small">${d.ends_at ? formatDate(d.ends_at) : '—'}</td>
+          <td>${activeBadge(d.active)}</td>
+          <td class="pe-3">
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-outline-secondary" title="Edit"
+                      data-action="edit" data-id="${escHtml(d.id)}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm ${d.active ? 'btn-outline-warning' : 'btn-outline-success'}"
+                      title="${d.active ? 'Deactivate' : 'Activate'}"
+                      data-action="toggle" data-id="${escHtml(d.id)}" data-active="${d.active}">
+                <i class="bi bi-${d.active ? 'eye-slash' : 'eye'}"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" title="Delete"
+                      data-action="delete" data-id="${escHtml(d.id)}" data-name="${escHtml(d.name)}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>`).join('');
+    } catch (err) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center py-4 text-danger">
+            <i class="bi bi-exclamation-circle me-2"></i>${escHtml(err.message)}
+          </td>
+        </tr>`;
+    }
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// View: Discount Form (create + edit)
+// ═══════════════════════════════════════════════════════════════
+const DiscountFormView = {
+  _id:    null,
+  _isNew: false,
+
+  render(id) {
+    this._id    = id ?? null;
+    this._isNew = !id;
+    return `
+      ${renderNavbar()}
+      <div class="container py-4" style="max-width:640px">
+
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <a href="#/discounts" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </a>
+          <h1 class="fw-black mb-0" id="form-title" style="font-size:1.3rem;letter-spacing:-0.01em">
+            ${this._isNew ? 'New Discount' : '<span style="color:var(--text-muted)">Loading…</span>'}
+          </h1>
+        </div>
+
+        <div id="form-loader" class="page-loader ${!this._isNew ? '' : 'd-none'}">
+          <div class="spinner-border text-success"></div>
+        </div>
+
+        <form id="discount-form" novalidate class="${this._isNew ? '' : 'd-none'}">
+
+          <!-- Core details -->
+          <div class="card mb-3">
+            <div class="card-header small fw-semibold text-uppercase text-secondary">Discount Details</div>
+            <div class="card-body">
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="name" maxlength="255" required
+                       placeholder="e.g., Summer Sale 20%">
+                <div class="invalid-feedback" data-field="name"></div>
+                <div class="form-text">Internal name shown in the admin dashboard.</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Promo Code <span class="text-secondary fw-normal">(leave blank for automatic)</span></label>
+                <input type="text" class="form-control text-uppercase font-monospace" name="code"
+                       maxlength="50" placeholder="e.g., SUMMER20" autocomplete="off"
+                       style="text-transform:uppercase">
+                <div class="form-text">Leave blank to create an automatic discount (no code needed at checkout). Codes are case-insensitive.</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Description <span class="text-secondary fw-normal">(optional)</span></label>
+                <textarea class="form-control" name="description" rows="2" maxlength="1000"
+                          placeholder="Shown to the customer if applicable"></textarea>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Discount type & value -->
+          <div class="card mb-3">
+            <div class="card-header small fw-semibold text-uppercase text-secondary">Discount Type &amp; Value</div>
+            <div class="card-body">
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Type <span class="text-danger">*</span></label>
+                <select class="form-select" name="type" id="discount-type">
+                  <option value="percentage">Percentage off (%)</option>
+                  <option value="fixed_amount">Fixed amount off ($)</option>
+                  <option value="free_shipping">Free shipping</option>
+                </select>
+              </div>
+
+              <div id="value-row" class="mb-3">
+                <label class="form-label small fw-semibold" id="value-label">Percentage <span class="text-danger">*</span></label>
+                <div class="input-group" style="max-width:200px">
+                  <input type="number" class="form-control" name="value" id="value-input"
+                         min="1" max="100" step="1" placeholder="e.g., 20" required>
+                  <span class="input-group-text" id="value-suffix">%</span>
+                </div>
+                <div class="form-text" id="value-hint">Enter a whole number from 1 to 100.</div>
+                <div class="invalid-feedback d-block d-none" data-field="value"></div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Conditions -->
+          <div class="card mb-3">
+            <div class="card-header small fw-semibold text-uppercase text-secondary">Conditions</div>
+            <div class="card-body">
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Minimum Order Amount</label>
+                <div class="input-group" style="max-width:200px">
+                  <span class="input-group-text">$</span>
+                  <input type="number" class="form-control" name="minimum_order_amount"
+                         min="0" step="0.01" placeholder="0.00" value="0">
+                </div>
+                <div class="form-text">Leave at 0 for no minimum.</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Usage Limit <span class="text-secondary fw-normal">(optional)</span></label>
+                <div class="d-flex align-items-center gap-3">
+                  <input type="number" class="form-control" name="usage_limit" id="usage-limit-input"
+                         min="1" step="1" placeholder="e.g., 100" style="max-width:140px" disabled>
+                  <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="unlimited-uses" checked>
+                    <label class="form-check-label small text-secondary" for="unlimited-uses">Unlimited</label>
+                  </div>
+                </div>
+                <div class="form-text">Total number of times this discount can be used across all customers.</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Schedule -->
+          <div class="card mb-3">
+            <div class="card-header small fw-semibold text-uppercase text-secondary">Schedule <span class="fw-normal">(optional)</span></div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  <label class="form-label small fw-semibold">Start Date</label>
+                  <input type="datetime-local" class="form-control" name="starts_at">
+                  <div class="form-text">Leave blank to start immediately.</div>
+                </div>
+                <div class="col-sm-6">
+                  <label class="form-label small fw-semibold">End Date</label>
+                  <input type="datetime-local" class="form-control" name="ends_at">
+                  <div class="form-text">Leave blank for no expiry.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="card mb-4">
+            <div class="card-body">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="discount-active" name="active" checked>
+                <label class="form-check-label fw-semibold" for="discount-active">Active</label>
+              </div>
+              <div class="form-text">Inactive discounts cannot be used or applied.</div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="#/discounts" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 fw-semibold" id="save-btn">
+              <i class="bi bi-check-lg me-1"></i>${this._isNew ? 'Create Discount' : 'Save Changes'}
+            </button>
+          </div>
+
+        </form>
+      </div>`;
+  },
+
+  async init(id) {
+    this._id    = id ?? null;
+    this._isNew = !id;
+
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    // Type → value field label/suffix/hint update
+    const typeSelect  = document.getElementById('discount-type');
+    const valueRow    = document.getElementById('value-row');
+    const valueInput  = document.getElementById('value-input');
+    const valueLabel  = document.getElementById('value-label');
+    const valueSuffix = document.getElementById('value-suffix');
+    const valueHint   = document.getElementById('value-hint');
+
+    const updateTypeUI = () => {
+      const type = typeSelect.value;
+      if (type === 'free_shipping') {
+        valueRow.classList.add('d-none');
+        valueInput.required = false;
+      } else {
+        valueRow.classList.remove('d-none');
+        valueInput.required = true;
+        if (type === 'percentage') {
+          valueLabel.innerHTML  = 'Percentage <span class="text-danger">*</span>';
+          valueSuffix.textContent = '%';
+          valueHint.textContent   = 'Enter a whole number from 1 to 100.';
+          valueInput.min = '1'; valueInput.max = '100'; valueInput.step = '1';
+        } else {
+          valueLabel.innerHTML  = 'Amount Off <span class="text-danger">*</span>';
+          valueSuffix.textContent = 'USD';
+          valueHint.textContent   = 'Enter the amount to deduct from the order total.';
+          valueInput.min = '0.01'; valueInput.max = ''; valueInput.step = '0.01';
+        }
+      }
+    };
+    typeSelect.addEventListener('change', updateTypeUI);
+    updateTypeUI();
+
+    // Usage limit toggle
+    const unlimitedCheck  = document.getElementById('unlimited-uses');
+    const usageLimitInput = document.getElementById('usage-limit-input');
+    unlimitedCheck.addEventListener('change', () => {
+      usageLimitInput.disabled = unlimitedCheck.checked;
+      if (!unlimitedCheck.checked) usageLimitInput.focus();
+    });
+
+    // Uppercase code input
+    document.querySelector('[name=code]').addEventListener('input', e => {
+      const pos = e.target.selectionStart;
+      e.target.value = e.target.value.toUpperCase();
+      e.target.setSelectionRange(pos, pos);
+    });
+
+    if (!this._isNew) {
+      try {
+        const d = await Api.getDiscount(id);
+        this._fillForm(d);
+        document.getElementById('form-loader').classList.add('d-none');
+        document.getElementById('discount-form').classList.remove('d-none');
+        document.getElementById('form-title').textContent = d.name;
+      } catch (err) {
+        document.getElementById('form-loader').innerHTML =
+          `<div class="alert alert-danger">Failed to load discount: ${escHtml(err.message)}</div>`;
+        return;
+      }
+    }
+
+    document.getElementById('discount-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      await this._submit();
+    });
+  },
+
+  _fillForm(d) {
+    const form = document.getElementById('discount-form');
+    form.querySelector('[name=name]').value        = d.name ?? '';
+    form.querySelector('[name=code]').value        = d.code ?? '';
+    form.querySelector('[name=description]').value = d.description ?? '';
+    form.querySelector('[name=type]').value        = d.type ?? 'percentage';
+
+    // Trigger type UI update
+    document.getElementById('discount-type').dispatchEvent(new Event('change'));
+
+    const valInput = document.getElementById('value-input');
+    if (d.type === 'percentage')  valInput.value = d.value;
+    else if (d.type === 'fixed_amount') valInput.value = (d.value / 100).toFixed(2);
+
+    const minInput = form.querySelector('[name=minimum_order_amount]');
+    minInput.value = d.minimum_order_amount > 0 ? (d.minimum_order_amount / 100).toFixed(2) : '0';
+
+    const unlimitedCheck  = document.getElementById('unlimited-uses');
+    const usageLimitInput = document.getElementById('usage-limit-input');
+    if (d.usage_limit !== null) {
+      unlimitedCheck.checked    = false;
+      usageLimitInput.disabled  = false;
+      usageLimitInput.value     = d.usage_limit;
+    } else {
+      unlimitedCheck.checked   = true;
+      usageLimitInput.disabled = true;
+    }
+
+    const toLocalDatetime = iso => {
+      if (!iso) return '';
+      return new Date(iso).toISOString().slice(0, 16);
+    };
+    form.querySelector('[name=starts_at]').value = toLocalDatetime(d.starts_at);
+    form.querySelector('[name=ends_at]').value   = toLocalDatetime(d.ends_at);
+
+    document.getElementById('discount-active').checked = d.active !== false;
+
+    const btn = document.getElementById('save-btn');
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Changes';
+  },
+
+  async _submit() {
+    const form    = document.getElementById('discount-form');
+    const saveBtn = document.getElementById('save-btn');
+
+    const name        = form.querySelector('[name=name]').value.trim();
+    const code        = form.querySelector('[name=code]').value.trim().toUpperCase() || null;
+    const description = form.querySelector('[name=description]').value.trim();
+    const type        = form.querySelector('[name=type]').value;
+    const active      = document.getElementById('discount-active').checked;
+
+    if (!name) {
+      const el = form.querySelector('[data-field=name]');
+      if (el) { el.textContent = 'Name is required'; el.classList.remove('d-none'); }
+      return;
+    }
+
+    // Parse value
+    let value = 0;
+    if (type !== 'free_shipping') {
+      const raw = parseFloat(document.getElementById('value-input').value);
+      if (isNaN(raw) || raw <= 0) {
+        const el = form.querySelector('[data-field=value]');
+        if (el) { el.textContent = 'Enter a valid value greater than 0'; el.classList.remove('d-none'); }
+        return;
+      }
+      value = type === 'percentage' ? Math.round(raw) : Math.round(raw * 100);
+    }
+
+    // Parse minimum order amount
+    const minRaw = parseFloat(form.querySelector('[name=minimum_order_amount]').value);
+    const minimum_order_amount = isNaN(minRaw) || minRaw <= 0 ? 0 : Math.round(minRaw * 100);
+
+    // Parse usage limit
+    const unlimitedCheck = document.getElementById('unlimited-uses');
+    let usage_limit = null;
+    if (!unlimitedCheck.checked) {
+      const limitVal = parseInt(document.getElementById('usage-limit-input').value, 10);
+      if (!isNaN(limitVal) && limitVal > 0) usage_limit = limitVal;
+    }
+
+    // Parse dates
+    const toISO = s => {
+      const v = form.querySelector(`[name=${s}]`).value;
+      if (!v) return null;
+      try { return new Date(v).toISOString(); } catch { return null; }
+    };
+    const starts_at = toISO('starts_at');
+    const ends_at   = toISO('ends_at');
+
+    const payload = {
+      name, description, type, value, active,
+      minimum_order_amount, usage_limit, starts_at, ends_at,
+      ...(this._isNew ? { code } : {}),
+    };
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+
+    try {
+      if (this._isNew) {
+        await Api.createDiscount(payload);
+        Toast.success('Discount created');
+        Router.go('/discounts');
+      } else {
+        await Api.updateDiscount(this._id, payload);
+        Toast.success('Changes saved');
+      }
+    } catch (err) {
+      Toast.error(err.message);
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${this._isNew ? 'Create Discount' : 'Save Changes'}`;
+    }
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════
 const Router = {
@@ -1825,6 +2390,25 @@ const Router = {
     if (orderMatch) {
       app.innerHTML = OrderDetailView.render(orderMatch[1]);
       OrderDetailView.init(orderMatch[1]);
+      return;
+    }
+
+    if (hash === '/discounts') {
+      app.innerHTML = DiscountsListView.render();
+      DiscountsListView.init();
+      return;
+    }
+
+    if (hash === '/discounts/new') {
+      app.innerHTML = DiscountFormView.render(null);
+      DiscountFormView.init(null);
+      return;
+    }
+
+    const discountEditMatch = hash.match(/^\/discounts\/([^/]+)\/edit$/);
+    if (discountEditMatch) {
+      app.innerHTML = DiscountFormView.render(discountEditMatch[1]);
+      DiscountFormView.init(discountEditMatch[1]);
       return;
     }
 

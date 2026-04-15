@@ -269,6 +269,80 @@
       margin-top: 16px;
     }
 
+    /* Discount code */
+    .discount-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(26,26,26,0.1);
+    }
+    .discount-label {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin-bottom: 10px;
+    }
+    .discount-row {
+      display: flex;
+      gap: 8px;
+    }
+    .discount-input {
+      flex: 1;
+      background: none;
+      border: 1px solid rgba(26,26,26,0.25);
+      color: #1a1a1a;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      padding: 10px 14px;
+      text-transform: uppercase;
+    }
+    .discount-input:focus { outline: none; border-color: #1a1a1a; }
+    .discount-input::placeholder { text-transform: none; opacity: 0.5; }
+    .discount-apply {
+      background: none;
+      border: 1px solid rgba(26,26,26,0.25);
+      color: #1a1a1a;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 10px 18px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .discount-apply:hover { border-color: #1a1a1a; }
+    .discount-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+    .discount-msg {
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      margin-top: 8px;
+      display: none;
+    }
+    .discount-msg.success { color: #16a34a; display: block; }
+    .discount-msg.error   { color: #dc2626; display: block; }
+    .discount-applied-row {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #16a34a;
+      margin-top: 8px;
+    }
+    .discount-applied-row.show { display: flex; }
+    .discount-remove {
+      background: none;
+      border: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: #1a1a1a;
+      opacity: 0.4;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+    .discount-remove:hover { opacity: 0.8; }
+
     /* Error */
     .checkout-error {
       font-size: 9px;
@@ -344,12 +418,16 @@
   <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
+    // ─── DISCOUNT STATE ───────────────────────────────────────────────────────
+    let _discount = null; // { code, discount_amount, name, type, is_free_shipping }
+
     // ─── RENDER CART ──────────────────────────────────────────────────────────
     function renderCart() {
       const cart = getCart();
       const body = document.getElementById('cart-body');
 
       if (cart.length === 0) {
+        _discount = null;
         body.innerHTML = `
           <div class="empty-state">
             <p>Your cart is empty</p>
@@ -360,6 +438,8 @@
 
       const currency = cart[0].currency || 'usd';
       const subtotal = getCartTotal();
+      const discountAmt = _discount ? _discount.discount_amount : 0;
+      const total       = Math.max(0, subtotal - discountAmt);
 
       body.innerHTML = `
         <div class="cart-items">
@@ -386,18 +466,51 @@
             </div>`).join('')}
         </div>
 
+        <!-- Discount code input -->
+        <div class="discount-section">
+          <p class="discount-label">Promo Code</p>
+          <div class="discount-row">
+            <input class="discount-input" id="discount-input" type="text"
+                   placeholder="Enter code" maxlength="50"
+                   value="${_discount ? _discount.code : ''}"
+                   ${_discount ? 'disabled' : ''}>
+            <button class="discount-apply" id="discount-apply"
+                    ${_discount ? 'disabled' : ''}>
+              ${_discount ? 'Applied' : 'Apply'}
+            </button>
+          </div>
+          <p class="discount-msg${_discount ? ' success' : ''}" id="discount-msg">
+            ${_discount ? `${_discount.name} — ${_discount.is_free_shipping ? 'Free shipping' : formatPrice(_discount.discount_amount, currency) + ' off'}` : ''}
+          </p>
+          ${_discount ? `
+          <div class="discount-applied-row show" id="discount-applied-row">
+            <span></span>
+            <button class="discount-remove" id="discount-remove">Remove</button>
+          </div>` : `<div class="discount-applied-row" id="discount-applied-row"></div>`}
+        </div>
+
         <div class="cart-summary">
           <div class="summary-row">
             <span>Subtotal</span>
             <span>${formatPrice(subtotal, currency)}</span>
           </div>
+          ${discountAmt > 0 ? `
+          <div class="summary-row" style="color:#16a34a">
+            <span>${_discount.name}${_discount.code ? ` (${_discount.code})` : ''}</span>
+            <span>−${formatPrice(discountAmt, currency)}</span>
+          </div>` : ''}
+          ${_discount && _discount.is_free_shipping ? `
+          <div class="summary-row" style="color:#16a34a">
+            <span>Shipping</span>
+            <span>Free</span>
+          </div>` : `
           <div class="summary-row">
             <span>Shipping</span>
             <span>Calculated at checkout</span>
-          </div>
+          </div>`}
           <div class="summary-total">
             <span class="summary-total-label">Total</span>
-            <span>${formatPrice(subtotal, currency)}</span>
+            <span>${formatPrice(total, currency)}</span>
           </div>
         </div>
 
@@ -425,8 +538,75 @@
         });
       });
       body.querySelectorAll('.cart-item-remove').forEach(btn => {
-        btn.addEventListener('click', () => removeFromCart(btn.dataset.id));
+        btn.addEventListener('click', () => {
+          _discount = null; // reset discount when cart changes
+          removeFromCart(btn.dataset.id);
+        });
       });
+
+      // Discount code listeners
+      const discountInput  = document.getElementById('discount-input');
+      const discountApply  = document.getElementById('discount-apply');
+      const discountMsg    = document.getElementById('discount-msg');
+      const discountRemove = document.getElementById('discount-remove');
+
+      if (discountInput) {
+        discountInput.addEventListener('input', () => {
+          discountInput.value = discountInput.value.toUpperCase();
+        });
+      }
+
+      if (discountApply) {
+        discountApply.addEventListener('click', async () => {
+          const code = (discountInput?.value ?? '').trim();
+          if (!code) return;
+
+          discountApply.disabled  = true;
+          discountApply.textContent = '…';
+          discountMsg.className   = 'discount-msg';
+          discountMsg.textContent = '';
+
+          const cart  = getCart();
+          const items = cart.map(i => ({ productId: i.productId, price: i.price, quantity: i.quantity }));
+
+          try {
+            const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/discounts/validate', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ code, items }),
+            });
+            const body = await res.json();
+            if (!body.ok) throw new Error(body.error || 'Validation failed');
+
+            if (!body.data.valid) {
+              discountMsg.className   = 'discount-msg error';
+              discountMsg.textContent = body.data.error || 'Invalid discount code';
+              discountApply.disabled  = false;
+              discountApply.textContent = 'Apply';
+            } else {
+              _discount = {
+                code:             body.data.discount.code,
+                name:             body.data.discount.name,
+                discount_amount:  body.data.discount_amount,
+                is_free_shipping: body.data.is_free_shipping || body.data.discount?.type === 'free_shipping',
+              };
+              renderCart(); // re-render with discount applied
+            }
+          } catch (err) {
+            discountMsg.className   = 'discount-msg error';
+            discountMsg.textContent = err.message;
+            discountApply.disabled  = false;
+            discountApply.textContent = 'Apply';
+          }
+        });
+      }
+
+      if (discountRemove) {
+        discountRemove.addEventListener('click', () => {
+          _discount = null;
+          renderCart();
+        });
+      }
 
       // Checkout button
       document.getElementById('btn-checkout').addEventListener('click', hostedCheckout);
@@ -549,8 +729,9 @@
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             items,
-            successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
-            cancelUrl:  window.location.href,
+            successUrl:   window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
+            cancelUrl:    window.location.href,
+            ...(_discount?.code ? { discountCode: _discount.code } : {}),
           }),
         });
         const body = await res.json();
