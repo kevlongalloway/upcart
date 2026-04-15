@@ -125,6 +125,11 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
 
   const { store, admin, stripe_publishable_key } = c.req.valid("json");
 
+  // ── Resolve tenant ID ─────────────────────────────────────────────────────
+  // Set by the provisioning service via TENANT_ID env var. Falls back to a
+  // generated value for manual (non-provisioned) deployments.
+  const tenantId = c.env.TENANT_ID || crypto.randomUUID();
+
   // ── Ensure tables exist (idempotent bootstrap) ────────────────────────────
   // This lets the setup endpoint work even before migrations are applied,
   // removing the need for a separate `wrangler d1 migrations apply` step on
@@ -134,6 +139,7 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
       CREATE TABLE IF NOT EXISTS store_settings (
         key        TEXT PRIMARY KEY,
         value      TEXT NOT NULL,
+        tenant_id  TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
       CREATE TABLE IF NOT EXISTS admin_accounts (
@@ -141,6 +147,7 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
         username      TEXT UNIQUE NOT NULL,
         email         TEXT,
         password_hash TEXT NOT NULL,
+        tenant_id     TEXT NOT NULL DEFAULT '',
         created_at    TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -165,14 +172,15 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
   // ── Persist all settings atomically ──────────────────────────────────────
   try {
     await db.batch([
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('store_name',              ?, datetime('now'))").bind(store.name),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('store_description',      ?, datetime('now'))").bind(store.description ?? ""),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('currency',               ?, datetime('now'))").bind(store.currency),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('country',                ?, datetime('now'))").bind(store.country),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('stripe_publishable_key', ?, datetime('now'))").bind(stripe_publishable_key ?? ""),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('db_jwt_secret',          ?, datetime('now'))").bind(jwtSecret),
-      db.prepare("INSERT INTO admin_accounts (id, username, email, password_hash) VALUES (?, ?, ?, ?)").bind(adminId, admin.username, admin.email ?? null, passwordHash),
-      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, updated_at) VALUES ('setup_complete', 'true', datetime('now'))"),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('store_name',              ?, ?, datetime('now'))").bind(store.name, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('store_description',      ?, ?, datetime('now'))").bind(store.description ?? "", tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('currency',               ?, ?, datetime('now'))").bind(store.currency, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('country',                ?, ?, datetime('now'))").bind(store.country, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('stripe_publishable_key', ?, ?, datetime('now'))").bind(stripe_publishable_key ?? "", tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('db_jwt_secret',          ?, ?, datetime('now'))").bind(jwtSecret, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('tenant_id',              ?, ?, datetime('now'))").bind(tenantId, tenantId),
+      db.prepare("INSERT INTO admin_accounts (id, username, email, password_hash, tenant_id) VALUES (?, ?, ?, ?, ?)").bind(adminId, admin.username, admin.email ?? null, passwordHash, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('setup_complete', 'true', ?, datetime('now'))").bind(tenantId),
     ]);
   } catch (e) {
     console.error("Setup batch failed:", e);

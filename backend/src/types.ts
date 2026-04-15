@@ -26,6 +26,11 @@ export type Bindings = {
   DEFAULT_CURRENCY: string;
   R2_PUBLIC_URL: string;
 
+  // Tenant identifier — set by the provisioning service at deploy time.
+  // Used to scope all DB queries so the same Worker code works in both
+  // the per-Worker (one D1 per tenant) and future shared-DB models.
+  TENANT_ID: string;
+
   // Store / from-address used when generating shipping labels
   STORE_NAME: string;
   STORE_ADDRESS_LINE1: string;
@@ -44,6 +49,7 @@ export type Bindings = {
 
 export type Product = {
   id: string;
+  tenant_id: string;
   name: string;
   description: string;
   /** Price in smallest currency unit (e.g. cents). 1000 = $10.00 */
@@ -83,6 +89,7 @@ export type FulfillmentStatus = "unfulfilled" | "processing" | "shipped" | "deli
 
 export type OrderItem = {
   id: string;
+  tenant_id: string;
   order_id: string;
   product_id: string;
   product_name: string;
@@ -94,6 +101,7 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
+  tenant_id: string;
   stripe_session_id: string | null;
   stripe_payment_intent_id: string | null;
   status: OrderStatus;
@@ -195,6 +203,7 @@ export type DiscountAppliesTo = "all" | "products";
 
 export type Discount = {
   id: string;
+  tenant_id: string;
   /** Null = automatic discount (sale/promo). String = customer must enter this code. */
   code: string | null;
   /** Internal label shown only in the admin portal. */

@@ -1,0 +1,316 @@
+import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
+import type { Bindings } from "../types.js";
+import { ok, err } from "../types.js";
+import { TenantDB } from "../db.js";
+import { CloudflareAPI } from "../cloudflare-api.js";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SUBDOMAIN_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$|^[a-z]{2,40}$/;
+const PBKDF2_ITERATIONS = 100_000;
+
+// Reserved subdomains that can't be registered
+const RESERVED_SUBDOMAINS = new Set([
+  "www", "api", "app", "admin", "mail", "smtp", "demo",
+  "provision", "static", "cdn", "media", "assets", "status",
+  "support", "help", "docs", "blog", "shop",
+]);
+
+// Store worker migrations — applied to each newly created D1 database.
+// Keep in sync with backend/migrations/*.sql
+const STORE_MIGRATIONS = `
+CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+  price INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd',
+  images TEXT NOT NULL DEFAULT '[]', metadata TEXT NOT NULL DEFAULT '{}',
+  stock INTEGER NOT NULL DEFAULT -1, active INTEGER NOT NULL DEFAULT 1,
+  stripe_product_id TEXT, stripe_price_id TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '',
+  stripe_session_id TEXT UNIQUE, stripe_payment_intent_id TEXT UNIQUE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  fulfillment_status TEXT NOT NULL DEFAULT 'unfulfilled',
+  customer_email TEXT, customer_name TEXT,
+  shipping_name TEXT, shipping_address_line1 TEXT, shipping_address_line2 TEXT,
+  shipping_city TEXT, shipping_state TEXT, shipping_postal_code TEXT,
+  shipping_country TEXT, shipping_phone TEXT,
+  shipping_carrier TEXT, shipping_service TEXT,
+  tracking_number TEXT, label_url TEXT,
+  amount_total INTEGER NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'usd',
+  discount_id TEXT, discount_code TEXT, discount_amount INTEGER NOT NULL DEFAULT 0,
+  metadata TEXT NOT NULL DEFAULT '{}', notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS order_items (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '',
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL, product_name TEXT NOT NULL,
+  price INTEGER NOT NULL, quantity INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd'
+);
+CREATE TABLE IF NOT EXISTS discounts (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '',
+  code TEXT UNIQUE, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+  type TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0,
+  applies_to TEXT NOT NULL DEFAULT 'all', product_ids TEXT NOT NULL DEFAULT '[]',
+  minimum_order_amount INTEGER NOT NULL DEFAULT 0,
+  usage_limit INTEGER, usage_count INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  starts_at TEXT, ends_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS store_settings (
+  key TEXT PRIMARY KEY, value TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS admin_accounts (
+  id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+  email TEXT, password_hash TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS tenants (
+  id TEXT PRIMARY KEY, subdomain TEXT UNIQUE NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'starter', status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`;
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
+
+const provisionSchema = z.object({
+  store: z.object({
+    name:        z.string().min(1).max(100),
+    subdomain:   z.string().regex(SUBDOMAIN_RE, "Invalid subdomain format"),
+    description: z.string().max(500).optional().default(""),
+    currency:    z.string().length(3),
+    country:     z.string().length(2),
+  }),
+  admin: z.object({
+    email:    z.string().email(),
+    username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_]+$/),
+    password: z.string().min(8),
+  }),
+  stripe_publishable_key: z.string().optional().default(""),
+});
+
+// ─── Password hashing ─────────────────────────────────────────────────────────
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt    = crypto.getRandomValues(new Uint8Array(16));
+  const keyMat  = await crypto.subtle.importKey(
+    "raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    keyMat, 256
+  );
+  const toHex = (buf: Uint8Array) =>
+    Array.from(buf).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${toHex(salt)}:${toHex(new Uint8Array(bits))}`;
+}
+
+// ─── JWT secret generator ─────────────────────────────────────────────────────
+
+function generateSecret(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
+export const provisionRouter = new Hono<{ Bindings: Bindings }>();
+
+/**
+ * GET /provision/check-subdomain?name=<subdomain>
+ * Returns whether a subdomain is available to register.
+ */
+provisionRouter.get("/check-subdomain", async (c) => {
+  const name = (c.req.query("name") ?? "").toLowerCase().trim();
+
+  if (!name || !SUBDOMAIN_RE.test(name) || RESERVED_SUBDOMAINS.has(name)) {
+    return c.json(ok({ available: false, reason: "invalid" }));
+  }
+
+  const tenantDB  = new TenantDB(c.env.DB);
+  const available = await tenantDB.isSubdomainAvailable(name);
+  return c.json(ok({ available, reason: available ? null : "taken" }));
+});
+
+/**
+ * POST /provision
+ * Creates a new store for a sign-up. Provisions Cloudflare resources
+ * asynchronously (via ctx.waitUntil) and returns the tenant_id immediately
+ * so the client can poll for status.
+ */
+provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
+  const { store, admin, stripe_publishable_key } = c.req.valid("json");
+  const subdomain = store.subdomain.toLowerCase();
+
+  // ── Validation ────────────────────────────────────────────────────────────
+  if (RESERVED_SUBDOMAINS.has(subdomain)) {
+    return c.json(err("That subdomain is reserved. Please choose another."), 400);
+  }
+
+  const tenantDB = new TenantDB(c.env.DB);
+
+  const available = await tenantDB.isSubdomainAvailable(subdomain);
+  if (!available) {
+    return c.json(err("That subdomain is already taken. Please choose another."), 409);
+  }
+
+  // ── Create tenant record ──────────────────────────────────────────────────
+  const passwordHash = await hashPassword(admin.password);
+
+  const tenant = await tenantDB.createTenant({
+    subdomain,
+    store_name: store.name,
+    email:      admin.email,
+    password_hash: passwordHash,
+  });
+
+  // ── Kick off async provisioning ───────────────────────────────────────────
+  // Return the tenant_id immediately; the client polls /provision/:id/status.
+  c.executionCtx.waitUntil(
+    runProvisioning(c.env, tenant.id, { store, admin, stripe_publishable_key }, tenantDB)
+      .catch(async (e) => {
+        console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
+        await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
+      })
+  );
+
+  return c.json(
+    ok({ tenant_id: tenant.id, status: "provisioning" }),
+    202
+  );
+});
+
+// ─── Provisioning orchestrator ────────────────────────────────────────────────
+
+async function runProvisioning(
+  env: Bindings,
+  tenantId: string,
+  input: {
+    store: z.infer<typeof provisionSchema>["store"];
+    admin: z.infer<typeof provisionSchema>["admin"];
+    stripe_publishable_key: string;
+  },
+  tenantDB: TenantDB
+): Promise<void> {
+  const cf         = new CloudflareAPI(env.CF_ACCOUNT_ID, env.CF_API_TOKEN);
+  const subdomain  = input.store.subdomain.toLowerCase();
+  const workerName = `${env.WORKER_SCRIPT_PREFIX}-${tenantId}`;
+  const baseDomain = env.BASE_DOMAIN;
+  const hostname   = `${subdomain}.${baseDomain}`;
+
+  // ── Step 1: Create D1 database ────────────────────────────────────────────
+  await tenantDB.updateStatus(tenantId, "creating_database");
+
+  const d1 = await cf.createD1Database(`upcart-${tenantId}`);
+  await tenantDB.updateResources(tenantId, { cf_d1_id: d1.uuid });
+
+  // Apply all store schema migrations to the new database
+  await cf.runD1Migrations(d1.uuid, STORE_MIGRATIONS);
+
+  // ── Step 2: Create R2 bucket ──────────────────────────────────────────────
+  await tenantDB.updateStatus(tenantId, "creating_storage");
+
+  const r2BucketName = `upcart-${tenantId}-images`;
+  await cf.createR2Bucket(r2BucketName);
+  await tenantDB.updateResources(tenantId, { cf_r2_bucket: r2BucketName });
+
+  // ── Step 3: Deploy Worker ─────────────────────────────────────────────────
+  await tenantDB.updateStatus(tenantId, "deploying_worker");
+
+  // Fetch the compiled worker bundle from the WORKER_BUNDLES R2 bucket.
+  const bundleObj = await env.WORKER_BUNDLES.get(env.WORKER_BUNDLE_KEY);
+  if (!bundleObj) {
+    throw new Error(
+      `Worker bundle not found in R2: ${env.WORKER_BUNDLE_KEY}. ` +
+      `Upload the compiled backend bundle first.`
+    );
+  }
+  const bundle = await bundleObj.arrayBuffer();
+
+  const jwtSecret = generateSecret();
+
+  // Public (plain-text) environment variables
+  const vars: Record<string, string> = {
+    DB_ADAPTER:            "d1",
+    CORS_ORIGINS:          `https://${hostname}`,
+    CORS_METHODS:          "GET,POST,PUT,DELETE,OPTIONS",
+    CSRF_ENABLED:          "false",
+    STRIPE_PUBLISHABLE_KEY: input.stripe_publishable_key,
+    DEFAULT_CURRENCY:      input.store.currency,
+    R2_PUBLIC_URL:         `https://pub-${r2BucketName}.r2.dev`,
+    TENANT_ID:             tenantId,
+    STORE_NAME:            input.store.name,
+    STORE_COUNTRY:         input.store.country,
+    SHIPPING_COUNTRIES:    "US,CA,GB,AU,NZ",
+    STORE_ADDRESS_LINE1:   "",
+    STORE_ADDRESS_LINE2:   "",
+    STORE_CITY:            "",
+    STORE_STATE:           "",
+    STORE_POSTAL_CODE:     "",
+    STORE_PHONE:           "",
+  };
+
+  await cf.deployWorker(workerName, bundle, d1.uuid, r2BucketName, vars);
+  await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
+
+  // Set secrets (these are never in plain-text vars)
+  await cf.setWorkerSecret(workerName, "JWT_SECRET", jwtSecret);
+
+  // ── Step 4: Configure custom domain ──────────────────────────────────────
+  await tenantDB.updateStatus(tenantId, "configuring_domain");
+
+  const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
+  await tenantDB.updateResources(tenantId, { cf_route_id: route.id });
+
+  // ── Step 5: Run store setup via the worker's /setup endpoint ─────────────
+  await tenantDB.updateStatus(tenantId, "finalizing");
+
+  const storeUrl = `https://${hostname}`;
+  const adminUrl = `https://${hostname}/admin`;
+
+  // Give the Worker a moment to become reachable after domain config
+  await new Promise(r => setTimeout(r, 4000));
+
+  const setupRes = await fetch(`${storeUrl}/setup`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      store: {
+        name:        input.store.name,
+        description: input.store.description ?? "",
+        currency:    input.store.currency,
+        country:     input.store.country,
+      },
+      admin: {
+        username: input.admin.username,
+        email:    input.admin.email,
+        password: input.admin.password,
+      },
+      stripe_publishable_key: input.stripe_publishable_key,
+    }),
+  });
+
+  if (!setupRes.ok) {
+    const body = await setupRes.text();
+    throw new Error(`Store setup call failed (${setupRes.status}): ${body}`);
+  }
+
+  // ── Done ──────────────────────────────────────────────────────────────────
+  await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
+  await tenantDB.updateStatus(tenantId, "active");
+
+  console.log(`Tenant ${tenantId} (${subdomain}) provisioned successfully.`);
+}
