@@ -269,20 +269,88 @@ async function runProvisioning(
   // Set secrets (these are never in plain-text vars)
   await cf.setWorkerSecret(workerName, "JWT_SECRET", jwtSecret);
 
-  // ── Step 4: Configure custom domain ──────────────────────────────────────
+  // ── Step 4: Provision subdomain DNS + Worker binding ─────────────────────
+  //
+  // We use a two-phase approach so the subdomain is fully reachable:
+  //
+  //   Phase A — DNS record
+  //     Create a proxied AAAA record for <subdomain>.upcart.online → 100::
+  //     (100:: is an unroutable IPv6 address; Cloudflare intercepts all
+  //     traffic at the proxy before it ever reaches the address.)
+  //     This makes the hostname resolvable and TLS-terminated by Cloudflare
+  //     before any Worker binding exists.
+  //
+  //   Phase B — Worker binding (Custom Domain preferred, Route as fallback)
+  //     Custom Domains: one API call; CF manages DNS+SSL automatically.
+  //       We still create the DNS record explicitly in Phase A so we have
+  //       the record ID for clean deprovisioning.
+  //     Route fallback: used when Custom Domains returns an error.
+  //       Requires the DNS record (Phase A) to already exist.
+  //
   await tenantDB.updateStatus(tenantId, "configuring_domain");
 
-  const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
-  await tenantDB.updateResources(tenantId, { cf_route_id: route.id });
+  // ── Phase A: DNS record ───────────────────────────────────────────────────
+  // Check for an existing record first — a previous failed provisioning
+  // attempt may have left one behind.
+  let dnsRecordId: string;
+
+  const existingRecords = await cf.listDnsRecords(env.CF_ZONE_ID, hostname);
+  const existingRecord  = existingRecords.find(
+    r => r.name === hostname && r.proxied
+  );
+
+  if (existingRecord) {
+    // Re-use the existing proxied record rather than creating a duplicate.
+    dnsRecordId = existingRecord.id;
+    console.log(`Re-using existing DNS record ${dnsRecordId} for ${hostname}`);
+  } else {
+    const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
+    dnsRecordId     = dnsRecord.id;
+    console.log(`Created DNS record ${dnsRecordId}: ${hostname} AAAA 100:: (proxied)`);
+  }
+
+  await tenantDB.updateResources(tenantId, { cf_dns_record_id: dnsRecordId });
+
+  // ── Phase B: Bind Worker to the subdomain ─────────────────────────────────
+  // Try the Custom Domains API first.  Fall back to a Worker Route if the
+  // account/plan doesn't support Custom Domains or if the API returns an error.
+  let usedCustomDomain = false;
+
+  try {
+    const customDomain = await cf.addWorkerCustomDomain(
+      workerName,
+      hostname,
+      env.CF_ZONE_ID
+    );
+    await tenantDB.updateResources(tenantId, { cf_custom_domain_id: customDomain.id });
+    usedCustomDomain = true;
+    console.log(
+      `Bound ${hostname} to worker "${workerName}" via Custom Domains (id: ${customDomain.id})`
+    );
+  } catch (customDomainErr) {
+    // Custom Domains failed — log and fall back to Worker Routes.
+    console.warn(
+      `Custom Domains failed for ${hostname}, falling back to Worker Route:`,
+      (customDomainErr as Error).message
+    );
+
+    const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
+    await tenantDB.updateResources(tenantId, { cf_route_id: route.id });
+    console.log(
+      `Bound ${hostname} to worker "${workerName}" via Worker Route (id: ${route.id})`
+    );
+  }
+
+  // Give Cloudflare a moment to propagate the DNS record and binding globally
+  // before we try to reach the new worker's /setup endpoint.
+  const propagationDelay = usedCustomDomain ? 5000 : 3000;
+  await new Promise(r => setTimeout(r, propagationDelay));
 
   // ── Step 5: Run store setup via the worker's /setup endpoint ─────────────
   await tenantDB.updateStatus(tenantId, "finalizing");
 
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://${hostname}/admin`;
-
-  // Give the Worker a moment to become reachable after domain config
-  await new Promise(r => setTimeout(r, 4000));
 
   const setupRes = await fetch(`${storeUrl}/setup`, {
     method:  "POST",

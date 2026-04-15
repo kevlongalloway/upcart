@@ -25,10 +25,16 @@ CREATE TABLE IF NOT EXISTS tenants (
   status          TEXT NOT NULL DEFAULT 'provisioning',
 
   -- Cloudflare resource IDs (populated as provisioning progresses)
-  cf_worker_name  TEXT,   -- e.g. "upcart-store-<tenant_id>"
-  cf_d1_id        TEXT,   -- D1 database UUID
-  cf_r2_bucket    TEXT,   -- R2 bucket name
-  cf_route_id     TEXT,   -- Cloudflare zone route ID for subdomain
+  cf_worker_name       TEXT,   -- e.g. "upcart-store-<tenant_id>"
+  cf_d1_id             TEXT,   -- D1 database UUID
+  cf_r2_bucket         TEXT,   -- R2 bucket name
+
+  -- Domain binding — one of the two binding columns will be set.
+  -- Custom Domains (preferred): CF manages DNS automatically.
+  -- Worker Route (fallback): requires an explicit DNS record.
+  cf_dns_record_id     TEXT,   -- Cloudflare DNS record ID (AAAA proxied placeholder)
+  cf_custom_domain_id  TEXT,   -- Workers Custom Domain binding ID
+  cf_route_id          TEXT,   -- Workers Route ID (fallback only)
 
   -- Live URLs (set once provisioning completes)
   store_url       TEXT,   -- https://<subdomain>.upcart.online

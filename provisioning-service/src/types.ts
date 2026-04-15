@@ -11,16 +11,22 @@ export type Bindings = {
 
   // ── Cloudflare API credentials (set via `wrangler secret put`) ──
   CF_ACCOUNT_ID: string;
-  CF_API_TOKEN: string;   // needs Workers:Edit, D1:Edit, R2:Edit, Zone:Edit scopes
+  // API token scopes required:
+  //   Workers Scripts:Edit   — deploy/delete Worker scripts
+  //   D1:Edit                — create D1 databases, run queries
+  //   R2 Storage:Edit        — create R2 buckets
+  //   Zone DNS:Edit          — create/delete DNS records in the zone
+  //   Workers Routes:Edit    — add/delete Worker routes on the zone
+  CF_API_TOKEN: string;
 
-  // Zone ID for upcart.online — needed to add custom subdomain routes
+  // Zone ID for upcart.online — used for DNS record and route management
   CF_ZONE_ID: string;
 
   // ── Config vars (set in wrangler.toml [vars]) ──
-  BASE_DOMAIN: string;              // "upcart.online"
-  WORKER_SCRIPT_PREFIX: string;     // "upcart-store"   → worker name = upcart-store-<tenantId>
-  WORKER_BUNDLE_KEY: string;        // R2 object key of the compiled bundle, e.g. "store-worker.js"
-  CORS_ORIGINS: string;             // comma-separated allowed origins, or "*"
+  BASE_DOMAIN: string;           // "upcart.online"
+  WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
+  WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
+  CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────
@@ -47,13 +53,26 @@ export type Tenant = {
   email: string;
   password_hash: string;
   status: TenantStatus;
+
+  // Cloudflare resource IDs — tracked for updates and cleanup
   cf_worker_name: string | null;
   cf_d1_id: string | null;
   cf_r2_bucket: string | null;
-  cf_route_id: string | null;
+
+  // Domain provisioning IDs
+  // One of the two will be set depending on whether Custom Domains or
+  // DNS + Route was used (Custom Domains is preferred; Route is fallback).
+  cf_dns_record_id: string | null;     // Cloudflare DNS record ID
+  cf_custom_domain_id: string | null;  // Workers Custom Domain binding ID
+  cf_route_id: string | null;          // Workers Route ID (fallback only)
+
+  // Live URLs (set once provisioning completes)
   store_url: string | null;
   admin_url: string | null;
+
+  // Non-null only when status === "failed"
   error_message: string | null;
+
   created_at: string;
   updated_at: string;
 };
@@ -108,6 +127,36 @@ export type CfWorkerRoute = {
   id: string;
   pattern: string;
   script: string;
+};
+
+/**
+ * DNS record returned by the Cloudflare Zone DNS API.
+ * Reference: https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-create-dns-record
+ */
+export type CfDnsRecord = {
+  id: string;
+  zone_id: string;
+  zone_name: string;
+  name: string;       // e.g. "mystore.upcart.online"
+  type: string;       // "A" | "AAAA" | "CNAME" | …
+  content: string;    // e.g. "100::" for a proxied placeholder
+  proxied: boolean;
+  ttl: number;
+  created_on: string;
+  modified_on: string;
+};
+
+/**
+ * Custom Domain binding returned by the Workers Custom Domains API.
+ * Reference: https://developers.cloudflare.com/api/operations/worker-domain-list
+ */
+export type CfCustomDomain = {
+  id: string;         // binding UUID — store this to remove the binding later
+  zone_id: string;
+  zone_name: string;
+  hostname: string;   // e.g. "mystore.upcart.online"
+  service: string;    // Worker script name
+  environment: string;
 };
 
 // ─── API response helpers ─────────────────────────────────────────────────────

@@ -41,13 +41,19 @@ CORS_ORIGINS = "https://upcart.online,https://www.upcart.online"
 # The following secrets must be set before deploying:
 #
 #   wrangler secret put CF_ACCOUNT_ID    (your Cloudflare account ID)
-#   wrangler secret put CF_API_TOKEN     (API token with Workers/D1/R2/Zone Edit)
+#   wrangler secret put CF_API_TOKEN     (see required scopes below)
 #   wrangler secret put CF_ZONE_ID       (zone ID for upcart.online)
 #
-# Find your account ID and zone ID in the Cloudflare dashboard.
-# Create the API token at: https://dash.cloudflare.com/profile/api-tokens
-# Required permissions:
-#   - Workers Scripts: Edit
-#   - D1: Edit
-#   - R2 Storage: Edit
-#   - Zone: Workers Routes: Edit
+# Find your account ID: Cloudflare dashboard → right sidebar
+# Find your zone ID:    Cloudflare dashboard → upcart.online → right sidebar
+# Create the API token: https://dash.cloudflare.com/profile/api-tokens
+#
+# Required API token permissions:
+#   Account scope:
+#     - Workers Scripts: Edit   (deploy/delete Worker scripts)
+#     - D1: Edit                (create databases, run migrations)
+#     - R2 Storage: Edit        (create image buckets)
+#     - Workers Custom Domains: Edit  (bind workers to subdomains)
+#   Zone scope (upcart.online):
+#     - DNS: Edit               (create/delete AAAA subdomain records)
+#     - Workers Routes: Edit    (fallback route creation)

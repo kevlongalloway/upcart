@@ -4,11 +4,14 @@ import type {
   CfR2Bucket,
   CfWorkerScript,
   CfWorkerRoute,
+  CfDnsRecord,
+  CfCustomDomain,
 } from "./types.js";
 
 // ─── Cloudflare API client ────────────────────────────────────────────────────
 // Thin wrapper around the Cloudflare REST API.
-// Auth: Bearer token with Workers:Edit, D1:Edit, R2:Edit, Zone:Edit scopes.
+// Required API token scopes:
+//   Workers Scripts:Edit, D1:Edit, R2:Edit, Zone DNS:Edit, Workers Routes:Edit
 
 const CF_BASE = "https://api.cloudflare.com/client/v4";
 
@@ -21,8 +24,7 @@ export class CloudflareAPI {
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown,
-    contentType = "application/json"
+    body?: unknown
   ): Promise<CfApiResult<T>> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiToken}`,
@@ -31,10 +33,10 @@ export class CloudflareAPI {
     let bodyInit: BodyInit | undefined;
 
     if (body instanceof FormData) {
-      // Let fetch set the Content-Type with boundary automatically
+      // Let fetch set the multipart Content-Type + boundary automatically.
       bodyInit = body;
     } else if (body !== undefined) {
-      headers["Content-Type"] = contentType;
+      headers["Content-Type"] = "application/json";
       bodyInit = JSON.stringify(body);
     }
 
@@ -48,15 +50,75 @@ export class CloudflareAPI {
 
     if (!res.ok || !json.success) {
       const msg = json.errors?.[0]?.message ?? `HTTP ${res.status}`;
-      throw new Error(`Cloudflare API error on ${method} ${path}: ${msg}`);
+      throw new Error(`Cloudflare API error [${method} ${path}]: ${msg}`);
     }
 
     return json;
   }
 
+  // ── DNS ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a proxied DNS record for a subdomain.
+   *
+   * For Worker-backed subdomains the canonical approach is a proxied AAAA
+   * record pointing to the unroutable address `100::`.  Cloudflare intercepts
+   * all traffic at the proxy edge before it ever reaches that address, so it
+   * acts purely as a "this hostname is on Cloudflare" marker.
+   *
+   * @param zoneId   - Cloudflare zone ID (e.g. for upcart.online)
+   * @param name     - Full hostname, e.g. "mystore.upcart.online"
+   * @param type     - DNS record type; "AAAA" (default) for Worker subdomains
+   * @param content  - Record value; "100::" is the standard placeholder for proxied Workers
+   */
+  async createDnsRecord(
+    zoneId: string,
+    name: string,
+    type: "A" | "AAAA" | "CNAME" = "AAAA",
+    content = "100::"
+  ): Promise<CfDnsRecord> {
+    const res = await this.request<CfDnsRecord>(
+      "POST",
+      `/zones/${zoneId}/dns_records`,
+      {
+        type,
+        name,
+        content,
+        proxied: true,
+        ttl: 1, // 1 = automatic TTL when proxied
+        comment: "Auto-created by Upcart provisioning",
+      }
+    );
+    return res.result;
+  }
+
+  /**
+   * Look up existing DNS records for a hostname.
+   * Used before creating a record to avoid duplicate conflicts.
+   */
+  async listDnsRecords(zoneId: string, name: string): Promise<CfDnsRecord[]> {
+    const encoded = encodeURIComponent(name);
+    const res = await this.request<CfDnsRecord[]>(
+      "GET",
+      `/zones/${zoneId}/dns_records?name=${encoded}&per_page=10`
+    );
+    return res.result ?? [];
+  }
+
+  /**
+   * Delete a DNS record by ID.
+   * Called during deprovisioning or when rolling back a failed sign-up.
+   */
+  async deleteDnsRecord(zoneId: string, recordId: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/zones/${zoneId}/dns_records/${recordId}`
+    );
+  }
+
   // ── D1 ───────────────────────────────────────────────────────────────────────
 
-  /** Create a new D1 database. Returns the database record. */
+  /** Create a new D1 database. */
   async createD1Database(name: string): Promise<CfD1Database> {
     const res = await this.request<CfD1Database>(
       "POST",
@@ -67,8 +129,8 @@ export class CloudflareAPI {
   }
 
   /**
-   * Run SQL against a D1 database.
-   * Used to apply migrations on a freshly created database.
+   * Run a single SQL statement against a D1 database via the REST API.
+   * Used to apply migrations to a freshly created database.
    */
   async runD1Query(
     databaseId: string,
@@ -83,11 +145,10 @@ export class CloudflareAPI {
   }
 
   /**
-   * Run multiple SQL statements against a D1 database (sequential).
-   * Splits on statement boundaries so the API receives one statement per call.
+   * Apply a block of SQL migration statements to a D1 database.
+   * Splits on double-newline-separated semicolons and skips comment-only lines.
    */
   async runD1Migrations(databaseId: string, sql: string): Promise<void> {
-    // Split on semicolons that are not inside string literals (simple heuristic)
     const statements = sql
       .split(/;\s*\n/)
       .map(s => s.trim())
@@ -115,7 +176,7 @@ export class CloudflareAPI {
   /**
    * Deploy a Worker script with D1 and R2 bindings and plain-text env vars.
    *
-   * @param scriptName - Unique name for the Worker script
+   * @param scriptName - Unique name for the Worker (e.g. "upcart-store-<tenantId>")
    * @param bundle     - Compiled ES module bundle (ArrayBuffer)
    * @param d1Id       - D1 database UUID to bind as "DB"
    * @param r2Bucket   - R2 bucket name to bind as "IMAGES"
@@ -144,10 +205,11 @@ export class CloudflareAPI {
     };
 
     const form = new FormData();
-    form.append("metadata", JSON.stringify(metadata), {
-      type: "application/json",
-      filename: "metadata.json",
-    } as unknown as string);
+    form.append(
+      "metadata",
+      new Blob([JSON.stringify(metadata)], { type: "application/json" }),
+      "metadata.json"
+    );
     form.append(
       "worker.js",
       new Blob([bundle], { type: "application/javascript+module" }),
@@ -164,7 +226,7 @@ export class CloudflareAPI {
 
   /**
    * Set a single secret on a Worker script.
-   * Call once per secret — Cloudflare has no bulk-secret endpoint.
+   * The Cloudflare API has no bulk endpoint; call once per secret.
    */
   async setWorkerSecret(
     scriptName: string,
@@ -178,19 +240,34 @@ export class CloudflareAPI {
     );
   }
 
+  // ── Worker Custom Domains ─────────────────────────────────────────────────────
+  //
+  // Custom Domains is the recommended approach for binding a Worker to a
+  // subdomain.  A single PUT call handles both the DNS record creation AND
+  // the SSL certificate — no separate DNS step needed.
+  //
+  // The DNS record + Worker Route approach (below) is kept as a fallback for
+  // accounts where the Custom Domains API is unavailable or returns an error.
+
   /**
-   * Add a custom domain (hostname on your zone) to a Worker script.
-   * This is the "Custom Domains" feature — no DNS record needed separately.
+   * Bind a Worker script to a custom hostname via the Custom Domains API.
    *
-   * @param hostname - e.g. "mystore.upcart.online"
-   * @param zoneId   - Cloudflare zone ID for upcart.online
+   * Cloudflare automatically:
+   *   1. Creates a proxied DNS record for the hostname in the zone.
+   *   2. Provisions an SSL certificate for the hostname.
+   *   3. Routes all traffic for `hostname` through the Worker.
+   *
+   * @param scriptName - Worker script name
+   * @param hostname   - e.g. "mystore.upcart.online"
+   * @param zoneId     - Cloudflare zone ID for the domain
+   * @returns          The custom domain record, including its `id`
    */
   async addWorkerCustomDomain(
     scriptName: string,
     hostname: string,
     zoneId: string
-  ): Promise<void> {
-    await this.request(
+  ): Promise<CfCustomDomain> {
+    const res = await this.request<CfCustomDomain>(
       "PUT",
       `/accounts/${this.accountId}/workers/domains`,
       {
@@ -200,14 +277,34 @@ export class CloudflareAPI {
         environment: "production",
       }
     );
+    return res.result;
   }
 
   /**
-   * Add a workers route to a zone (pattern-based routing).
-   * Alternative to Custom Domains — used when you need wildcard routing.
+   * Remove a Custom Domain binding from a Worker.
+   * Does NOT delete the underlying DNS record — call deleteDnsRecord separately.
+   */
+  async removeWorkerCustomDomain(domainId: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/accounts/${this.accountId}/workers/domains/${domainId}`
+    );
+  }
+
+  // ── Worker Routes (fallback) ──────────────────────────────────────────────────
+  //
+  // Pattern-based routing requires:
+  //   1. A proxied DNS record for the hostname (created via createDnsRecord).
+  //   2. A route entry associating the pattern with the Worker script.
+  //
+  // Use this only if Custom Domains is unavailable.
+
+  /**
+   * Add a Worker route to a zone.
    *
-   * @param zoneId  - Cloudflare zone ID
-   * @param pattern - e.g. "mystore.upcart.online/*"
+   * @param zoneId     - Cloudflare zone ID
+   * @param pattern    - e.g. "mystore.upcart.online/*"
+   * @param scriptName - Worker script to handle matching requests
    */
   async addWorkerRoute(
     zoneId: string,
@@ -220,5 +317,13 @@ export class CloudflareAPI {
       { pattern, script: scriptName }
     );
     return res.result;
+  }
+
+  /** Delete a Worker route by ID. */
+  async deleteWorkerRoute(zoneId: string, routeId: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/zones/${zoneId}/workers/routes/${routeId}`
+    );
   }
 }
