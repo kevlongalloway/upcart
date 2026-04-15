@@ -524,7 +524,7 @@
 
           // Payment successful
           clearCart();
-          window.location.href = 'index.html?payment=success';
+          window.location.href = 'success.html';
         });
 
       } catch (err) {
@@ -549,7 +549,7 @@
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             items,
-            successUrl: window.location.origin + '/index.html?payment=success',
+            successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
             cancelUrl:  window.location.href,
           }),
         });
@@ -572,9 +572,47 @@
       if (el) el.style.display = 'none';
     }
 
+    // ─── OUT-OF-STOCK GUARD ───────────────────────────────────────────────────
+    // Fetch live stock for each item in the cart. If every item is out of
+    // stock (stock === 0), disable the Checkout button and show a message.
+    async function checkStockForCheckout() {
+      const cart = getCart();
+      if (cart.length === 0) return;
+
+      const btn = document.getElementById('btn-checkout');
+      if (!btn) return;
+
+      try {
+        const results = await Promise.all(
+          cart.map(item =>
+            fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products/' + item.productId)
+              .then(r => r.json())
+              .catch(() => null)
+          )
+        );
+
+        const allOutOfStock = results.every(body => {
+          if (!body || !body.ok) return false; // unknown — don't block
+          const p = body.data;
+          return p.stock === 0;
+        });
+
+        if (allOutOfStock) {
+          btn.disabled     = true;
+          btn.textContent  = 'Out of Stock';
+          showCheckoutError('All items in your cart are currently out of stock.');
+        }
+      } catch {
+        // Non-critical — ignore stock check errors
+      }
+    }
+
     // ─── INIT ─────────────────────────────────────────────────────────────────
     window.addEventListener('bst:cart-updated', renderCart);
-    document.addEventListener('DOMContentLoaded', renderCart);
+    document.addEventListener('DOMContentLoaded', () => {
+      renderCart();
+      checkStockForCheckout();
+    });
   </script>
 
 </body>

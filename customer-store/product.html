@@ -64,19 +64,23 @@
     }
 
     /* Image */
+    .product-gallery {
+      margin-bottom: 32px;
+    }
+    @media (min-width: 768px) { .product-gallery { margin-bottom: 0; } }
+
     .product-image {
       aspect-ratio: 3/4;
       background: #e8e8e8;
       overflow: hidden;
       width: 100%;
-      margin-bottom: 32px;
       border: 1px solid #ddd;
     }
-    @media (min-width: 768px) { .product-image { margin-bottom: 0; } }
     .product-image img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: opacity 0.2s;
     }
     .product-image-placeholder {
       width: 100%;
@@ -89,6 +93,35 @@
       font-size: 36px;
       font-weight: 700;
       letter-spacing: 0.1em;
+    }
+
+    /* Thumbnail strip */
+    .product-thumbs {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .product-thumb {
+      width: 60px;
+      aspect-ratio: 3/4;
+      background: #e8e8e8;
+      overflow: hidden;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .product-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-thumb.active {
+      border-color: #1a1a1a;
+    }
+    .product-thumb:hover {
+      border-color: rgba(26,26,26,0.4);
     }
 
     /* Info */
@@ -328,15 +361,25 @@
     function render(product) {
       const page   = document.getElementById('product-page');
       const stock  = stockLabel(product);
-      const image  = product.images && product.images[0] ? product.images[0] : null;
       const avail  = product.active && (product.stock === -1 || product.stock > 0);
+      const images    = product.images && product.images.length ? product.images : [];
+      const hasGallery = images.length > 1;
 
       page.innerHTML = `
         <div class="product-layout">
-          <div class="product-image">
-            ${image
-              ? `<img src="${image}" alt="${product.name}">`
-              : `<div class="product-image-placeholder">[Image]</div>`}
+          <div class="product-gallery">
+            <div class="product-image" id="main-image">
+              ${images.length
+                ? `<img src="${images[0]}" alt="${product.name}" id="main-img">`
+                : `<div class="product-image-placeholder">[Image]</div>`}
+            </div>
+            ${hasGallery ? `
+            <div class="product-thumbs" id="thumbs">
+              ${images.map((src, i) => `
+                <div class="product-thumb${i === 0 ? ' active' : ''}" data-src="${src}" data-idx="${i}">
+                  <img src="${src}" alt="${product.name} — view ${i + 1}" loading="lazy">
+                </div>`).join('')}
+            </div>` : ''}
           </div>
           <div class="product-info">
             <a href="products.html" class="product-back">← All Products</a>
@@ -366,6 +409,20 @@
       document.getElementById('qty-plus').addEventListener('click', () => {
         qtyInput.value = Math.min(maxQty, parseInt(qtyInput.value, 10) + 1);
       });
+
+      // Thumbnail gallery
+      const thumbsEl = document.getElementById('thumbs');
+      if (thumbsEl) {
+        thumbsEl.addEventListener('click', e => {
+          const thumb = e.target.closest('.product-thumb');
+          if (!thumb) return;
+          const src     = thumb.dataset.src;
+          const mainImg = document.getElementById('main-img');
+          if (mainImg) mainImg.src = src;
+          thumbsEl.querySelectorAll('.product-thumb').forEach(t => t.classList.remove('active'));
+          thumb.classList.add('active');
+        });
+      }
 
       // Add to cart
       document.getElementById('btn-add').addEventListener('click', () => {
