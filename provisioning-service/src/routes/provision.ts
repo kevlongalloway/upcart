@@ -347,9 +347,23 @@ async function runProvisioning(
   const jwtSecret = generateSecret();
 
   // Public (plain-text) environment variables
+  //
+  // CORS_ORIGINS allows:
+  //   - the tenant's own storefront (same-origin calls to /api/*)
+  //   - the shared admin dashboard at dashboard.upcart.online
+  //   - dashboard + landing on the platform's base domain for onboarding redirects
+  const dashboardOrigin = `https://dashboard.${env.BASE_DOMAIN}`;
+  const platformOrigin  = `https://${env.BASE_DOMAIN}`;
+  const wwwOrigin       = `https://www.${env.BASE_DOMAIN}`;
+
   const vars: Record<string, string> = {
     DB_ADAPTER:            "d1",
-    CORS_ORIGINS:          `https://${hostname}`,
+    CORS_ORIGINS: [
+      `https://${hostname}`,
+      dashboardOrigin,
+      platformOrigin,
+      wwwOrigin,
+    ].join(","),
     CORS_METHODS:          "GET,POST,PUT,DELETE,OPTIONS",
     CSRF_ENABLED:          "false",
     STRIPE_PUBLISHABLE_KEY: input.stripe_publishable_key,
@@ -462,9 +476,11 @@ async function runProvisioning(
   await tenantDB.updateStatus(tenantId, "finalizing");
 
   const storeUrl = `https://${hostname}`;
-  const adminUrl = `https://${hostname}/admin`;
+  // Admin dashboard is a shared SaaS app; the merchant always signs in via
+  // the central URL, which reads ?subdomain=… to route its API calls.
+  const adminUrl = `https://dashboard.${baseDomain}/?subdomain=${encodeURIComponent(subdomain)}`;
 
-  const setupRes = await fetch(`${storeUrl}/setup`, {
+  const setupRes = await fetch(`${storeUrl}/api/setup`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({
