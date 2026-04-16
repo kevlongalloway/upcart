@@ -273,7 +273,7 @@
         // Paginate through all products
         let all = [], offset = 0, limit = 100;
         while (true) {
-          const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products?limit=' + limit + '&offset=' + offset);
+          const res  = await fetch(`${API_BASE}/products?limit=` + limit + '&offset=' + offset);
           const body = await res.json();
           if (!body.ok) throw new Error(body.error);
           if (!body.data.length) break;

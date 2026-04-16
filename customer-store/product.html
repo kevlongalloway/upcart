@@ -435,7 +435,7 @@
         return;
       }
       try {
-        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products/' + productId);
+        const res  = await fetch(`${API_BASE}/products/` + productId);
         const body = await res.json();
         if (!body.ok) throw new Error(body.error || 'Not found');
         document.title = body.data.name + ' — Demo Store';

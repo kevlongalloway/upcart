@@ -541,7 +541,7 @@
           const items = cart.map(i => ({ productId: i.productId, price: i.price, quantity: i.quantity }));
 
           try {
-            const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/discounts/validate', {
+            const res  = await fetch(`${API_BASE}/discounts/validate`, {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body:    JSON.stringify({ code, items }),
@@ -608,7 +608,7 @@
       try {
         // Create a payment intent to get the publishable key
         const items = cart.map(i => ({ productId: i.productId, quantity: i.quantity }));
-        const res   = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/checkout/intent', {
+        const res   = await fetch(`${API_BASE}/checkout/intent`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ items }),
@@ -691,7 +691,7 @@
       const items = cart.map(i => ({ productId: i.productId, quantity: i.quantity }));
 
       try {
-        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/checkout/session', {
+        const res  = await fetch(`${API_BASE}/checkout/session`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
@@ -731,7 +731,7 @@
       try {
         const results = await Promise.all(
           cart.map(item =>
-            fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products/' + item.productId)
+            fetch(`${API_BASE}/products/` + item.productId)
               .then(r => r.json())
               .catch(() => null)
           )
