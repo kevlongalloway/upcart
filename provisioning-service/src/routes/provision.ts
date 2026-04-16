@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
+const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+
 const provisionSchema = z.object({
   store: z.object({
     name:        z.string().min(1).max(100),
@@ -91,6 +93,7 @@ const provisionSchema = z.object({
     description: z.string().max(500).optional().default(""),
     currency:    z.string().length(3),
     country:     z.string().length(2),
+    theme:       z.string().optional().default("mono").transform(t => VALID_THEMES.has(t) ? t : "mono"),
   }),
   admin: z.object({
     email:    z.string().email(),
@@ -361,6 +364,7 @@ async function runProvisioning(
         description: input.store.description ?? "",
         currency:    input.store.currency,
         country:     input.store.country,
+        theme:       input.store.theme ?? "mono",
       },
       admin: {
         username: input.admin.username,

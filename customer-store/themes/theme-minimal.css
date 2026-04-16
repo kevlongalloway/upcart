@@ -1,0 +1,29 @@
+/*
+ * Theme: Minimal
+ * Pure white canvas, Inter type. Clean, modern, understated.
+ * Works well for tech products, accessories, general merchandise.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+:root {
+  --font-body:    "Inter", sans-serif;
+  --font-display: "Inter", sans-serif;
+  --font-hero:    "Inter", sans-serif;
+
+  --color-bg:             #ffffff;
+  --color-text:           #111111;
+  --color-surface:        #f4f4f4;
+  --color-surface-border: #e5e5e5;
+  --color-border:         rgba(0, 0, 0, 0.08);
+  --color-border-mid:     rgba(0, 0, 0, 0.15);
+
+  --color-ticker-bg:   #f0f0f0;
+  --color-ticker-text: #111111;
+
+  --color-footer-bg:     #111111;
+  --color-footer-text:   #f9f9f9;
+  --color-footer-border: rgba(249, 249, 249, 0.1);
+
+  --color-btn-bg:   #111111;
+  --color-btn-text: #ffffff;
+}

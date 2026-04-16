@@ -8,18 +8,18 @@
   <meta property="og:description" content="A modern e-commerce demo store">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
+  <script src="config.js"></script>
+  <script src="theme.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-    html {
-      overflow-x: hidden;
-    }
+    html { overflow-x: hidden; }
 
     body {
-      background: #f5f5f5;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
       overflow-x: hidden;
       width: 100%;
     }
@@ -36,20 +36,17 @@
     }
 
     .nav-mark {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.1em;
     }
 
-    .nav-links {
-      display: flex;
-      gap: 32px;
-    }
+    .nav-links { display: flex; gap: 32px; }
 
     .nav-links a {
       font-size: 10px;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -70,7 +67,7 @@
     }
 
     .hero-logo {
-      font-family: 'Bebas Neue', sans-serif;
+      font-family: var(--font-hero);
       font-size: clamp(48px, 15vw, 120px);
       letter-spacing: 0.1em;
       font-weight: 700;
@@ -98,7 +95,7 @@
     /* Ticker */
     .ticker {
       overflow: hidden;
-      background: #e0e0e0;
+      background: var(--color-ticker-bg);
       padding: 11px 0;
       white-space: nowrap;
     }
@@ -109,9 +106,9 @@
     }
 
     .ticker-item {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 12px;
-      color: #1a1a1a;
+      color: var(--color-ticker-text);
       padding: 0 32px;
       letter-spacing: 0.1em;
     }
@@ -122,13 +119,9 @@
     }
 
     /* Shop section */
-    .shop {
-      padding: 80px 24px;
-    }
+    .shop { padding: 80px 24px; }
 
-    @media (min-width: 640px) {
-      .shop { padding: 100px 40px; }
-    }
+    @media (min-width: 640px) { .shop { padding: 100px 40px; } }
 
     .shop-header {
       display: flex;
@@ -146,7 +139,7 @@
     }
 
     .shop-title {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-display);
       font-size: clamp(36px, 8vw, 80px);
       font-weight: 700;
       line-height: 1;
@@ -156,10 +149,10 @@
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
       opacity: 0.6;
-      border-bottom: 1px solid rgba(26,26,26,0.2);
+      border-bottom: 1px solid var(--color-border-mid);
       padding-bottom: 2px;
       white-space: nowrap;
       transition: opacity 0.2s;
@@ -176,23 +169,16 @@
     }
 
     @media (min-width: 640px) {
-      .grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
-      }
+      .grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
     }
 
-    .card {
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
+    .card { text-decoration: none; color: inherit; display: block; }
 
     .card-img {
       aspect-ratio: 3/4;
-      background: #e8e8e8;
+      background: var(--color-surface);
       overflow: hidden;
-      border: 1px solid #ddd;
+      border: 1px solid var(--color-surface-border);
     }
 
     .card-img img {
@@ -202,13 +188,9 @@
       transition: transform 0.3s ease;
     }
 
-    .card:hover .card-img img {
-      transform: scale(1.04);
-    }
+    .card:hover .card-img img { transform: scale(1.04); }
 
-    .card-info {
-      padding: 12px 2px 4px;
-    }
+    .card-info { padding: 12px 2px 4px; }
 
     .card-name {
       display: block;
@@ -220,57 +202,55 @@
       text-overflow: ellipsis;
     }
 
-    .card-price {
-      display: block;
-      font-size: 10px;
-      opacity: 0.6;
-    }
+    .card-price { display: block; font-size: 10px; opacity: 0.6; }
 
     /* Shop all CTA */
-    .shop-cta {
-      margin-top: 48px;
-      text-align: center;
-    }
+    .shop-cta { margin-top: 48px; text-align: center; }
 
     .shop-cta-btn {
       display: inline-block;
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #f5f5f5;
-      background: #1a1a1a;
+      color: var(--color-btn-text);
+      background: var(--color-btn-bg);
       text-decoration: none;
       padding: 14px 36px;
-      border: 1px solid #1a1a1a;
+      border: 1px solid var(--color-btn-bg);
       transition: all 0.2s;
     }
 
     .shop-cta-btn:hover {
-      background: #f5f5f5;
-      color: #1a1a1a;
+      background: var(--color-bg);
+      color: var(--color-text);
+      border-color: var(--color-border-mid);
     }
 
     /* Footer */
     footer {
-      background: #2a2a2a;
-      color: #f5f5f5;
+      background: var(--color-footer-bg);
+      color: var(--color-footer-text);
       padding: 60px 24px 36px;
     }
 
-    @media (min-width: 640px) {
-      footer { padding: 60px 40px 36px; }
-    }
+    @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
 
     .footer-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
       padding-bottom: 40px;
-      border-bottom: 1px solid rgba(245,245,245,0.1);
+      border-bottom: 1px solid var(--color-footer-border);
       margin-bottom: 28px;
       flex-wrap: wrap;
       gap: 24px;
+    }
+
+    .footer-brand-name {
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 14px;
     }
 
     footer img { width: 200px; }
@@ -279,7 +259,7 @@
 
     .footer-links a {
       font-size: 10px;
-      color: #f5f5f5;
+      color: var(--color-footer-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -289,11 +269,7 @@
 
     .footer-links a:hover { opacity: 1; }
 
-    .footer-copy {
-      font-size: 9px;
-      opacity: 0.4;
-      letter-spacing: 0.05em;
-    }
+    .footer-copy { font-size: 9px; opacity: 0.4; letter-spacing: 0.05em; }
   </style>
 </head>
 <body>
@@ -344,7 +320,7 @@
   <footer>
     <div class="footer-top">
       <div>
-        <p style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;">Demo Store</p>
+        <p class="footer-brand-name">Demo Store</p>
       </div>
       <div class="footer-links">
         <a href="#">Help</a>
@@ -355,7 +331,6 @@
     <p class="footer-copy">© 2026 Demo Store. All rights reserved.</p>
   </footer>
 
-  <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
     // Show payment success toast if redirected back from Stripe
@@ -365,14 +340,11 @@
         clearCart();
         history.replaceState({}, '', location.pathname);
         const toast = document.createElement('div');
-        toast.style.cssText = [
-          'position:fixed','bottom:32px','left:50%',
-          'transform:translateX(-50%)','background:#2a2a2a',
-          'color:#f5f5f5','font-family:Space Mono,monospace',
-          'font-size:10px','letter-spacing:0.1em','text-transform:uppercase',
-          'padding:14px 28px','z-index:999','white-space:nowrap',
-          'transition:opacity 0.5s'
-        ].join(';');
+        toast.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);' +
+          'background:var(--color-footer-bg);color:var(--color-footer-text);' +
+          'font-family:var(--font-body);font-size:10px;letter-spacing:0.1em;' +
+          'text-transform:uppercase;padding:14px 28px;z-index:999;white-space:nowrap;' +
+          'transition:opacity 0.5s';
         toast.textContent = 'Order confirmed — thank you!';
         document.body.appendChild(toast);
         setTimeout(() => { toast.style.opacity = '0'; }, 3500);

@@ -1,0 +1,29 @@
+/*
+ * Theme: Bold
+ * Near-black background, Bebas Neue display, gold accent buttons.
+ * Streetwear, hype / sneaker releases, sports, music merch.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;600;700&display=swap');
+
+:root {
+  --font-body:    "Oswald", sans-serif;
+  --font-display: "Bebas Neue", sans-serif;
+  --font-hero:    "Bebas Neue", sans-serif;
+
+  --color-bg:             #0a0a0a;
+  --color-text:           #f0f0f0;
+  --color-surface:        #1a1a1a;
+  --color-surface-border: #2a2a2a;
+  --color-border:         rgba(240, 240, 240, 0.1);
+  --color-border-mid:     rgba(240, 240, 240, 0.2);
+
+  --color-ticker-bg:   #f5c000;
+  --color-ticker-text: #0a0a0a;
+
+  --color-footer-bg:     #111111;
+  --color-footer-text:   #f0f0f0;
+  --color-footer-border: rgba(240, 240, 240, 0.1);
+
+  --color-btn-bg:   #f5c000;
+  --color-btn-text: #0a0a0a;
+}

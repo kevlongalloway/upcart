@@ -99,8 +99,73 @@
       margin: 0 auto 1rem;
     }
 
+    /* Theme picker */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
     @media (max-width: 480px) {
-      .step-line { width: 28px; }
+      .theme-grid { grid-template-columns: repeat(3, 1fr); }
+      .step-line  { width: 28px; }
+    }
+
+    .theme-card {
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid var(--border-default);
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.15s;
+      position: relative;
+    }
+
+    .theme-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+
+    .theme-card.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px var(--gold-glow);
+    }
+
+    .theme-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .theme-preview {
+      height: 52px;
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      gap: 3px;
+    }
+
+    .theme-preview-bar {
+      height: 5px;
+      border-radius: 2px;
+      opacity: 0.7;
+    }
+
+    .theme-preview-bar.w100 { width: 100%; }
+    .theme-preview-bar.w70  { width: 70%; }
+    .theme-preview-bar.w50  { width: 50%; }
+
+    .theme-preview-btn {
+      margin-top: auto;
+      height: 10px;
+      border-radius: 2px;
+      width: 60%;
+    }
+
+    .theme-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 4px 4px 5px;
     }
   </style>
 </head>
@@ -208,6 +273,74 @@
                     <option value="MX">Mexico</option>
                     <option value="BR">Brazil</option>
                   </select>
+                </div>
+              </div>
+
+              <!-- Theme picker -->
+              <div class="mt-3 mb-1">
+                <label class="form-label mb-2">Storefront theme</label>
+                <div class="theme-grid" id="theme-grid">
+
+                  <!-- Mono -->
+                  <label class="theme-card selected" data-theme="mono">
+                    <input type="radio" name="store-theme" value="mono" checked>
+                    <div class="theme-preview" style="background:#f5f5f5">
+                      <div class="theme-preview-bar w100" style="background:#1a1a1a"></div>
+                      <div class="theme-preview-bar w70"  style="background:#1a1a1a"></div>
+                      <div class="theme-preview-bar w50"  style="background:#1a1a1a"></div>
+                      <div class="theme-preview-btn" style="background:#1a1a1a"></div>
+                    </div>
+                    <div class="theme-label" style="background:#f5f5f5;color:#1a1a1a">Mono</div>
+                  </label>
+
+                  <!-- Minimal -->
+                  <label class="theme-card" data-theme="minimal">
+                    <input type="radio" name="store-theme" value="minimal">
+                    <div class="theme-preview" style="background:#ffffff">
+                      <div class="theme-preview-bar w100" style="background:#111111"></div>
+                      <div class="theme-preview-bar w70"  style="background:#111111"></div>
+                      <div class="theme-preview-bar w50"  style="background:#111111"></div>
+                      <div class="theme-preview-btn" style="background:#111111"></div>
+                    </div>
+                    <div class="theme-label" style="background:#f4f4f4;color:#111111">Minimal</div>
+                  </label>
+
+                  <!-- Boutique -->
+                  <label class="theme-card" data-theme="boutique">
+                    <input type="radio" name="store-theme" value="boutique">
+                    <div class="theme-preview" style="background:#faf7f2">
+                      <div class="theme-preview-bar w100" style="background:#2c1810"></div>
+                      <div class="theme-preview-bar w70"  style="background:#2c1810"></div>
+                      <div class="theme-preview-bar w50"  style="background:#2c1810"></div>
+                      <div class="theme-preview-btn" style="background:#2c1810"></div>
+                    </div>
+                    <div class="theme-label" style="background:#f0ebe2;color:#2c1810">Boutique</div>
+                  </label>
+
+                  <!-- Bold -->
+                  <label class="theme-card" data-theme="bold">
+                    <input type="radio" name="store-theme" value="bold">
+                    <div class="theme-preview" style="background:#0a0a0a">
+                      <div class="theme-preview-bar w100" style="background:#f0f0f0"></div>
+                      <div class="theme-preview-bar w70"  style="background:#f0f0f0"></div>
+                      <div class="theme-preview-bar w50"  style="background:#f0f0f0"></div>
+                      <div class="theme-preview-btn" style="background:#f5c000"></div>
+                    </div>
+                    <div class="theme-label" style="background:#111111;color:#f0f0f0">Bold</div>
+                  </label>
+
+                  <!-- Studio -->
+                  <label class="theme-card" data-theme="studio">
+                    <input type="radio" name="store-theme" value="studio">
+                    <div class="theme-preview" style="background:#f5f0ea">
+                      <div class="theme-preview-bar w100" style="background:#2d2419"></div>
+                      <div class="theme-preview-bar w70"  style="background:#2d2419"></div>
+                      <div class="theme-preview-bar w50"  style="background:#2d2419"></div>
+                      <div class="theme-preview-btn" style="background:#c4603a"></div>
+                    </div>
+                    <div class="theme-label" style="background:#ede6db;color:#2d2419">Studio</div>
+                  </label>
+
                 </div>
               </div>
 
@@ -404,7 +537,18 @@
       stripe_publishable_key: '',
       subdomain: '',
       subdomainAvailable: false,
+      theme: 'mono',
     };
+
+    // ── Theme picker ──────────────────────────────────────────────────────────
+    document.getElementById('theme-grid').addEventListener('click', e => {
+      const card = e.target.closest('.theme-card');
+      if (!card) return;
+      document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      card.querySelector('input[type="radio"]').checked = true;
+      state.theme = card.dataset.theme;
+    });
 
     // ── UI helpers ────────────────────────────────────────────────────────────
     function showError(msg) {
@@ -551,6 +695,7 @@
         description: document.getElementById('store-desc').value.trim(),
         currency:    document.getElementById('store-currency').value,
         country:     document.getElementById('store-country').value,
+        theme:       state.theme,
       };
       state.subdomain = subdomain;
 

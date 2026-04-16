@@ -4,16 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cart — Demo Store</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
+  <script src="config.js"></script>
+  <script src="theme.js"></script>
   <!-- Stripe.js — loads the Stripe SDK (required for Apple Pay) -->
   <script src="https://js.stripe.com/v3/" async></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #f5f5f5;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
       min-height: 100vh;
     }
 
@@ -29,17 +31,17 @@
     }
     @media (min-width: 640px) { nav { padding: 28px 40px; } }
     .nav-mark {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.1em;
       text-decoration: none;
-      color: #1a1a1a;
+      color: var(--color-text);
     }
     .nav-links { display: flex; gap: 32px; }
     .nav-links a {
       font-size: 10px;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -65,7 +67,7 @@
       margin-bottom: 16px;
     }
     .page-title {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-display);
       font-size: clamp(36px, 8vw, 80px);
       font-weight: 700;
       line-height: 1;
@@ -73,10 +75,7 @@
     }
 
     /* Empty */
-    .empty-state {
-      text-align: center;
-      padding: 80px 0;
-    }
+    .empty-state { text-align: center; padding: 80px 0; }
     .empty-state p {
       font-size: 10px;
       letter-spacing: 0.15em;
@@ -88,9 +87,9 @@
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
-      border-bottom: 1px solid rgba(26,26,26,0.2);
+      border-bottom: 1px solid var(--color-border-mid);
       padding-bottom: 2px;
       opacity: 0.6;
       transition: opacity 0.2s;
@@ -98,9 +97,7 @@
     .empty-state a:hover { opacity: 1; }
 
     /* Cart items */
-    .cart-items {
-      border-top: 1px solid rgba(26,26,26,0.1);
-    }
+    .cart-items { border-top: 1px solid var(--color-border); }
 
     .cart-item {
       display: grid;
@@ -108,43 +105,31 @@
       gap: 20px;
       align-items: center;
       padding: 20px 0;
-      border-bottom: 1px solid rgba(26,26,26,0.1);
+      border-bottom: 1px solid var(--color-border);
     }
 
     .cart-item-img {
       aspect-ratio: 3/4;
-      background: #e8e8e8;
+      background: var(--color-surface);
       overflow: hidden;
-      border: 1px solid #ddd;
+      border: 1px solid var(--color-surface-border);
     }
-    .cart-item-img img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+    .cart-item-img img { width: 100%; height: 100%; object-fit: cover; }
 
-    .cart-item-name {
-      font-size: 10px;
-      letter-spacing: 0.05em;
-      margin-bottom: 6px;
-    }
-    .cart-item-price {
-      font-size: 10px;
-      opacity: 0.6;
-      margin-bottom: 12px;
-    }
+    .cart-item-name { font-size: 10px; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .cart-item-price { font-size: 10px; opacity: 0.6; margin-bottom: 12px; }
 
     .qty-row {
       display: flex;
       align-items: center;
       width: fit-content;
-      border: 1px solid rgba(26,26,26,0.2);
+      border: 1px solid var(--color-border-mid);
     }
     .qty-btn {
       background: none;
       border: none;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      color: var(--color-text);
+      font-family: var(--font-body);
       font-size: 14px;
       width: 36px;
       height: 36px;
@@ -158,15 +143,11 @@
       text-align: center;
       line-height: 36px;
       font-size: 11px;
-      border-left: 1px solid rgba(26,26,26,0.2);
-      border-right: 1px solid rgba(26,26,26,0.2);
+      border-left: 1px solid var(--color-border-mid);
+      border-right: 1px solid var(--color-border-mid);
     }
 
-    .cart-item-subtotal {
-      font-size: 11px;
-      letter-spacing: 0.05em;
-      text-align: right;
-    }
+    .cart-item-subtotal { font-size: 11px; letter-spacing: 0.05em; text-align: right; }
     .cart-item-remove {
       display: block;
       font-size: 9px;
@@ -175,8 +156,8 @@
       opacity: 0.4;
       background: none;
       border: none;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      color: var(--color-text);
+      font-family: var(--font-body);
       margin-top: 6px;
       transition: opacity 0.2s;
       text-align: right;
@@ -187,7 +168,7 @@
     .cart-summary {
       margin-top: 40px;
       padding-top: 28px;
-      border-top: 1px solid rgba(26,26,26,0.1);
+      border-top: 1px solid var(--color-border);
     }
     .summary-row {
       display: flex;
@@ -206,7 +187,7 @@
       letter-spacing: 0.05em;
       margin-bottom: 32px;
       padding-top: 12px;
-      border-top: 1px solid rgba(26,26,26,0.1);
+      border-top: 1px solid var(--color-border);
     }
     .summary-total-label { opacity: 0.7; text-transform: uppercase; font-size: 9px; letter-spacing: 0.15em; }
 
@@ -214,26 +195,20 @@
     .checkout-section { margin-top: 32px; }
 
     /* Apple Pay / Google Pay button area */
-    #payment-request-wrapper {
-      display: none;
-      margin-bottom: 16px;
-    }
-    #payment-request-button {
-      /* Stripe mounts the Apple Pay / Google Pay button here */
-    }
+    #payment-request-wrapper { display: none; margin-bottom: 16px; }
 
     .divider {
       display: flex;
       align-items: center;
       gap: 16px;
       margin: 16px 0;
-      display: none; /* shown when Apple Pay is available */
+      display: none;
     }
     .divider::before, .divider::after {
       content: '';
       flex: 1;
       height: 1px;
-      background: rgba(26,26,26,0.1);
+      background: var(--color-border);
     }
     .divider span {
       font-size: 9px;
@@ -245,10 +220,10 @@
 
     .btn-checkout {
       width: 100%;
-      background: #1a1a1a;
-      color: #f5f5f5;
-      border: 1px solid #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      background: var(--color-btn-bg);
+      color: var(--color-btn-text);
+      border: 1px solid var(--color-btn-bg);
+      font-family: var(--font-body);
       font-size: 10px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -273,7 +248,7 @@
     .discount-section {
       margin-top: 24px;
       padding-top: 24px;
-      border-top: 1px solid rgba(26,26,26,0.1);
+      border-top: 1px solid var(--color-border);
     }
     .discount-label {
       font-size: 9px;
@@ -282,28 +257,25 @@
       opacity: 0.6;
       margin-bottom: 10px;
     }
-    .discount-row {
-      display: flex;
-      gap: 8px;
-    }
+    .discount-row { display: flex; gap: 8px; }
     .discount-input {
       flex: 1;
       background: none;
-      border: 1px solid rgba(26,26,26,0.25);
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      border: 1px solid var(--color-border-mid);
+      color: var(--color-text);
+      font-family: var(--font-body);
       font-size: 11px;
       letter-spacing: 0.05em;
       padding: 10px 14px;
       text-transform: uppercase;
     }
-    .discount-input:focus { outline: none; border-color: #1a1a1a; }
+    .discount-input:focus { outline: none; border-color: var(--color-text); }
     .discount-input::placeholder { text-transform: none; opacity: 0.5; }
     .discount-apply {
       background: none;
-      border: 1px solid rgba(26,26,26,0.25);
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      border: 1px solid var(--color-border-mid);
+      color: var(--color-text);
+      font-family: var(--font-body);
       font-size: 9px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
@@ -311,14 +283,9 @@
       transition: all 0.2s;
       white-space: nowrap;
     }
-    .discount-apply:hover { border-color: #1a1a1a; }
+    .discount-apply:hover { border-color: var(--color-text); }
     .discount-apply:disabled { opacity: 0.5; cursor: not-allowed; }
-    .discount-msg {
-      font-size: 9px;
-      letter-spacing: 0.08em;
-      margin-top: 8px;
-      display: none;
-    }
+    .discount-msg { font-size: 9px; letter-spacing: 0.08em; margin-top: 8px; display: none; }
     .discount-msg.success { color: #16a34a; display: block; }
     .discount-msg.error   { color: #dc2626; display: block; }
     .discount-applied-row {
@@ -333,9 +300,9 @@
     .discount-remove {
       background: none;
       border: none;
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 9px;
-      color: #1a1a1a;
+      color: var(--color-text);
       opacity: 0.4;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -355,8 +322,8 @@
 
     /* Footer */
     footer {
-      background: #2a2a2a;
-      color: #f5f5f5;
+      background: var(--color-footer-bg);
+      color: var(--color-footer-text);
       padding: 60px 24px 36px;
     }
     @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
@@ -365,16 +332,21 @@
       justify-content: space-between;
       align-items: flex-end;
       padding-bottom: 40px;
-      border-bottom: 1px solid rgba(245,245,245,0.1);
+      border-bottom: 1px solid var(--color-footer-border);
       margin-bottom: 28px;
       flex-wrap: wrap;
       gap: 24px;
+    }
+    .footer-brand-name {
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 14px;
     }
     footer img { width: 200px; }
     .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
     .footer-links a {
       font-size: 10px;
-      color: #f5f5f5;
+      color: var(--color-footer-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -404,7 +376,7 @@
   <footer>
     <div class="footer-top">
       <div>
-        <p style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;">Demo Store</p>
+        <p class="footer-brand-name">Demo Store</p>
       </div>
       <div class="footer-links">
         <a href="#">Help</a>
@@ -415,7 +387,6 @@
     <p class="footer-copy">© 2026 Demo Store. All rights reserved.</p>
   </footer>
 
-  <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
     // ─── DISCOUNT STATE ───────────────────────────────────────────────────────
@@ -561,10 +532,10 @@
           const code = (discountInput?.value ?? '').trim();
           if (!code) return;
 
-          discountApply.disabled  = true;
+          discountApply.disabled    = true;
           discountApply.textContent = '…';
-          discountMsg.className   = 'discount-msg';
-          discountMsg.textContent = '';
+          discountMsg.className     = 'discount-msg';
+          discountMsg.textContent   = '';
 
           const cart  = getCart();
           const items = cart.map(i => ({ productId: i.productId, price: i.price, quantity: i.quantity }));
@@ -681,11 +652,10 @@
 
         // Handle the native payment sheet completion
         pr.on('paymentmethod', async (ev) => {
-          // Confirm the PaymentIntent using the payment method from the sheet
           const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
             clientSecret,
             { payment_method: ev.paymentMethod.id },
-            { handleActions: false } // we'll handle 3DS ourselves
+            { handleActions: false }
           );
 
           if (confirmError) {
@@ -697,18 +667,15 @@
           ev.complete('success');
 
           if (paymentIntent.status === 'requires_action') {
-            // 3D Secure required
             const { error } = await stripe.confirmCardPayment(clientSecret);
             if (error) { showCheckoutError(error.message); return; }
           }
 
-          // Payment successful
           clearCart();
           window.location.href = 'success.html';
         });
 
       } catch (err) {
-        // Non-critical: Apple Pay setup failed silently
         console.warn('Payment Request init failed:', err.message);
       }
     }
@@ -754,8 +721,6 @@
     }
 
     // ─── OUT-OF-STOCK GUARD ───────────────────────────────────────────────────
-    // Fetch live stock for each item in the cart. If every item is out of
-    // stock (stock === 0), disable the Checkout button and show a message.
     async function checkStockForCheckout() {
       const cart = getCart();
       if (cart.length === 0) return;
@@ -773,14 +738,14 @@
         );
 
         const allOutOfStock = results.every(body => {
-          if (!body || !body.ok) return false; // unknown — don't block
+          if (!body || !body.ok) return false;
           const p = body.data;
           return p.stock === 0;
         });
 
         if (allOutOfStock) {
-          btn.disabled     = true;
-          btn.textContent  = 'Out of Stock';
+          btn.disabled    = true;
+          btn.textContent = 'Out of Stock';
           showCheckoutError('All items in your cart are currently out of stock.');
         }
       } catch {

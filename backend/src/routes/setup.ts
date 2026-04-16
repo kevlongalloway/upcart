@@ -12,12 +12,15 @@ const PBKDF2_ITERATIONS = 100_000;
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
+const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+
 const setupSchema = z.object({
   store: z.object({
     name:        z.string().min(1, "Store name is required").max(100),
     description: z.string().max(500).optional().default(""),
     currency:    z.string().length(3, "Currency must be a 3-letter ISO code"),
     country:     z.string().length(2, "Country must be a 2-letter ISO code"),
+    theme:       z.string().optional().default("mono").transform(t => VALID_THEMES.has(t) ? t : "mono"),
   }),
   admin: z.object({
     username: z
@@ -124,6 +127,7 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
   }
 
   const { store, admin, stripe_publishable_key } = c.req.valid("json");
+  const theme = store.theme ?? "mono";
 
   // ── Resolve tenant ID ─────────────────────────────────────────────────────
   // Set by the provisioning service via TENANT_ID env var. Falls back to a
@@ -176,6 +180,7 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('store_description',      ?, ?, datetime('now'))").bind(store.description ?? "", tenantId),
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('currency',               ?, ?, datetime('now'))").bind(store.currency, tenantId),
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('country',                ?, ?, datetime('now'))").bind(store.country, tenantId),
+      db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('theme',                  ?, ?, datetime('now'))").bind(theme, tenantId),
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('stripe_publishable_key', ?, ?, datetime('now'))").bind(stripe_publishable_key ?? "", tenantId),
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('db_jwt_secret',          ?, ?, datetime('now'))").bind(jwtSecret, tenantId),
       db.prepare("INSERT OR REPLACE INTO store_settings (key, value, tenant_id, updated_at) VALUES ('tenant_id',              ?, ?, datetime('now'))").bind(tenantId, tenantId),

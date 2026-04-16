@@ -86,6 +86,7 @@ export type ProvisionRequest = {
     description?: string;
     currency: string;
     country: string;
+    theme?: string;
   };
   admin: {
     email: string;
