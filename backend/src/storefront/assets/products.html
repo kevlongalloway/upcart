@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop — Demo Store</title>
+  <meta property="og:title" content="Shop — Demo Store">
+  <meta property="og:description" content="Shop our products">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
+  <script src="config.js"></script>
+  <script src="theme.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body { max-width: 100%; overflow-x: hidden; }
+
+    body {
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      z-index: 100;
+      padding: 28px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media (min-width: 640px) { nav { padding: 28px 40px; } }
+
+    .nav-mark {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-decoration: none;
+      color: var(--color-text);
+    }
+
+    .nav-links { display: flex; gap: 32px; }
+
+    .nav-links a {
+      font-size: 10px;
+      color: var(--color-text);
+      text-decoration: none;
+      letter-spacing: 0.1em;
+      opacity: 0.6;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .nav-links a:hover { opacity: 1; }
+    .nav-links a.active { opacity: 1; }
+
+    /* Page header */
+    .page-header {
+      padding: 140px 24px 48px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 48px;
+      overflow: hidden;
+    }
+
+    @media (min-width: 640px) { .page-header { padding: 140px 40px 48px; } }
+
+    .page-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      opacity: 0.5;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      font-family: var(--font-display);
+      font-size: clamp(36px, 8vw, 80px);
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .product-count {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      opacity: 0.5;
+      margin-top: 20px;
+      text-transform: uppercase;
+    }
+
+    /* Grid */
+    .shop { padding: 0 24px 80px; width: 100%; }
+
+    @media (min-width: 640px) { .shop { padding: 0 40px 100px; } }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    }
+
+    @media (min-width: 1024px) {
+      .grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .card {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      min-width: 0;
+    }
+
+    .card-img {
+      aspect-ratio: 3/4;
+      background: var(--color-surface);
+      overflow: hidden;
+      border: 1px solid var(--color-surface-border);
+    }
+
+    .card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover .card-img img { transform: scale(1.04); }
+
+    .card-soldout .card-img { position: relative; }
+    .card-soldout .card-img img { opacity: 0.5; }
+
+    .soldout-badge {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .soldout-badge span {
+      background: rgba(245, 245, 245, 0.92);
+      color: #1a1a1a;
+      font-size: 8px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border: 1px solid rgba(26, 26, 26, 0.15);
+    }
+
+    .card-info { padding: 12px 2px 4px; }
+
+    .card-name {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-price { display: block; font-size: 10px; opacity: 0.6; }
+
+    /* Loading / empty states */
+    .state-msg {
+      grid-column: 1 / -1;
+      text-align: center;
+      opacity: 0.4;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 60px 0;
+    }
+
+    /* Footer */
+    footer {
+      background: var(--color-footer-bg);
+      color: var(--color-footer-text);
+      padding: 60px 24px 36px;
+    }
+
+    @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
+
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 40px;
+      border-bottom: 1px solid var(--color-footer-border);
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-brand-name {
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    footer img { width: 200px; }
+
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+
+    .footer-links a {
+      font-size: 10px;
+      color: var(--color-footer-text);
+      text-decoration: none;
+      letter-spacing: 0.1em;
+      opacity: 0.6;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .footer-links a:hover { opacity: 1; }
+
+    .footer-copy { font-size: 9px; opacity: 0.4; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-mark" href="index.html">Store</a>
+    <div class="nav-links">
+      <a href="products.html" class="active">Shop</a>
+      <a href="cart.html" class="cart-nav-link">Cart</a>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <p class="page-label">All Products</p>
+    <h1 class="page-title">Shop</h1>
+    <p class="product-count" id="product-count"></p>
+  </div>
+
+  <section class="shop">
+    <div class="grid" id="products-grid">
+      <p class="state-msg">Loading...</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-top">
+      <div>
+        <p class="footer-brand-name">Demo Store</p>
+      </div>
+      <div class="footer-links">
+        <a href="#">Help</a>
+        <a href="#">Returns</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+    <p class="footer-copy">© 2026 Demo Store. All rights reserved.</p>
+  </footer>
+
+  <script src="cart.js"></script>
+  <script>
+    async function loadProducts() {
+      const grid    = document.getElementById('products-grid');
+      const countEl = document.getElementById('product-count');
+
+      try {
+        // Paginate through all products
+        let all = [], offset = 0, limit = 100;
+        while (true) {
+          const res  = await fetch(`${API_BASE}/products?limit=` + limit + '&offset=' + offset);
+          const body = await res.json();
+          if (!body.ok) throw new Error(body.error);
+          if (!body.data.length) break;
+          all    = all.concat(body.data);
+          offset += body.data.length;
+          if (body.data.length < limit) break;
+        }
+        if (all.length === 0) {
+          grid.innerHTML = '<p class="state-msg">No products available.</p>';
+          return;
+        }
+        countEl.textContent = all.length + ' item' + (all.length !== 1 ? 's' : '');
+        grid.innerHTML = all.map(product => {
+          const image   = product.images && product.images[0] ? product.images[0] : null;
+          const soldOut = product.stock === 0;
+          return `
+          <a href="product.html?id=${product.id}" class="card${soldOut ? ' card-soldout' : ''}">
+            <div class="card-img">
+              ${image ? `<img src="${image}" alt="${product.name}" loading="lazy">` : ''}
+              ${soldOut ? `<div class="soldout-badge"><span>Sold Out</span></div>` : ''}
+            </div>
+            <div class="card-info">
+              <span class="card-name">${product.name}</span>
+              <span class="card-price">${formatPrice(product.price, product.currency)}</span>
+            </div>
+          </a>`;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load products:', err.message);
+        grid.innerHTML = '<p class="state-msg">Error loading products.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProducts);
+  </script>
+
+</body>
+</html>

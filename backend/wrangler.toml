@@ -3,6 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat_v2"]
 
+# ─── Storefront assets ───────────────────────────────────────────────────────
+# Inline HTML and text-format JS files into the Worker bundle so the tenant
+# backend can serve the customer storefront directly, same-origin. See
+# src/storefront/ for the router.
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.txt"]
+fallthrough = true
+
 # ─── D1 Database ─────────────────────────────────────────────────────────────
 # This is filled in automatically by `npm run setup`, or manually after running:
 #   wrangler d1 create upcart-db

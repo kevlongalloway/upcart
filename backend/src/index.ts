@@ -18,95 +18,81 @@ import { discounts } from "./routes/discounts.js";
 import { discountValidate } from "./routes/discountValidate.js";
 import { setup } from "./routes/setup.js";
 import { connect } from "./routes/connect.js";
+import { storefront } from "./storefront/index.js";
 
-const app = new Hono<{ Bindings: Bindings }>();
+// ─── API sub-app ──────────────────────────────────────────────────────────────
+//
+// Every JSON endpoint lives under /api/*. The root (`/`) of this Worker serves
+// the customer storefront (see ./storefront), so API paths are namespaced to
+// avoid colliding with storefront routes like /products or /cart.
 
-// ─── Global Middleware ────────────────────────────────────────────────────────
-
-app.use("*", logger());
-
-// Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-app.use("*", secureHeaders());
+const api = new Hono<{ Bindings: Bindings }>();
 
 // CORS — must come before CSRF so that preflight requests are handled first.
-app.use("*", corsMiddleware());
+api.use("*", corsMiddleware());
+// CSRF origin check — configured via CSRF_ENABLED.
+api.use("*", csrfMiddleware());
 
-// CSRF origin check — configured via CSRF_ENABLED in wrangler.toml.
-app.use("*", csrfMiddleware());
-
-// ─── Health Check ─────────────────────────────────────────────────────────────
-
-app.get("/", (c) =>
+// Service identity / health
+api.get("/", (c) =>
   c.json({
     ok: true,
     data: {
-      service: "e-commaxxing",
-      version: "1.1.0",
+      service: "upcart-backend",
+      version: "1.2.0",
       db: c.env.DB_ADAPTER ?? "d1",
+      tenant_id: c.env.TENANT_ID ?? "",
     },
   })
 );
 
-app.get("/health", (c) => c.json({ ok: true, data: { status: "healthy" } }));
+api.get("/health", (c) => c.json({ ok: true, data: { status: "healthy" } }));
 
-// ─── Public Routes ────────────────────────────────────────────────────────────
+// Public, unauthenticated endpoints.
+api.route("/products", products);
+api.route("/checkout", checkout);
+api.route("/webhooks", webhooks);
+api.route("/orders", orderStatus);
+api.route("/discounts", discountValidate);
+api.route("/setup", setup);
+api.route("/connect", connect);
 
-// Product catalog (read-only, publicly accessible)
-app.route("/products", products);
-
-// Stripe checkout (publicly accessible — customers initiate purchases)
-app.route("/checkout", checkout);
-
-// Stripe webhooks (verified by signature, no auth middleware needed)
-app.route("/webhooks", webhooks);
-
-// Public order status lookup (customer-facing, secured by unguessable session_id)
-app.route("/orders", orderStatus);
-
-// Public discount validation (customer enters code before checkout)
-app.route("/discounts", discountValidate);
-
-// Self-serve setup/onboarding (public — no auth; 409s after first run)
-app.route("/setup", setup);
-
-// Stripe Connect onboarding (public — merchant initiates before first login)
-app.route("/connect", connect);
-
-// ─── Admin Routes ─────────────────────────────────────────────────────────────
-
-// Login is public — no auth required.
-app.route("/admin/login", adminLogin);
-
-// Protect all other /admin/* routes with JWT auth.
-// Explicitly exclude /admin/login so the middleware never runs on it.
-app.use("/admin/*", async (c, next) => {
-  if (c.req.path === "/admin/login" || c.req.path === "/admin/login/") {
+// Admin login is public; the rest of /admin/* requires a JWT.
+api.route("/admin/login", adminLogin);
+api.use("/admin/*", async (c, next) => {
+  if (c.req.path === "/api/admin/login" || c.req.path === "/api/admin/login/") {
     return next();
   }
   return adminAuthMiddleware()(c, next);
 });
-app.route("/admin", admin);
-app.route("/admin/images", images);
+api.route("/admin", admin);
+api.route("/admin/images", images);
+api.route("/admin/orders", orders);
+api.route("/admin/discounts", discounts);
+api.route("/admin/orders", shipping);
+api.route("/admin/connect", connect);
 
-// Order management (admin only — protected by the middleware above)
-app.route("/admin/orders", orders);
+// ─── Root app ─────────────────────────────────────────────────────────────────
 
-// Discount / promo / sale management (admin only)
-app.route("/admin/discounts", discounts);
+const app = new Hono<{ Bindings: Bindings }>();
 
-// Shipping label generation per order (admin only)
-app.route("/admin/orders", shipping);
+app.use("*", logger());
+app.use("*", secureHeaders());
 
-// Stripe Connect balance and withdrawal management (admin only)
-app.route("/admin/connect", connect);
+// Cloudflare / uptime-check health endpoint (no CORS/CSRF required).
+app.get("/health", (c) => c.json({ ok: true, data: { status: "healthy" } }));
 
-// ─── 404 Handler ─────────────────────────────────────────────────────────────
+// JSON API.
+app.route("/api", api);
+
+// Customer storefront — everything else (/, /products, /cart, /success, …).
+app.route("/", storefront);
+
+// ─── 404 + error handlers (API-shaped; storefront handles its own 404) ────────
 
 app.notFound((c) =>
   c.json({ ok: false, error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
 );
-
-// ─── Error Handler ────────────────────────────────────────────────────────────
 
 app.onError((e, c) => {
   console.error("Unhandled error:", e);
