@@ -398,22 +398,28 @@
             </form>
           </div>
 
-          <!-- ══ Step 3: Stripe ══ -->
+          <!-- ══ Step 3: Payments ══ -->
           <div class="step-panel" id="panel-3">
-            <div class="step-title">Stripe payments</div>
+            <div class="step-title">Payments</div>
             <div class="step-subtitle">
-              Connect Stripe to accept payments. You can skip this and add it later from your dashboard.
+              We handle all payment processing. After your store is live, you'll connect your
+              bank account via Stripe to receive payouts.
             </div>
             <form id="form-3" novalidate>
               <div class="mb-1">
-                <label class="form-label" for="stripe-key">
-                  Publishable key
-                  <span class="fw-normal ms-1" style="color:var(--text-muted)">(optional)</span>
-                </label>
-                <input type="text" class="form-control font-monospace" id="stripe-key"
-                  placeholder="pk_live_… or pk_test_…" spellcheck="false" autocomplete="off">
-                <div class="form-text">
-                  Found in your <strong style="color:var(--text-dim)">Stripe Dashboard</strong> → Developers → API keys.
+                <div class="card" style="background:var(--bg-base);border:1px solid var(--border-default)">
+                  <div class="card-body py-3 px-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <i class="bi bi-shield-check" style="color:var(--gold);font-size:1.1rem"></i>
+                      <span class="fw-semibold" style="font-size:0.85rem">How it works</span>
+                    </div>
+                    <ul class="mb-0 ps-3" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+                      <li>No API keys needed — we manage payments for you</li>
+                      <li>Customers pay securely via Stripe checkout</li>
+                      <li>Funds are held until the order is marked as delivered</li>
+                      <li>Withdraw to your bank anytime, or set up auto-payouts</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
               <div class="d-flex justify-content-between mt-4">
@@ -758,10 +764,10 @@
       goToStep(3);
     });
 
-    // ── Step 3: Stripe ────────────────────────────────────────────────────────
+    // ── Step 3: Payments ────────────────────────────────────────────────────────
     document.getElementById('form-3').addEventListener('submit', async e => {
       e.preventDefault();
-      state.stripe_publishable_key = document.getElementById('stripe-key').value.trim();
+      state.stripe_publishable_key = ''; // Platform manages payments via Stripe Connect
       await submitProvision();
     });
 

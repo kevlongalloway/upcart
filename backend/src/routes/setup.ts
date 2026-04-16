@@ -31,6 +31,8 @@ const setupSchema = z.object({
     email:    z.string().email().optional().or(z.literal("")).transform(v => v || undefined),
     password: z.string().min(8, "Password must be at least 8 characters"),
   }),
+  // Stripe publishable key is no longer required — the platform manages
+  // payments via Stripe Connect. Kept as optional for backwards compat.
   stripe_publishable_key: z.string().optional().default(""),
 });
 

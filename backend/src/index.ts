@@ -17,6 +17,7 @@ import { orderStatus } from "./routes/orderStatus.js";
 import { discounts } from "./routes/discounts.js";
 import { discountValidate } from "./routes/discountValidate.js";
 import { setup } from "./routes/setup.js";
+import { connect } from "./routes/connect.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -68,6 +69,9 @@ app.route("/discounts", discountValidate);
 // Self-serve setup/onboarding (public — no auth; 409s after first run)
 app.route("/setup", setup);
 
+// Stripe Connect onboarding (public — merchant initiates before first login)
+app.route("/connect", connect);
+
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 
 // Login is public — no auth required.
@@ -92,6 +96,9 @@ app.route("/admin/discounts", discounts);
 
 // Shipping label generation per order (admin only)
 app.route("/admin/orders", shipping);
+
+// Stripe Connect balance and withdrawal management (admin only)
+app.route("/admin/connect", connect);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 

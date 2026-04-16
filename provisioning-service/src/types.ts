@@ -66,6 +66,10 @@ export type Tenant = {
   cf_custom_domain_id: string | null;  // Workers Custom Domain binding ID
   cf_route_id: string | null;          // Workers Route ID (fallback only)
 
+  // Stripe Connect
+  stripe_connect_account_id: string | null;
+  stripe_connect_onboarding_complete: boolean;
+
   // Live URLs (set once provisioning completes)
   store_url: string | null;
   admin_url: string | null;
@@ -93,6 +97,7 @@ export type ProvisionRequest = {
     username: string;
     password: string;
   };
+  // No longer required — the platform manages payments via Stripe Connect.
   stripe_publishable_key?: string;
 };
 

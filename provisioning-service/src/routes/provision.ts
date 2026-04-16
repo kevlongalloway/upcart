@@ -80,6 +80,42 @@ CREATE TABLE IF NOT EXISTS tenants (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS merchant_balances (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL UNIQUE,
+  available_balance INTEGER NOT NULL DEFAULT 0,
+  pending_balance INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS balance_transactions (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+  type TEXT NOT NULL, amount INTEGER NOT NULL,
+  balance_after INTEGER NOT NULL,
+  order_id TEXT, stripe_transfer_id TEXT, stripe_payout_id TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_balance_txn_tenant_created
+  ON balance_transactions (tenant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS withdrawal_requests (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+  amount INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd',
+  status TEXT NOT NULL DEFAULT 'pending',
+  stripe_payout_id TEXT, failure_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawal_tenant_created
+  ON withdrawal_requests (tenant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS auto_withdrawal_settings (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL UNIQUE,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  frequency TEXT NOT NULL DEFAULT 'weekly',
+  minimum_amount INTEGER NOT NULL DEFAULT 1000,
+  next_run_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -100,6 +136,8 @@ const provisionSchema = z.object({
     username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_]+$/),
     password: z.string().min(8),
   }),
+  // No longer required — the platform manages payments via Stripe Connect.
+  // Merchants connect their bank accounts after store setup.
   stripe_publishable_key: z.string().optional().default(""),
 });
 

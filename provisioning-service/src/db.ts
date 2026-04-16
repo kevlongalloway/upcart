@@ -17,6 +17,8 @@ type TenantRow = {
   cf_dns_record_id: string | null;
   cf_custom_domain_id: string | null;
   cf_route_id: string | null;
+  stripe_connect_account_id: string | null;
+  stripe_connect_onboarding_complete: number;
   store_url: string | null;
   admin_url: string | null;
   error_message: string | null;
@@ -29,6 +31,7 @@ function rowToTenant(row: TenantRow): Tenant {
     ...row,
     plan: row.plan as TenantPlan,
     status: row.status as TenantStatus,
+    stripe_connect_onboarding_complete: row.stripe_connect_onboarding_complete === 1,
   };
 }
 
