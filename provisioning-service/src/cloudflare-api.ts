@@ -128,6 +128,14 @@ export class CloudflareAPI {
     return res.result;
   }
 
+  /** Delete a D1 database by UUID. Used for rollback on failed provisioning. */
+  async deleteD1Database(databaseId: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/accounts/${this.accountId}/d1/database/${databaseId}`
+    );
+  }
+
   /**
    * Run a single SQL statement against a D1 database via the REST API.
    * Used to apply migrations to a freshly created database.
@@ -169,6 +177,18 @@ export class CloudflareAPI {
       { name }
     );
     return res.result;
+  }
+
+  /**
+   * Delete an R2 bucket by name. The bucket must be empty — the Cloudflare API
+   * rejects DELETE on a non-empty bucket. During provisioning rollback the
+   * bucket is always empty because no uploads have happened yet.
+   */
+  async deleteR2Bucket(name: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/accounts/${this.accountId}/r2/buckets/${name}`
+    );
   }
 
   // ── Workers ──────────────────────────────────────────────────────────────────
@@ -222,6 +242,14 @@ export class CloudflareAPI {
       form
     );
     return res.result;
+  }
+
+  /** Delete a Worker script by name. Used for rollback on failed provisioning. */
+  async deleteWorkerScript(scriptName: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}`
+    );
   }
 
   /**

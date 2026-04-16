@@ -169,8 +169,7 @@ These are platform-wide issues worth tracking:
 - **No automated tests anywhere.** Every service is manually verified. Critical paths (checkout, Stripe webhook, provisioning pipeline, admin auth) should have coverage before scaling.
 - **No CI.** No GitHub Actions / equivalent runs `tsc --noEmit` or `wrangler deploy --dry-run` on PRs.
 - **No shared linter/formatter.** TypeScript config differs across services; no root ESLint/Prettier.
-- **Backend DB name is hard-coded** to `blackstardb` in `wrangler.toml` and package.json migration scripts. Works, but should be parameterized per environment.
-- **Provisioning cleanup is manual.** Failed tenants leave orphaned D1/R2/DNS resources.
+- **Per-environment config is manual.** Backend `wrangler.toml` uses a single `database_name` / `bucket_name`. If you want separate staging + production, you'll need two `wrangler.toml` files or a `[env.*]` section.
 - **No rate limiting** on the provisioning service's `POST /provision` — it creates billable Cloudflare resources unauthenticated.
 - **`customer-store/success.html`** doesn't yet render real order data; it's a placeholder. See [`customer-store/TODO.md`](./customer-store/TODO.md).
 - **No LICENSE file.** Add one before open-sourcing.

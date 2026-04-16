@@ -236,6 +236,62 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
 
 // ─── Provisioning orchestrator ────────────────────────────────────────────────
 
+type Provisioned = {
+  d1Id?: string;
+  r2Bucket?: string;
+  workerName?: string;
+  dnsRecordId?: string;
+  customDomainId?: string;
+  routeId?: string;
+};
+
+/**
+ * Best-effort rollback of resources created so far. Runs when provisioning
+ * fails partway through so the merchant's account (and ours) doesn't end up
+ * with orphaned D1 databases, R2 buckets, Worker scripts, DNS records, or
+ * bindings that nothing will ever reference again.
+ *
+ * Deletions run in reverse order of creation so upstream bindings are removed
+ * before the resources they reference. Each step is wrapped in its own
+ * try/catch — a single failure can't block the rest, and the original
+ * provisioning error is always what bubbles up.
+ */
+async function cleanupProvisioning(
+  env: Bindings,
+  cf: CloudflareAPI,
+  created: Provisioned
+): Promise<void> {
+  const steps: Array<[string, () => Promise<void>]> = [];
+
+  if (created.customDomainId) {
+    steps.push(["custom_domain", () => cf.removeWorkerCustomDomain(created.customDomainId!)]);
+  }
+  if (created.routeId) {
+    steps.push(["worker_route", () => cf.deleteWorkerRoute(env.CF_ZONE_ID, created.routeId!)]);
+  }
+  if (created.dnsRecordId) {
+    steps.push(["dns_record", () => cf.deleteDnsRecord(env.CF_ZONE_ID, created.dnsRecordId!)]);
+  }
+  if (created.workerName) {
+    steps.push(["worker_script", () => cf.deleteWorkerScript(created.workerName!)]);
+  }
+  if (created.r2Bucket) {
+    steps.push(["r2_bucket", () => cf.deleteR2Bucket(created.r2Bucket!)]);
+  }
+  if (created.d1Id) {
+    steps.push(["d1_database", () => cf.deleteD1Database(created.d1Id!)]);
+  }
+
+  for (const [label, step] of steps) {
+    try {
+      await step();
+      console.log(`cleanup: deleted ${label}`);
+    } catch (e) {
+      console.error(`cleanup: failed to delete ${label}:`, (e as Error).message);
+    }
+  }
+}
+
 async function runProvisioning(
   env: Bindings,
   tenantId: string,
@@ -252,10 +308,16 @@ async function runProvisioning(
   const baseDomain = env.BASE_DOMAIN;
   const hostname   = `${subdomain}.${baseDomain}`;
 
+  // Track every Cloudflare resource we've created so we can roll them back if
+  // a later step fails.
+  const created: Provisioned = {};
+
+  try {
   // ── Step 1: Create D1 database ────────────────────────────────────────────
   await tenantDB.updateStatus(tenantId, "creating_database");
 
   const d1 = await cf.createD1Database(`upcart-${tenantId}`);
+  created.d1Id = d1.uuid;
   await tenantDB.updateResources(tenantId, { cf_d1_id: d1.uuid });
 
   // Apply all store schema migrations to the new database
@@ -266,6 +328,7 @@ async function runProvisioning(
 
   const r2BucketName = `upcart-${tenantId}-images`;
   await cf.createR2Bucket(r2BucketName);
+  created.r2Bucket = r2BucketName;
   await tenantDB.updateResources(tenantId, { cf_r2_bucket: r2BucketName });
 
   // ── Step 3: Deploy Worker ─────────────────────────────────────────────────
@@ -305,6 +368,7 @@ async function runProvisioning(
   };
 
   await cf.deployWorker(workerName, bundle, d1.uuid, r2BucketName, vars);
+  created.workerName = workerName;
   await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
 
   // Set secrets (these are never in plain-text vars)
@@ -342,11 +406,16 @@ async function runProvisioning(
 
   if (existingRecord) {
     // Re-use the existing proxied record rather than creating a duplicate.
+    // We don't track it on `created` because we didn't make it — a previous
+    // failed run did, and its own rollback should have cleaned it up. Leaving
+    // it out here avoids deleting a record that might belong to a *successful*
+    // earlier provisioning that somehow ended up with a duplicate tenant row.
     dnsRecordId = existingRecord.id;
     console.log(`Re-using existing DNS record ${dnsRecordId} for ${hostname}`);
   } else {
     const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
     dnsRecordId     = dnsRecord.id;
+    created.dnsRecordId = dnsRecordId;
     console.log(`Created DNS record ${dnsRecordId}: ${hostname} AAAA 100:: (proxied)`);
   }
 
@@ -363,6 +432,7 @@ async function runProvisioning(
       hostname,
       env.CF_ZONE_ID
     );
+    created.customDomainId = customDomain.id;
     await tenantDB.updateResources(tenantId, { cf_custom_domain_id: customDomain.id });
     usedCustomDomain = true;
     console.log(
@@ -376,6 +446,7 @@ async function runProvisioning(
     );
 
     const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
+    created.routeId = route.id;
     await tenantDB.updateResources(tenantId, { cf_route_id: route.id });
     console.log(
       `Bound ${hostname} to worker "${workerName}" via Worker Route (id: ${route.id})`
@@ -423,4 +494,11 @@ async function runProvisioning(
   await tenantDB.updateStatus(tenantId, "active");
 
   console.log(`Tenant ${tenantId} (${subdomain}) provisioned successfully.`);
+  } catch (e) {
+    // A step failed. Best-effort cleanup of anything we already created, then
+    // re-throw so the outer waitUntil handler marks the tenant as "failed".
+    console.error(`Provisioning failed for tenant ${tenantId}; rolling back:`, e);
+    await cleanupProvisioning(env, cf, created);
+    throw e;
+  }
 }
