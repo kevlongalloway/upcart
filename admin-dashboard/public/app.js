@@ -4,37 +4,124 @@
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────────
+//
+// Upcart's admin dashboard is a shared SaaS SPA: one deployment at
+// dashboard.<BASE_DOMAIN> serves every merchant. Each merchant's backend
+// Worker lives at a different subdomain (<subdomain>.<BASE_DOMAIN>), so
+// the dashboard needs to know which tenant it's acting for on every
+// request. We learn that from, in order:
+//   1. a ?subdomain=… query param (used by the signup redirect), or
+//   2. a previously-stored value in sessionStorage, or
+//   3. the login form, once the user types it.
+//
+// Once we have a subdomain, workerUrl is fixed at
+//   https://<subdomain>.<BASE_DOMAIN>/api
+// and every API call is a cross-origin fetch allowed by the CORS rule
+// baked into that tenant's Worker by the provisioning service.
+
 const Config = {
-  workerUrl: null,
-  async load() {
-    const res = await fetch('/config');
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'Failed to load configuration');
-    this.workerUrl = data.workerUrl;
+  workerUrl:  null,
+  subdomain:  null,
+  baseDomain: null,
+
+  _subKey: 'upcart_subdomain',
+
+  _inferBaseDomain() {
+    // Explicit override for local dev: <meta name="upcart-base-domain" content="…">.
+    const meta = document.querySelector('meta[name="upcart-base-domain"]');
+    if (meta?.content) return meta.content;
+
+    const host = location.hostname;
+    if (!host || host === 'localhost' || host.startsWith('127.') || host.endsWith('.local')) {
+      return 'upcart.online';
+    }
+    // dashboard.foo.com → foo.com; dashboard.foo.co.uk → foo.co.uk
+    const parts = host.split('.');
+    if (parts[0] === 'dashboard' && parts.length >= 2) return parts.slice(1).join('.');
+    // Fallback: last two labels (works for *.upcart.online under dashboard).
+    return parts.slice(-2).join('.');
+  },
+
+  _subdomainFromUrl() {
+    try {
+      const params = new URLSearchParams(location.search);
+      return params.get('subdomain');
+    } catch { return null; }
+  },
+
+  setSubdomain(sub) {
+    const clean = String(sub || '').toLowerCase().trim();
+    if (!clean) throw new Error('Store subdomain is required');
+    sessionStorage.setItem(this._subKey, clean);
+    this.subdomain = clean;
+    this.workerUrl = `https://${clean}.${this.baseDomain}/api`;
+  },
+
+  clearSubdomain() {
+    sessionStorage.removeItem(this._subKey);
+    this.subdomain = null;
+    this.workerUrl = null;
+  },
+
+  hasSubdomain() { return !!this.subdomain; },
+
+  load() {
+    this.baseDomain = this._inferBaseDomain();
+
+    const fromUrl = this._subdomainFromUrl();
+    if (fromUrl) {
+      // The URL wins — wipe any stale session. Strip it off the address bar
+      // so the onboarding=1 param doesn't linger after reload.
+      try {
+        this.setSubdomain(fromUrl);
+        const url = new URL(location.href);
+        url.searchParams.delete('subdomain');
+        history.replaceState({}, '', url.toString());
+      } catch { /* ignore, fall through to stored/login */ }
+      return;
+    }
+
+    const stored = sessionStorage.getItem(this._subKey);
+    if (stored) {
+      try { this.setSubdomain(stored); } catch { this.clearSubdomain(); }
+    }
   },
 };
 
 // ── Auth ────────────────────────────────────────────────────────
 const Auth = {
-  _key: 'blackstar_admin_token',
-  getToken()   { return sessionStorage.getItem(this._key); },
-  setToken(t)  { sessionStorage.setItem(this._key, t); },
-  clearToken() { sessionStorage.removeItem(this._key); },
-  isLoggedIn() { return !!this.getToken(); },
+  _key: 'upcart_admin_token',
 
-  async login(username, password) {
+  // Legacy session from the single-tenant (Express) deploy — migrate if seen.
+  _legacyKey: 'blackstar_admin_token',
+
+  getToken() {
+    return sessionStorage.getItem(this._key) ?? sessionStorage.getItem(this._legacyKey);
+  },
+  setToken(t)  { sessionStorage.setItem(this._key, t); sessionStorage.removeItem(this._legacyKey); },
+  clearToken() { sessionStorage.removeItem(this._key); sessionStorage.removeItem(this._legacyKey); },
+  isLoggedIn() { return !!this.getToken() && Config.hasSubdomain(); },
+
+  async login(subdomain, username, password) {
+    Config.setSubdomain(subdomain);
     const res  = await fetch(`${Config.workerUrl}/admin/login`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ username, password }),
     });
-    const body = await res.json();
-    if (!body.ok) throw new ApiError(body.error, res.status);
+    const body = await res.json().catch(() => ({ ok: false, error: 'Invalid response from store' }));
+    if (!res.ok || !body.ok) {
+      // Wrong subdomain or credentials — don't leave a half-set Config behind
+      // that the rest of the app might key off of.
+      Config.clearSubdomain();
+      throw new ApiError(body.error || 'Sign in failed', res.status);
+    }
     this.setToken(body.data.token);
   },
 
   logout() {
     this.clearToken();
+    Config.clearSubdomain();
     Router.go('/login');
   },
 };
@@ -304,19 +391,36 @@ function renderNavbar() {
 // ═══════════════════════════════════════════════════════════════
 const LoginView = {
   render() {
+    const prefill = escHtml(Config.subdomain || '');
+    const baseDomain = escHtml(Config.baseDomain || 'upcart.online');
     return `
       <div class="login-wrap">
         <div class="card login-card">
           <div class="card-body p-4 p-sm-5">
             <div class="text-center mb-4">
               <div class="login-logo">
-                <img src="/IMG_1306.jpeg" alt="Blackstar" class="login-brand-img">
+                <img src="/IMG_1306.jpeg" alt="Upcart" class="login-brand-img">
               </div>
-              <p class="mb-0 mt-2" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Admin Panel</p>
-              <p class="text-secondary small mt-3 mb-0">Sign in to continue</p>
+              <p class="mb-0 mt-2" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Merchant Admin</p>
+              <p class="text-secondary small mt-3 mb-0">Sign in to your store</p>
             </div>
             <div id="login-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
             <form id="login-form" novalidate>
+              <div class="mb-3">
+                <label for="login-subdomain" class="form-label small fw-semibold">Store address</label>
+                <div class="input-group">
+                  <input type="text"
+                         class="form-control"
+                         id="login-subdomain"
+                         placeholder="your-store"
+                         autocomplete="organization"
+                         spellcheck="false"
+                         autocapitalize="none"
+                         value="${prefill}"
+                         required>
+                  <span class="input-group-text">.${baseDomain}</span>
+                </div>
+              </div>
               <div class="mb-3">
                 <label for="login-username" class="form-label small fw-semibold">Username</label>
                 <input type="text" class="form-control" id="login-username" autocomplete="username" required>
@@ -329,6 +433,10 @@ const LoginView = {
                 Sign in
               </button>
             </form>
+            <p class="text-center text-secondary small mt-4 mb-0">
+              Don't have a store yet?
+              <a href="https://${baseDomain}" class="text-decoration-none">Create one</a>
+            </p>
           </div>
         </div>
       </div>`;
@@ -339,18 +447,30 @@ const LoginView = {
     const btn    = document.getElementById('login-btn');
     const errEl  = document.getElementById('login-error');
 
+    // Pre-fill subdomain if the URL provided one (signup redirect); focus
+    // the next empty field so the merchant can just start typing.
+    const subEl  = document.getElementById('login-subdomain');
+    const userEl = document.getElementById('login-username');
+    if (subEl.value) userEl.focus(); else subEl.focus();
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const username = document.getElementById('login-username').value.trim();
-      const password = document.getElementById('login-password').value;
+      const subdomain = subEl.value.trim().toLowerCase();
+      const username  = userEl.value.trim();
+      const password  = document.getElementById('login-password').value;
+      if (!subdomain) {
+        errEl.textContent = 'Enter your store address.';
+        errEl.classList.remove('d-none');
+        return;
+      }
       errEl.classList.add('d-none');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in…';
       try {
-        await Auth.login(username, password);
+        await Auth.login(subdomain, username, password);
         Router.go('/products');
       } catch (err) {
-        errEl.textContent = err.message;
+        errEl.textContent = err.message || 'Sign in failed';
         errEl.classList.remove('d-none');
         btn.disabled = false;
         btn.textContent = 'Sign in';
@@ -2424,35 +2544,12 @@ const Router = {
 // ═══════════════════════════════════════════════════════════════
 // Boot
 // ═══════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
-  const app = document.getElementById('app');
-
-  try {
-    await Config.load();
-  } catch (err) {
-    app.innerHTML = `
-      <div class="min-vh-100 d-flex align-items-center justify-content-center">
-        <div class="alert alert-danger text-center p-4" style="max-width:420px">
-          <i class="bi bi-exclamation-triangle-fill fs-2 d-block mb-3"></i>
-          <h5 class="fw-bold">Configuration Error</h5>
-          <p class="mb-1">${escHtml(err.message)}</p>
-          <p class="text-secondary small mb-0">
-            Set the <code>WORKER_URL</code> environment variable and redeploy.
-          </p>
-        </div>
-      </div>`;
-    return;
-  }
-
-  // Redirect to the onboarding wizard if the store hasn't been configured yet.
-  try {
-    const res  = await fetch(`${Config.workerUrl}/setup/status`);
-    const body = await res.json();
-    if (!body.data?.configured) {
-      window.location.replace('/onboarding.html');
-      return;
-    }
-  } catch { /* network error — fall through; the login form will surface the issue */ }
-
+// The shared SaaS dashboard has nothing to load server-side — the tenant's
+// subdomain comes from the URL / sessionStorage / login form, and every other
+// piece of state lives behind an authenticated API call. Config.load() is
+// synchronous and never throws, so the boot path is just: discover tenant,
+// hand off to the router.
+document.addEventListener('DOMContentLoaded', () => {
+  Config.load();
   Router.init();
 });

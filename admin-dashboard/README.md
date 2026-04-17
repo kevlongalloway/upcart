@@ -1,39 +1,59 @@
-# Admin Dashboard
+# Upcart Dashboard
 
-The merchant-facing admin portal for Upcart. Lets store operators log in, manage
-products, orders, and discount codes, and (on first run) complete the
-store-setup wizard.
+The merchant-facing admin portal for Upcart. One deployment serves every
+tenant — the shared dashboard figures out which store it's acting on from the
+subdomain supplied in the URL, sessionStorage, or the login form, and talks to
+that tenant's backend Worker over HTTPS.
 
 ---
 
 ## Architecture
 
-The dashboard is a **single-page app** written in vanilla JavaScript, served by
-a minimal **Express** wrapper. It talks to the backend Cloudflare Worker over
-HTTPS using a short-lived JWT obtained via `POST /admin/login`.
+The dashboard is a **static single-page app** written in vanilla JavaScript.
+No server code — the entire `public/` directory is uploaded to Cloudflare
+Pages and served as-is.
 
 ```
-Browser ──► Express (server.js)
-             ├── serves static assets from public/
-             └── GET /config → { workerUrl } read from env
-                              (lets the SPA discover the backend URL)
+Browser ──► Cloudflare Pages (dashboard.upcart.online)
+             └── serves public/ (SPA + _redirects SPA fallback)
    │
-   └─── fetch(workerUrl + /admin/**) ──► Backend Worker (JWT-protected)
+   └─── fetch("https://<subdomain>.upcart.online/api/...") ──► tenant Worker
+        (JWT-protected, CORS allow-listed by the provisioning service)
 ```
 
 | File | Purpose |
 |------|---------|
-| `server.js` | Express dev/prod server. Serves `public/` and exposes `GET /config`. |
 | `public/index.html` | SPA shell (Bootstrap 5, Bootstrap Icons). |
-| `public/onboarding.html` | First-run setup wizard shown until `/setup/status` returns `configured: true`. |
 | `public/app.js` | Entire SPA (~2.5k LOC): `Config`, `Auth`, `Api`, views, `Router`. |
 | `public/style.css` | Custom theme on top of Bootstrap. |
+| `public/_redirects` | `/* /index.html 200` so hash routes work on refresh. |
+
+### Tenant discovery
+
+`Config.load()` resolves the active tenant on every page load, in priority
+order:
+
+1. **`?subdomain=acme` in the URL** — set by the signup redirect and stripped
+   from the address bar after it's consumed.
+2. **`sessionStorage['upcart_subdomain']`** — persists the choice across
+   reloads within the same tab.
+3. **The login form** — if neither of the above yielded a subdomain the user
+   types it in.
+
+Once a subdomain is known, `Config.workerUrl` is fixed at
+`https://<subdomain>.<baseDomain>/api` and every `Api._fetch` call is a
+cross-origin request to that tenant's Worker.
+
+`Config._inferBaseDomain()` strips the leading `dashboard.` label from
+`location.hostname`, falling back to `upcart.online` on localhost. For local
+dev against a non-default domain, add
+`<meta name="upcart-base-domain" content="example.com">` to `index.html`.
 
 ### SPA routes (hash-based)
 
 | Hash | View |
 |------|------|
-| `#/login` | Admin login form |
+| `#/login` | Admin login (subdomain + username + password) |
 | `#/products` | Products list |
 | `#/products/new` | Create product |
 | `#/products/:id/edit` | Edit product |
@@ -48,49 +68,35 @@ token and redirects to `/login`.
 
 ---
 
-## Quick start (local)
+## Local development
 
 ```bash
 cd admin-dashboard
-npm install
-cp .env.example .env
-# edit .env and set WORKER_URL
-npm run dev    # auto-reloads on file change
-# or
-npm start
+npx http-server public -p 3000 -c-1
 ```
 
-Dashboard runs at <http://localhost:3000>. Log in with the `ADMIN_USERNAME` /
-`ADMIN_PASSWORD` you configured on the backend Worker.
+Then open <http://localhost:3000>. On localhost `Config.baseDomain` defaults
+to `upcart.online`, so the login form will talk to whichever real tenant
+Worker you type a subdomain for. To point at a dev backend instead, add
+`<meta name="upcart-base-domain" content="your-dev-domain.workers.dev">`
+to `public/index.html`.
 
 ---
 
-## Environment variables
+## Deployment (Cloudflare Pages)
 
-| Var | Required | Description |
-|-----|----------|-------------|
-| `WORKER_URL` | **yes** | Full URL of the backend Worker, no trailing slash. The SPA fetches this from `GET /config`. |
-| `PORT` | no | Express port (default `3000`). |
+1. In the Cloudflare dashboard, create a new **Pages** project and connect it
+   to this repository.
+2. **Build settings:**
+   - Framework preset: **None**
+   - Build command: _(leave blank)_
+   - Build output directory: `admin-dashboard/public`
+3. **Custom domain:** `dashboard.<your root domain>` (e.g.
+   `dashboard.upcart.online`). The provisioning service embeds this hostname
+   into each tenant Worker's CORS allow-list, so it must match exactly.
 
-If `WORKER_URL` is missing, `GET /config` returns `500` and the SPA shows a
-"Configuration Error" screen instead of the login form.
-
----
-
-## Deployment
-
-### Render (static + Node)
-
-1. Create a new **Web Service** (not Static Site — the `/config` endpoint needs Node).
-2. **Build Command:** `npm install`
-3. **Start Command:** `npm start`
-4. **Environment:** add `WORKER_URL=https://<your-worker>.workers.dev`
-
-### Cloudflare Pages + Functions
-
-Pages can host the static files, but you'd need to rewrite `server.js` as a
-Pages Function. The simplest path is to keep the Express server on Render or
-Fly and point your domain at it.
+No environment variables are required — the dashboard figures everything out
+from the URL at runtime.
 
 ---
 
@@ -107,7 +113,7 @@ Api._fetch('/admin/products', {      // POST/PUT/DELETE
 ```
 
 - Automatically attaches `Authorization: Bearer <token>`.
-- Unwraps `{ ok, data, error }` envelope.
+- Unwraps the `{ ok, data, error }` envelope.
 - Throws `ApiError` with status + details on failure.
 - Redirects to `#/login` on 401.
 
@@ -120,8 +126,8 @@ reference.
 
 - **No tests.** Consider Playwright for end-to-end coverage of the key flows
   (login, create product, record order, create discount).
-- **`app.js` is a single 2.5k-line file.** Splitting it into modules would make
-  the views easier to maintain.
+- **`app.js` is a single 2.5k-line file.** Splitting it into modules would
+  make the views easier to maintain.
 - **Token is stored in `sessionStorage`.** Fine for a single-tab session, but
   logging out in one tab won't sign other tabs out.
 - **No client-side input validation.** The backend validates with Zod, but

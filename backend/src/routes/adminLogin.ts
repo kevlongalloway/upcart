@@ -44,7 +44,7 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
       // ── Env var auth (pre-setup or wrangler-secrets-only deployment) ──────
       if (!c.env.ADMIN_USERNAME || !c.env.ADMIN_PASSWORD) {
         return c.json(
-          err("Store not yet configured. Complete setup at /onboarding.html"),
+          err("Store not yet configured. Finish provisioning before signing in."),
           503
         );
       }

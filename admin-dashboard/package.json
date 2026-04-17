@@ -1,16 +1,10 @@
 {
-  "name": "ecommaxxing-dashboard",
+  "name": "upcart-dashboard",
   "version": "1.0.0",
-  "description": "Admin portal for Ecommaxxing e-commerce",
-  "main": "server.js",
+  "description": "Upcart merchant admin dashboard — static SPA deployed on Cloudflare Pages.",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "dev": "npx http-server public -p 3000 -c-1",
+    "build": "echo 'No build step — public/ is deployed as-is.'"
   }
 }

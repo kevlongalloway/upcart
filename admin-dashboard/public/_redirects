@@ -1,0 +1,3 @@
+# Cloudflare Pages SPA fallback: every path that isn't a real file should
+# serve the SPA shell so hash-based routing works on cold loads / refreshes.
+/*    /index.html   200
