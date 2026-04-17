@@ -526,8 +526,23 @@
     'use strict';
 
     // ── Config ────────────────────────────────────────────────────────────────
-    // Point this at your deployed provisioning service.
-    const PROVISION_URL = 'https://provision.upcart.online';
+    // Point these at your deployed services. Override via <meta name="…">
+    // tags on the page (no build-time config baking required).
+    const PROVISION_URL = (
+      document.querySelector('meta[name="upcart-provision-url"]')?.content
+      || 'https://provision.upcart.online'
+    ).replace(/\/$/, '');
+    const DASHBOARD_URL = (
+      document.querySelector('meta[name="upcart-dashboard-url"]')?.content
+      || 'https://dashboard.upcart.online'
+    ).replace(/\/$/, '');
+
+    // The "Already have a store? Sign in" link always points at the central
+    // dashboard — set it on load so it works even before provisioning starts.
+    (function wireSignInLink() {
+      const el = document.getElementById('sign-in-link');
+      if (el) el.href = DASHBOARD_URL;
+    })();
 
     // ── Subdomain validation ──────────────────────────────────────────────────
     const SUBDOMAIN_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$|^[a-z]{2,40}$/;
@@ -907,7 +922,11 @@
     }
 
     function showSuccessPanel(storeUrl, adminUrl) {
-      const adminHost = adminUrl || `https://${state.subdomain}.upcart.online/admin`;
+      // Every merchant on the platform shares a single dashboard deployment at
+      // dashboard.upcart.online — the provisioning service returns that URL
+      // in `admin_url`. We fall back to it here so the merchant is always
+      // pointed at the central login, not a per-tenant admin path.
+      const adminHost = adminUrl || DASHBOARD_URL;
       const storeHost = storeUrl || `https://${state.subdomain}.upcart.online`;
 
       document.getElementById('link-admin').href       = adminHost;
@@ -915,6 +934,7 @@
       document.getElementById('link-store').href       = storeHost;
       document.getElementById('link-store-url').textContent = storeHost.replace('https://', '');
 
+      // Sign in link always goes to the central dashboard.
       document.getElementById('sign-in-link').href = adminHost;
 
       goToStep('success');

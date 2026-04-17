@@ -51,6 +51,7 @@ export type Tenant = {
   store_name: string;
   plan: TenantPlan;
   email: string;
+  username: string | null;
   password_hash: string;
   status: TenantStatus;
 

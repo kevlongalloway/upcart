@@ -4,37 +4,74 @@
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────────
+// The dashboard is a single multi-tenant deployment at dashboard.upcart.online.
+// At boot it fetches `/config` from its own Express server to discover the
+// provisioning service URL (where merchants log in). After login, each
+// merchant's worker URL is stored in sessionStorage and used for all
+// tenant-scoped API calls.
 const Config = {
-  workerUrl: null,
+  provisionUrl: null,
+  signupUrl:    null,
+  baseDomain:   'upcart.online',
+
   async load() {
-    const res = await fetch('/config');
+    const res  = await fetch('/config');
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Failed to load configuration');
-    this.workerUrl = data.workerUrl;
+    this.provisionUrl = String(data.provisionUrl || '').replace(/\/$/, '');
+    this.signupUrl    = String(data.signupUrl    || '').replace(/\/$/, '');
+    this.baseDomain   = String(data.baseDomain   || 'upcart.online');
+    if (!this.provisionUrl) throw new Error('PROVISION_URL is not configured');
   },
 };
 
 // ── Auth ────────────────────────────────────────────────────────
+// sessionStorage keys are namespaced under `upcart_` so opening an older
+// dashboard tab (or a different app on the same origin) can't pick them up.
 const Auth = {
-  _key: 'blackstar_admin_token',
-  getToken()   { return sessionStorage.getItem(this._key); },
-  setToken(t)  { sessionStorage.setItem(this._key, t); },
-  clearToken() { sessionStorage.removeItem(this._key); },
-  isLoggedIn() { return !!this.getToken(); },
+  _K_TOKEN:      'upcart_admin_token',
+  _K_WORKER_URL: 'upcart_worker_url',
+  _K_CTX:        'upcart_tenant_ctx',
 
-  async login(username, password) {
-    const res  = await fetch(`${Config.workerUrl}/admin/login`, {
+  getToken()   { return sessionStorage.getItem(this._K_TOKEN); },
+  getWorker()  { return sessionStorage.getItem(this._K_WORKER_URL); },
+  getContext() {
+    try { return JSON.parse(sessionStorage.getItem(this._K_CTX) || 'null'); }
+    catch { return null; }
+  },
+
+  _save({ token, worker_url, ...ctx }) {
+    sessionStorage.setItem(this._K_TOKEN,      token);
+    sessionStorage.setItem(this._K_WORKER_URL, worker_url);
+    sessionStorage.setItem(this._K_CTX,        JSON.stringify(ctx));
+  },
+
+  clear() {
+    sessionStorage.removeItem(this._K_TOKEN);
+    sessionStorage.removeItem(this._K_WORKER_URL);
+    sessionStorage.removeItem(this._K_CTX);
+  },
+
+  isLoggedIn() { return !!this.getToken() && !!this.getWorker(); },
+
+  async login(email, password) {
+    const res = await fetch(`${Config.provisionUrl}/auth/login`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ username, password }),
+      body:    JSON.stringify({ email, password }),
     });
-    const body = await res.json();
-    if (!body.ok) throw new ApiError(body.error, res.status);
-    this.setToken(body.data.token);
+    let body;
+    try { body = await res.json(); }
+    catch { throw new ApiError('Unexpected response from login service.', res.status); }
+    if (!res.ok || !body.ok) {
+      throw new ApiError(body.error || 'Login failed.', res.status);
+    }
+    this._save(body.data);
+    return body.data;
   },
 
   logout() {
-    this.clearToken();
+    this.clear();
     Router.go('/login');
   },
 };
@@ -50,10 +87,24 @@ class ApiError extends Error {
 }
 
 // ── Api ─────────────────────────────────────────────────────────
+// All requests go to the tenant's own Cloudflare Worker, discovered via the
+// central /auth/login response and cached in sessionStorage.
 const Api = {
+  _base() {
+    const url = Auth.getWorker();
+    if (!url) {
+      // Session expired or never logged in. Force the user back to the login
+      // form rather than letting fetch() blow up on a bad URL.
+      Auth.clear();
+      Router.go('/login');
+      throw new ApiError('Not logged in.', 401);
+    }
+    return url;
+  },
+
   async _fetch(path, opts = {}) {
     const token = Auth.getToken();
-    const res = await fetch(`${Config.workerUrl}${path}`, {
+    const res = await fetch(`${this._base()}${path}`, {
       ...opts,
       headers: {
         'Content-Type': 'application/json',
@@ -63,7 +114,7 @@ const Api = {
     });
     const body = await res.json();
     if (!res.ok || !body.ok) {
-      if (res.status === 401) { Auth.clearToken(); Router.go('/login'); }
+      if (res.status === 401) { Auth.clear(); Router.go('/login'); }
       throw new ApiError(body.error ?? 'Unknown error', res.status, body.details);
     }
     return body.data;
@@ -85,7 +136,7 @@ const Api = {
   async uploadImage(file) {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${Config.workerUrl}/admin/images/upload`, {
+    const res = await fetch(`${this._base()}/admin/images/upload`, {
       method:  'POST',
       headers: { Authorization: `Bearer ${Auth.getToken()}` },
       body:    form,
@@ -132,6 +183,10 @@ const Api = {
   createDiscount(data)  { return this._fetch('/admin/discounts', { method: 'POST', body: JSON.stringify(data) }); },
   updateDiscount(id, d) { return this._fetch(`/admin/discounts/${id}`, { method: 'PUT', body: JSON.stringify(d) }); },
   deleteDiscount(id)    { return this._fetch(`/admin/discounts/${id}`, { method: 'DELETE' }); },
+
+  // Theme / store settings — read and write what the storefront renders.
+  getSettings()      { return this._fetch('/admin/settings'); },
+  updateSettings(d)  { return this._fetch('/admin/settings', { method: 'PUT', body: JSON.stringify(d) }); },
 };
 
 // ── Toast ───────────────────────────────────────────────────────
@@ -265,13 +320,20 @@ function renderNavbar() {
   const hash          = location.hash.replace(/^#/, '');
   const onOrders      = hash.startsWith('/orders');
   const onDiscounts   = hash.startsWith('/discounts');
-  const onProducts    = !onOrders && !onDiscounts;
+  const onTheme       = hash.startsWith('/theme') || hash.startsWith('/settings');
+  const onProducts    = !onOrders && !onDiscounts && !onTheme;
+  const ctx           = Auth.getContext() || {};
+  const storeName     = escHtml(ctx.store_name || 'Your Store');
+  const storeUrl      = ctx.store_url ? escHtml(ctx.store_url) : null;
   return `
     <nav class="navbar border-bottom">
-      <div class="container-fluid d-flex align-items-center justify-content-between" style="height:56px">
-        <a class="navbar-brand" href="#/products">
-          <img src="/IMG_1306.jpeg" alt="Blackstar" class="brand-logo">
-          <span class="brand-sub ms-2">ADMIN</span>
+      <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="height:56px">
+        <a class="navbar-brand d-flex align-items-center" href="#/products" style="gap:.6rem;min-width:0">
+          <span class="brand-badge" aria-hidden="true">U</span>
+          <span class="d-flex flex-column text-truncate">
+            <span class="fw-semibold text-truncate" style="line-height:1.1">${storeName}</span>
+            <span class="brand-sub" style="font-size:.62rem;letter-spacing:.16em">ADMIN</span>
+          </span>
         </a>
         <div class="d-flex align-items-center gap-2">
           <ul class="nav nav-pills d-flex gap-1 mb-0">
@@ -290,7 +352,16 @@ function renderNavbar() {
                 <i class="bi bi-tag"></i><span class="nav-label ms-1">Discounts</span>
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link py-1 px-2 ${onTheme ? 'active' : ''}" href="#/theme">
+                <i class="bi bi-palette"></i><span class="nav-label ms-1">Theme</span>
+              </a>
+            </li>
           </ul>
+          ${storeUrl ? `
+            <a class="btn btn-outline-secondary btn-sm" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
+              <i class="bi bi-box-arrow-up-right"></i><span class="d-none d-lg-inline ms-1">Storefront</span>
+            </a>` : ''}
           <button class="btn btn-outline-secondary btn-sm" id="logout-btn">
             <i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline ms-1">Logout</span>
           </button>
@@ -304,22 +375,24 @@ function renderNavbar() {
 // ═══════════════════════════════════════════════════════════════
 const LoginView = {
   render() {
+    const signupUrl = Config.signupUrl || 'https://upcart.online';
     return `
       <div class="login-wrap">
         <div class="card login-card">
           <div class="card-body p-4 p-sm-5">
             <div class="text-center mb-4">
               <div class="login-logo">
-                <img src="/IMG_1306.jpeg" alt="Blackstar" class="login-brand-img">
+                <span class="brand-badge brand-badge-lg">U</span>
               </div>
-              <p class="mb-0 mt-2" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Admin Panel</p>
-              <p class="text-secondary small mt-3 mb-0">Sign in to continue</p>
+              <h5 class="fw-bold mt-3 mb-0">Upcart</h5>
+              <p class="mb-0 mt-1" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Merchant Dashboard</p>
+              <p class="text-secondary small mt-3 mb-0">Sign in to manage your store</p>
             </div>
             <div id="login-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
             <form id="login-form" novalidate>
               <div class="mb-3">
-                <label for="login-username" class="form-label small fw-semibold">Username</label>
-                <input type="text" class="form-control" id="login-username" autocomplete="username" required>
+                <label for="login-email" class="form-label small fw-semibold">Email</label>
+                <input type="email" class="form-control" id="login-email" autocomplete="email" required placeholder="you@example.com">
               </div>
               <div class="mb-4">
                 <label for="login-password" class="form-label small fw-semibold">Password</label>
@@ -329,6 +402,12 @@ const LoginView = {
                 Sign in
               </button>
             </form>
+            <div class="text-center mt-4">
+              <p class="small text-secondary mb-0">
+                Don't have a store yet?
+                <a href="${escHtml(signupUrl)}" class="fw-semibold">Start one in 60 seconds →</a>
+              </p>
+            </div>
           </div>
         </div>
       </div>`;
@@ -341,13 +420,13 @@ const LoginView = {
 
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const username = document.getElementById('login-username').value.trim();
+      const email    = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       errEl.classList.add('d-none');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in…';
       try {
-        await Auth.login(username, password);
+        await Auth.login(email, password);
         Router.go('/products');
       } catch (err) {
         errEl.textContent = err.message;
@@ -2331,6 +2410,384 @@ const DiscountFormView = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// View: Theme / Storefront
+// ═══════════════════════════════════════════════════════════════
+// Live theme editor. Writes theme name + brand colors + logo URL to the
+// tenant's store_settings; the storefront fetches /settings/public at boot
+// and applies the values with CSS custom properties (no rebuild required).
+const ThemeView = {
+  _themes: [
+    { id: 'mono',     name: 'Mono',     desc: 'Editorial, monospace, light',  bg: '#f5f5f5', text: '#1a1a1a', btn: '#1a1a1a' },
+    { id: 'minimal',  name: 'Minimal',  desc: 'Clean white, Inter, corporate', bg: '#ffffff', text: '#111111', btn: '#111111' },
+    { id: 'boutique', name: 'Boutique', desc: 'Cream, serif, luxury fashion',  bg: '#faf7f2', text: '#2c1810', btn: '#2c1810' },
+    { id: 'bold',     name: 'Bold',     desc: 'Dark, gold accent, streetwear', bg: '#0a0a0a', text: '#f0f0f0', btn: '#f5c000' },
+    { id: 'studio',   name: 'Studio',   desc: 'Warm, DM Serif, artisan',       bg: '#f5f0ea', text: '#2d2419', btn: '#c4603a' },
+  ],
+
+  render() {
+    return `
+      ${renderNavbar()}
+      <div class="container-fluid py-4">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+          <div>
+            <h3 class="fw-bold mb-1">Storefront Theme</h3>
+            <p class="text-secondary small mb-0">Pick a preset, tune your brand colors, and add a logo. Changes go live instantly.</p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" id="theme-reset">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+            </button>
+            <button class="btn btn-primary" id="theme-save">
+              <i class="bi bi-check2 me-1"></i>Save &amp; publish
+            </button>
+          </div>
+        </div>
+
+        <div id="theme-loading" class="text-center py-5">
+          <div class="spinner-border"></div>
+        </div>
+
+        <div id="theme-content" class="d-none">
+          <div class="row g-4">
+            <div class="col-lg-7">
+              <div class="card mb-4">
+                <div class="card-body">
+                  <h6 class="fw-semibold mb-3">1. Choose a preset</h6>
+                  <div class="row g-3" id="theme-presets">
+                    ${this._themes.map(t => `
+                      <div class="col-6 col-md-4">
+                        <button type="button"
+                                class="theme-preset w-100 p-0 border-0 bg-transparent"
+                                data-theme="${t.id}">
+                          <div class="theme-swatch"
+                               style="background:${t.bg};color:${t.text};border:2px solid transparent">
+                            <div class="theme-swatch-bar" style="background:${t.btn}"></div>
+                            <div class="p-3 text-start">
+                              <div class="fw-bold">${t.name}</div>
+                              <div class="small" style="opacity:.7">${t.desc}</div>
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-body">
+                  <h6 class="fw-semibold mb-3">2. Brand colors</h6>
+                  <p class="small text-secondary mb-3">These override the preset's accent colors on your storefront.</p>
+                  <div class="row g-3">
+                    <div class="col-sm-6">
+                      <label class="form-label small fw-semibold" for="theme-primary">Primary (buttons, links)</label>
+                      <div class="input-group">
+                        <input type="color" class="form-control form-control-color" id="theme-primary-picker">
+                        <input type="text" class="form-control font-monospace" id="theme-primary" placeholder="#111111" maxlength="7">
+                      </div>
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small fw-semibold" for="theme-accent">Accent (badges, highlights)</label>
+                      <div class="input-group">
+                        <input type="color" class="form-control form-control-color" id="theme-accent-picker">
+                        <input type="text" class="form-control font-monospace" id="theme-accent" placeholder="#f5c000" maxlength="7">
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-link btn-sm mt-2 px-0" id="theme-colors-clear">
+                    Reset brand colors to preset defaults
+                  </button>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-body">
+                  <h6 class="fw-semibold mb-3">3. Logo</h6>
+                  <p class="small text-secondary mb-3">Shown in your storefront header. Square images work best.</p>
+                  <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div id="theme-logo-preview" class="theme-logo-preview" aria-hidden="true"></div>
+                    <div class="flex-grow-1" style="min-width:220px">
+                      <input type="file" class="form-control" id="theme-logo-file" accept="image/*">
+                      <div class="small text-secondary mt-2" id="theme-logo-status"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="theme-logo-remove">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                  <input type="hidden" id="theme-logo-url">
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-body">
+                  <h6 class="fw-semibold mb-3">4. Storefront info</h6>
+                  <div class="mb-3">
+                    <label class="form-label small fw-semibold" for="theme-store-name">Store name</label>
+                    <input type="text" class="form-control" id="theme-store-name" maxlength="100">
+                  </div>
+                  <div>
+                    <label class="form-label small fw-semibold" for="theme-store-desc">Tagline / description</label>
+                    <textarea class="form-control" id="theme-store-desc" rows="2" maxlength="300"
+                              placeholder="A short description shown under the hero."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <div class="theme-preview-wrap">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h6 class="fw-semibold mb-0">Live preview</h6>
+                  <a href="#" target="_blank" rel="noopener" class="small" id="theme-open-storefront">
+                    Open storefront <i class="bi bi-box-arrow-up-right"></i>
+                  </a>
+                </div>
+                <div class="theme-preview" id="theme-preview">
+                  <div class="theme-preview-nav" id="tp-nav">
+                    <div id="tp-logo" class="theme-preview-logo"></div>
+                    <span id="tp-store-name" class="theme-preview-brand"></span>
+                  </div>
+                  <div class="theme-preview-hero" id="tp-hero">
+                    <h3 id="tp-title">Your Store</h3>
+                    <p id="tp-desc" class="mb-3"></p>
+                    <button id="tp-btn" class="theme-preview-btn" type="button">Shop now</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    const ctx = Auth.getContext() || {};
+    const openLink = document.getElementById('theme-open-storefront');
+    if (ctx.store_url) openLink.href = ctx.store_url;
+
+    // ── State ──────────────────────────────────────────────────────────────
+    const state = {
+      theme: 'mono',
+      brand_primary: '',
+      brand_accent: '',
+      logo_url: '',
+      store_name: '',
+      store_description: '',
+    };
+
+    // ── Load current settings ──────────────────────────────────────────────
+    let initial;
+    try {
+      initial = await Api.getSettings();
+    } catch (err) {
+      Toast.error(`Failed to load settings: ${err.message}`);
+      initial = {};
+    }
+    Object.assign(state, {
+      theme:             initial.theme              || 'mono',
+      brand_primary:     initial.brand_primary      || '',
+      brand_accent:      initial.brand_accent       || '',
+      logo_url:          initial.logo_url           || '',
+      store_name:        initial.store_name         || ctx.store_name || '',
+      store_description: initial.store_description  || '',
+    });
+    const snapshot = { ...state };
+
+    document.getElementById('theme-loading').classList.add('d-none');
+    document.getElementById('theme-content').classList.remove('d-none');
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const $name    = document.getElementById('theme-store-name');
+    const $desc    = document.getElementById('theme-store-desc');
+    const $primary = document.getElementById('theme-primary');
+    const $primPk  = document.getElementById('theme-primary-picker');
+    const $accent  = document.getElementById('theme-accent');
+    const $accPk   = document.getElementById('theme-accent-picker');
+    const $logoUrl = document.getElementById('theme-logo-url');
+    const $logoPv  = document.getElementById('theme-logo-preview');
+    const $logoSt  = document.getElementById('theme-logo-status');
+    const $logoFile = document.getElementById('theme-logo-file');
+    const $logoDel = document.getElementById('theme-logo-remove');
+    const presets  = document.querySelectorAll('.theme-preset');
+
+    const paintPresetSelection = () => {
+      presets.forEach(btn => {
+        const active = btn.dataset.theme === state.theme;
+        btn.querySelector('.theme-swatch').style.borderColor = active ? '#0d6efd' : 'transparent';
+      });
+    };
+
+    const paintPreview = () => {
+      const preset = ThemeView._themes.find(t => t.id === state.theme) || ThemeView._themes[0];
+      const accent = state.brand_accent || preset.btn;
+      const primary = state.brand_primary || preset.btn;
+      const preview = document.getElementById('theme-preview');
+      preview.style.background = preset.bg;
+      preview.style.color      = preset.text;
+      document.getElementById('tp-hero').style.background = preset.bg;
+      const btn = document.getElementById('tp-btn');
+      btn.style.background = primary;
+      btn.style.color      = invertFor(primary);
+      document.getElementById('tp-nav').style.borderBottom = `1px solid ${preset.text}22`;
+      document.getElementById('tp-title').textContent = state.store_name || 'Your Store';
+      document.getElementById('tp-desc').textContent  = state.store_description || 'Welcome to our shop.';
+      const brandNameEl = document.getElementById('tp-store-name');
+      brandNameEl.textContent = state.store_name || 'Store';
+      brandNameEl.style.color = preset.text;
+      const tpLogo = document.getElementById('tp-logo');
+      if (state.logo_url) {
+        tpLogo.style.backgroundImage = `url('${cssEscUrl(state.logo_url)}')`;
+        tpLogo.style.border = 'none';
+      } else {
+        tpLogo.style.backgroundImage = '';
+        tpLogo.style.background = accent;
+        tpLogo.style.color      = invertFor(accent);
+      }
+    };
+
+    const paintLogo = () => {
+      if (state.logo_url) {
+        $logoPv.style.backgroundImage = `url('${cssEscUrl(state.logo_url)}')`;
+      } else {
+        $logoPv.style.backgroundImage = '';
+      }
+    };
+
+    // ── Initial paint ──────────────────────────────────────────────────────
+    $name.value    = state.store_name;
+    $desc.value    = state.store_description;
+    $primary.value = state.brand_primary;
+    $primPk.value  = state.brand_primary || '#111111';
+    $accent.value  = state.brand_accent;
+    $accPk.value   = state.brand_accent  || '#f5c000';
+    $logoUrl.value = state.logo_url;
+    paintLogo();
+    paintPresetSelection();
+    paintPreview();
+
+    // ── Input handlers ─────────────────────────────────────────────────────
+    presets.forEach(btn => btn.addEventListener('click', () => {
+      state.theme = btn.dataset.theme;
+      paintPresetSelection();
+      paintPreview();
+    }));
+
+    const onColor = (kind) => (e) => {
+      const raw = e.target.value.trim();
+      if (e.target.type === 'color') {
+        state[kind === 'primary' ? 'brand_primary' : 'brand_accent'] = raw;
+        (kind === 'primary' ? $primary : $accent).value = raw;
+      } else {
+        const normalized = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : '';
+        state[kind === 'primary' ? 'brand_primary' : 'brand_accent'] = normalized;
+        if (normalized) (kind === 'primary' ? $primPk : $accPk).value = normalized;
+      }
+      paintPreview();
+    };
+    $primary.addEventListener('input', onColor('primary'));
+    $primPk.addEventListener('input',  onColor('primary'));
+    $accent.addEventListener('input',  onColor('accent'));
+    $accPk.addEventListener('input',   onColor('accent'));
+
+    document.getElementById('theme-colors-clear').addEventListener('click', () => {
+      state.brand_primary = '';
+      state.brand_accent  = '';
+      $primary.value = '';
+      $accent.value  = '';
+      paintPreview();
+    });
+
+    $name.addEventListener('input', () => { state.store_name = $name.value; paintPreview(); });
+    $desc.addEventListener('input', () => { state.store_description = $desc.value; paintPreview(); });
+
+    $logoFile.addEventListener('change', async () => {
+      const file = $logoFile.files?.[0];
+      if (!file) return;
+      $logoSt.textContent = 'Uploading…';
+      try {
+        const { url } = await Api.uploadImage(file);
+        state.logo_url = url;
+        $logoUrl.value = url;
+        paintLogo();
+        paintPreview();
+        $logoSt.innerHTML = '<span class="text-success">Uploaded — click Save &amp; publish to apply.</span>';
+      } catch (err) {
+        $logoSt.innerHTML = `<span class="text-danger">Upload failed: ${escHtml(err.message)}</span>`;
+      } finally {
+        $logoFile.value = '';
+      }
+    });
+
+    $logoDel.addEventListener('click', () => {
+      state.logo_url = '';
+      $logoUrl.value = '';
+      $logoSt.textContent = '';
+      paintLogo();
+      paintPreview();
+    });
+
+    // ── Reset / Save ───────────────────────────────────────────────────────
+    document.getElementById('theme-reset').addEventListener('click', () => {
+      Object.assign(state, snapshot);
+      $name.value    = state.store_name;
+      $desc.value    = state.store_description;
+      $primary.value = state.brand_primary;
+      $accent.value  = state.brand_accent;
+      $primPk.value  = state.brand_primary || '#111111';
+      $accPk.value   = state.brand_accent  || '#f5c000';
+      $logoUrl.value = state.logo_url;
+      paintLogo();
+      paintPresetSelection();
+      paintPreview();
+    });
+
+    document.getElementById('theme-save').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+      try {
+        await Api.updateSettings({
+          theme:             state.theme,
+          brand_primary:     state.brand_primary,
+          brand_accent:      state.brand_accent,
+          logo_url:          state.logo_url,
+          store_name:        state.store_name,
+          store_description: state.store_description,
+        });
+        Toast.success('Theme published — your storefront is updated.');
+        // Refresh cached tenant context so navbar shows new store name.
+        try {
+          const ctxNow = Auth.getContext() || {};
+          sessionStorage.setItem(Auth._K_CTX, JSON.stringify({ ...ctxNow, store_name: state.store_name || ctxNow.store_name }));
+        } catch {}
+        Object.assign(snapshot, state);
+      } catch (err) {
+        Toast.error(`Save failed: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Save &amp; publish';
+      }
+    });
+  },
+};
+
+function invertFor(hex) {
+  // Pick black or white text for a given hex background so it stays readable.
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? '#111111' : '#ffffff';
+}
+
+function cssEscUrl(url) {
+  return String(url).replace(/"/g, '%22').replace(/'/g, '%27');
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════
 const Router = {
@@ -2412,6 +2869,12 @@ const Router = {
       return;
     }
 
+    if (hash === '/theme' || hash === '/settings') {
+      app.innerHTML = ThemeView.render();
+      ThemeView.init();
+      return;
+    }
+
     app.innerHTML = `
       <div class="text-center py-5">
         <div style="font-size:3rem;margin-bottom:1rem">★</div>
@@ -2437,22 +2900,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <h5 class="fw-bold">Configuration Error</h5>
           <p class="mb-1">${escHtml(err.message)}</p>
           <p class="text-secondary small mb-0">
-            Set the <code>WORKER_URL</code> environment variable and redeploy.
+            Set <code>PROVISION_URL</code> on the dashboard host and redeploy.
           </p>
         </div>
       </div>`;
     return;
   }
 
-  // Redirect to the onboarding wizard if the store hasn't been configured yet.
-  try {
-    const res  = await fetch(`${Config.workerUrl}/setup/status`);
-    const body = await res.json();
-    if (!body.data?.configured) {
-      window.location.replace('/onboarding.html');
-      return;
-    }
-  } catch { /* network error — fall through; the login form will surface the issue */ }
-
+  // No per-tenant onboarding redirect — the landing page handles sign-up
+  // and provisioning. This dashboard is shared across every merchant.
   Router.init();
 });

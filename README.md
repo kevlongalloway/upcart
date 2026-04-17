@@ -10,30 +10,32 @@ Connect account. All serverless, all on Cloudflare's edge.
 ## Platform overview
 
 ```
-                                 upcart.online (landing)
-                                        │
-                                        ▼
-                          ┌─────────────────────────────┐
-                          │   provisioning-service      │   Cloudflare Worker
-                          │   (Hono + D1 tenant registry)│
-                          └─────────────────────────────┘
-                                        │
-                creates per-tenant:  D1 db  •  R2 bucket  •  Worker  •  DNS
-                                        │
-                                        ▼
-                       <subdomain>.upcart.online
-                     ┌────────────────┬─────────────────┐
-                     │                │                 │
-            customer-store      admin-dashboard     backend
-            (static)            (Express SPA)    (Cloudflare Worker)
-                 └──────────── public API ──────┘
-                             + admin API (JWT)
-                             + Stripe webhook
-                             + Stripe Connect (per-merchant payouts)
+   upcart.online (landing)                  dashboard.upcart.online
+   ─ signup wizard ─                        ─ central admin UI ─
+          │                                         │
+          │  POST /provision                        │  POST /auth/login
+          ▼                                         ▼
+   ┌──────────────────────────────────────────────────────┐
+   │   provisioning-service   (Cloudflare Worker)          │
+   │   • creates tenant resources on signup                │
+   │   • resolves email → tenant + worker_url on login     │
+   │   • proxies admin creds to the tenant's own worker    │
+   └──────────────────────────────────────────────────────┘
+          │ creates per-tenant
+          ▼ D1  •  R2  •  Worker  •  DNS
+   <subdomain>.upcart.online    ← per-tenant store worker
+   ├─ storefront (read-only public API, /settings/public)
+   ├─ admin API (JWT-scoped to this tenant)
+   ├─ Stripe Checkout + webhooks
+   └─ Stripe Connect (per-merchant payouts)
 ```
 
-Every merchant gets their own stack; the shared surfaces are the landing page
-and the provisioning service.
+Shared services: the **landing** page (signup), the **provisioning
+service** (tenant factory + central login broker), and the **central
+dashboard** at `dashboard.upcart.online` that every merchant uses.
+
+Per-tenant services: the **storefront** (static site per subdomain) and the
+**backend Worker** (isolated D1 + R2 + JWT secret).
 
 ---
 
@@ -42,7 +44,7 @@ and the provisioning service.
 | Folder | What it is | Docs |
 |--------|------------|------|
 | [`backend/`](./backend) | Core e-commerce API. Cloudflare Worker + Hono + D1/MongoDB. Handles products, orders, discounts, Stripe checkout + webhooks, Stripe Connect, shipping labels, R2 image uploads, admin auth. | [`README`](./backend/README.md), [`API.md`](./backend/API.md), [`ADMIN_API.md`](./backend/ADMIN_API.md) |
-| [`admin-dashboard/`](./admin-dashboard) | Merchant-facing admin SPA. Vanilla JS + Bootstrap, served by a tiny Express wrapper so it can expose `WORKER_URL` to the browser via `/config`. | [`README`](./admin-dashboard/README.md) |
+| [`admin-dashboard/`](./admin-dashboard) | **Central** multi-tenant admin SPA (one deployment at `dashboard.upcart.online`). After login, the SPA calls each merchant's own worker directly using the URL returned by the provisioning service. | [`README`](./admin-dashboard/README.md) |
 | [`customer-store/`](./customer-store) | Shopper-facing storefront. Static HTML/CSS/JS with five theme presets. `build.sh` writes the backend URL into `config.js` at deploy time. | [`README`](./customer-store/README.md) |
 | [`landing/`](./landing) | Public signup wizard. Pure static site that talks to the provisioning service. | [`README`](./landing/README.md) |
 | [`provisioning-service/`](./provisioning-service) | Cloudflare Worker that spins up a new tenant (D1 + R2 + Worker + DNS + Custom Domain) in response to a signup. | [`README`](./provisioning-service/README.md) |

@@ -1,39 +1,58 @@
-# Admin Dashboard
+# Upcart Dashboard
 
-The merchant-facing admin portal for Upcart. Lets store operators log in, manage
-products, orders, and discount codes, and (on first run) complete the
-store-setup wizard.
+The **central, multi-tenant admin portal** for Upcart merchants, deployed at
+`dashboard.upcart.online`. Every merchant on the platform logs in here —
+there is no per-store dashboard deployment.
+
+After authentication the SPA talks **directly** to the merchant's own
+Cloudflare Worker (e.g. `https://mystore.upcart.online`), discovered from
+the provisioning service at login time.
 
 ---
 
 ## Architecture
 
-The dashboard is a **single-page app** written in vanilla JavaScript, served by
-a minimal **Express** wrapper. It talks to the backend Cloudflare Worker over
-HTTPS using a short-lived JWT obtained via `POST /admin/login`.
+```
+                  ┌──────────────────────────────────────┐
+                  │  dashboard.upcart.online             │
+                  │  (this app — one deployment)         │
+                  └──────────────────────────────────────┘
+                              │
+                    ①  POST /auth/login {email,password}
+                              │
+                              ▼
+              ┌──────────────────────────────────────────┐
+              │  provision.upcart.online                 │
+              │  — resolves email → worker_url           │
+              │  — proxies login to the tenant's worker  │
+              │  — returns JWT + worker_url + store info │
+              └──────────────────────────────────────────┘
+                              │
+                    ②  Browser stores worker_url + JWT
+                              │
+                              ▼
+         ┌─────────────────────────────────────────────────┐
+         │  <subdomain>.upcart.online (tenant's worker)    │
+         │  — /admin/* endpoints used from the browser     │
+         └─────────────────────────────────────────────────┘
+```
 
-```
-Browser ──► Express (server.js)
-             ├── serves static assets from public/
-             └── GET /config → { workerUrl } read from env
-                              (lets the SPA discover the backend URL)
-   │
-   └─── fetch(workerUrl + /admin/**) ──► Backend Worker (JWT-protected)
-```
+The Express `server.js` only serves static files and exposes a small
+`/config` endpoint so the SPA can discover the provisioning service URL.
+No requests are proxied through Express.
 
 | File | Purpose |
 |------|---------|
-| `server.js` | Express dev/prod server. Serves `public/` and exposes `GET /config`. |
+| `server.js` | Minimal Express server. Serves `public/` + `/config`. |
 | `public/index.html` | SPA shell (Bootstrap 5, Bootstrap Icons). |
-| `public/onboarding.html` | First-run setup wizard shown until `/setup/status` returns `configured: true`. |
-| `public/app.js` | Entire SPA (~2.5k LOC): `Config`, `Auth`, `Api`, views, `Router`. |
+| `public/app.js` | Entire SPA: `Config`, `Auth`, `Api`, views, `Router`. |
 | `public/style.css` | Custom theme on top of Bootstrap. |
 
 ### SPA routes (hash-based)
 
 | Hash | View |
 |------|------|
-| `#/login` | Admin login form |
+| `#/login` | Central login (email + password) |
 | `#/products` | Products list |
 | `#/products/new` | Create product |
 | `#/products/:id/edit` | Edit product |
@@ -42,9 +61,10 @@ Browser ──► Express (server.js)
 | `#/discounts` | Discounts list |
 | `#/discounts/new` | Create discount code |
 | `#/discounts/:id/edit` | Edit discount code |
+| `#/theme` | Storefront theme editor (preset + brand colors + logo) |
 
-All non-`/login` routes require a valid JWT; a 401 from the backend clears the
-token and redirects to `/login`.
+All non-`/login` routes require a valid JWT; a 401 from the merchant's
+worker clears the session and redirects to `/login`.
 
 ---
 
@@ -54,75 +74,47 @@ token and redirects to `/login`.
 cd admin-dashboard
 npm install
 cp .env.example .env
-# edit .env and set WORKER_URL
-npm run dev    # auto-reloads on file change
+# edit .env and point PROVISION_URL at a running provisioning-service
+npm run dev
 # or
 npm start
 ```
 
-Dashboard runs at <http://localhost:3000>. Log in with the `ADMIN_USERNAME` /
-`ADMIN_PASSWORD` you configured on the backend Worker.
+Dashboard runs at <http://localhost:3000>. Log in with the email / password
+a merchant used to sign up via the landing page.
 
 ---
 
 ## Environment variables
 
-| Var | Required | Description |
-|-----|----------|-------------|
-| `WORKER_URL` | **yes** | Full URL of the backend Worker, no trailing slash. The SPA fetches this from `GET /config`. |
-| `PORT` | no | Express port (default `3000`). |
+| Var | Default | Description |
+|-----|---------|-------------|
+| `PORT` | `3000` | Express port. |
+| `PROVISION_URL` | `https://provision.upcart.online` | Provisioning service — exposes `POST /auth/login`. |
+| `BASE_DOMAIN` | `upcart.online` | Root platform domain. |
+| `SIGNUP_URL` | `https://upcart.online` | Where the "Don't have a store? Sign up" link points. |
 
-If `WORKER_URL` is missing, `GET /config` returns `500` and the SPA shows a
-"Configuration Error" screen instead of the login form.
+No `WORKER_URL` is needed — the SPA discovers each merchant's worker
+from the login response.
 
 ---
 
 ## Deployment
 
-### Render (static + Node)
+Recommended: **Cloudflare Pages** (static hosting) + a bind to the
+`dashboard.upcart.online` custom domain.
 
-1. Create a new **Web Service** (not Static Site — the `/config` endpoint needs Node).
-2. **Build Command:** `npm install`
-3. **Start Command:** `npm start`
-4. **Environment:** add `WORKER_URL=https://<your-worker>.workers.dev`
-
-### Cloudflare Pages + Functions
-
-Pages can host the static files, but you'd need to rewrite `server.js` as a
-Pages Function. The simplest path is to keep the Express server on Render or
-Fly and point your domain at it.
-
----
-
-## API client
-
-The SPA wraps every authenticated call through `Api._fetch()`:
-
-```js
-Api._fetch('/admin/products')        // GET
-Api._fetch('/admin/products', {      // POST/PUT/DELETE
-  method: 'POST',
-  body: JSON.stringify({ ... }),
-})
-```
-
-- Automatically attaches `Authorization: Bearer <token>`.
-- Unwraps `{ ok, data, error }` envelope.
-- Throws `ApiError` with status + details on failure.
-- Redirects to `#/login` on 401.
-
-See [`../backend/ADMIN_API.md`](../backend/ADMIN_API.md) for the full endpoint
-reference.
+If you need the `/config` endpoint with env-driven config, use **Render**
+(Web Service, not Static Site) with the env vars above.
 
 ---
 
 ## Known gaps
 
-- **No tests.** Consider Playwright for end-to-end coverage of the key flows
-  (login, create product, record order, create discount).
-- **`app.js` is a single 2.5k-line file.** Splitting it into modules would make
-  the views easier to maintain.
-- **Token is stored in `sessionStorage`.** Fine for a single-tab session, but
-  logging out in one tab won't sign other tabs out.
-- **No client-side input validation.** The backend validates with Zod, but
-  adding client-side checks would surface errors faster.
+- **No tests.** Consider Playwright for login + create product + theme edit.
+- **`app.js` is a single ~2.8k-line file.** Splitting into ES modules is a
+  worthy refactor.
+- **Token is stored in `sessionStorage`.** Fine for a single-tab session;
+  logging out in one tab won't sign out others.
+- **No client-side input validation.** The backend validates with Zod,
+  but adding checks would surface errors faster.

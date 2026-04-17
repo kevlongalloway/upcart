@@ -1,7 +1,7 @@
 {
-  "name": "ecommaxxing-dashboard",
-  "version": "1.0.0",
-  "description": "Admin portal for Ecommaxxing e-commerce",
+  "name": "upcart-dashboard",
+  "version": "2.0.0",
+  "description": "Central multi-tenant admin dashboard for Upcart merchants (dashboard.upcart.online).",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

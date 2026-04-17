@@ -18,6 +18,7 @@ import { discounts } from "./routes/discounts.js";
 import { discountValidate } from "./routes/discountValidate.js";
 import { setup } from "./routes/setup.js";
 import { connect } from "./routes/connect.js";
+import { publicSettings, adminSettings } from "./routes/settings.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -72,6 +73,10 @@ app.route("/setup", setup);
 // Stripe Connect onboarding (public — merchant initiates before first login)
 app.route("/connect", connect);
 
+// Public storefront settings (theme, colors, logo, store name). Read by the
+// customer-facing storefront at page load to render the live brand.
+app.route("/settings/public", publicSettings);
+
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 
 // Login is public — no auth required.
@@ -99,6 +104,9 @@ app.route("/admin/orders", shipping);
 
 // Stripe Connect balance and withdrawal management (admin only)
 app.route("/admin/connect", connect);
+
+// Storefront theme + branding settings (admin only — read/write)
+app.route("/admin/settings", adminSettings);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 

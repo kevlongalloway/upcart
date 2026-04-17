@@ -605,3 +605,89 @@ hr {
     max-width: 720px !important;
   }
 }
+
+/* ── Upcart brand badge (replaces tenant logo in navbar/login) ──── */
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+.brand-badge-lg { width: 56px; height: 56px; border-radius: 14px; font-size: 1.8rem; }
+
+/* ── Theme editor presets ───────────────────────────────────────── */
+.theme-preset { cursor: pointer; }
+.theme-preset:focus-visible .theme-swatch { outline: 2px solid #0d6efd; outline-offset: 2px; }
+.theme-swatch {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  height: 110px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.08s ease;
+}
+.theme-swatch:hover { transform: translateY(-2px); }
+.theme-swatch-bar { height: 8px; width: 100%; }
+
+.theme-logo-preview {
+  width: 72px; height: 72px;
+  border-radius: 12px;
+  background-size: cover; background-position: center;
+  border: 2px dashed var(--bs-border-color, #444);
+  flex-shrink: 0;
+  background-color: rgba(255,255,255,.04);
+}
+
+/* ── Live storefront preview card ───────────────────────────────── */
+.theme-preview-wrap { position: sticky; top: 72px; }
+.theme-preview {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -20px rgba(0,0,0,0.4);
+  min-height: 360px;
+  background: #f5f5f5; color: #1a1a1a;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.theme-preview-nav {
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.theme-preview-logo {
+  width: 32px; height: 32px; border-radius: 8px;
+  background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800;
+}
+.theme-preview-brand {
+  font-weight: 700; font-size: 1rem;
+  text-transform: uppercase; letter-spacing: .14em;
+}
+.theme-preview-hero {
+  padding: 40px 24px 48px;
+  text-align: center;
+}
+.theme-preview-hero h3 {
+  font-weight: 800; font-size: 1.6rem; margin-bottom: 8px;
+}
+.theme-preview-hero p {
+  opacity: .75; font-size: .95rem; max-width: 360px; margin: 0 auto;
+}
+.theme-preview-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-size: .78rem;
+  cursor: pointer;
+}

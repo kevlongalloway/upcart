@@ -33,9 +33,11 @@ WORKER_SCRIPT_PREFIX = "upcart-store"
 # Update this whenever you ship a new backend version.
 WORKER_BUNDLE_KEY = "store-worker.js"
 
-# CORS origins for the provisioning API.
-# Allow the landing page origin (and local dev).
-CORS_ORIGINS = "https://upcart.online,https://www.upcart.online"
+# CORS origins for the provisioning API. Allow:
+#   - the landing page (root + www) — for POST /provision
+#   - the central dashboard         — for POST /auth/login + GET /auth/context
+# Add extra origins for local dev: "http://localhost:3000,http://localhost:8080".
+CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboard.upcart.online"
 
 # ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
 # The following secrets must be set before deploying:

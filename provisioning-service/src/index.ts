@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import type { Bindings } from "./types.js";
 import { provisionRouter } from "./routes/provision.js";
 import { statusRouter } from "./routes/status.js";
+import { authRouter } from "./routes/auth.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -46,6 +47,10 @@ app.route("/provision", provisionRouter);
 
 // GET /provision/:id/status — poll provisioning progress
 app.route("/provision", statusRouter);
+
+// POST /auth/login          — central dashboard login (proxies to tenant worker)
+// GET  /auth/context         — public tenant metadata for dashboard UI
+app.route("/auth", authRouter);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

@@ -9,6 +9,7 @@ type TenantRow = {
   store_name: string;
   plan: string;
   email: string;
+  username: string | null;
   password_hash: string;
   status: string;
   cf_worker_name: string | null;
@@ -44,6 +45,7 @@ export class TenantDB {
     subdomain: string;
     store_name: string;
     email: string;
+    username: string;
     password_hash: string;
     plan?: TenantPlan;
   }): Promise<Tenant> {
@@ -53,15 +55,16 @@ export class TenantDB {
     await this.db
       .prepare(
         `INSERT INTO tenants
-           (id, subdomain, store_name, plan, email, password_hash, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'provisioning', ?7, ?7)`
+           (id, subdomain, store_name, plan, email, username, password_hash, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'provisioning', ?8, ?8)`
       )
       .bind(
         id,
         input.subdomain,
         input.store_name,
         input.plan ?? "starter",
-        input.email,
+        input.email.toLowerCase().trim(),
+        input.username,
         input.password_hash,
         now
       )
@@ -82,6 +85,18 @@ export class TenantDB {
     const row = await this.db
       .prepare("SELECT * FROM tenants WHERE subdomain = ?1")
       .bind(subdomain.toLowerCase())
+      .first<TenantRow>();
+    return row ? rowToTenant(row) : null;
+  }
+
+  /**
+   * Case-insensitive email lookup. Used by the central /auth/login endpoint
+   * to resolve a sign-in request to the tenant's store worker URL.
+   */
+  async getTenantByEmail(email: string): Promise<Tenant | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM tenants WHERE lower(email) = ?1 LIMIT 1")
+      .bind(email.toLowerCase().trim())
       .first<TenantRow>();
     return row ? rowToTenant(row) : null;
   }

@@ -215,6 +215,7 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
     subdomain,
     store_name: store.name,
     email:      admin.email,
+    username:   admin.username,
     password_hash: passwordHash,
   });
 
@@ -346,10 +347,21 @@ async function runProvisioning(
 
   const jwtSecret = generateSecret();
 
-  // Public (plain-text) environment variables
+  // Public (plain-text) environment variables.
+  //
+  // CORS_ORIGINS includes:
+  //   - the store's own hostname — for the storefront fetching /products, etc.
+  //   - the central dashboard     — so dashboard.<BASE_DOMAIN> can call
+  //                                 /admin/* directly from the browser after
+  //                                 login resolves this worker's URL.
+  const corsOrigins = [
+    `https://${hostname}`,
+    `https://dashboard.${baseDomain}`,
+  ].join(",");
+
   const vars: Record<string, string> = {
     DB_ADAPTER:            "d1",
-    CORS_ORIGINS:          `https://${hostname}`,
+    CORS_ORIGINS:          corsOrigins,
     CORS_METHODS:          "GET,POST,PUT,DELETE,OPTIONS",
     CSRF_ENABLED:          "false",
     STRIPE_PUBLISHABLE_KEY: input.stripe_publishable_key,
@@ -462,7 +474,10 @@ async function runProvisioning(
   await tenantDB.updateStatus(tenantId, "finalizing");
 
   const storeUrl = `https://${hostname}`;
-  const adminUrl = `https://${hostname}/admin`;
+  // Central dashboard — one deployment at dashboard.<BASE_DOMAIN> handles every
+  // merchant. The dashboard resolves the tenant at login time and calls this
+  // store worker directly, so we no longer deploy a per-tenant admin SPA.
+  const adminUrl = `https://dashboard.${baseDomain}`;
 
   const setupRes = await fetch(`${storeUrl}/setup`, {
     method:  "POST",
@@ -487,6 +502,46 @@ async function runProvisioning(
   if (!setupRes.ok) {
     const body = await setupRes.text();
     throw new Error(`Store setup call failed (${setupRes.status}): ${body}`);
+  }
+
+  // ── Step 6: Seed a starter product so the storefront isn't empty ─────────
+  // The setup call above returns a short-lived admin JWT. Using it, drop in a
+  // single placeholder product so a freshly-provisioned merchant can hit
+  // their storefront and see something immediately. The merchant can edit or
+  // delete it from the dashboard — this is a best-effort seed; any error
+  // here is logged but does not fail provisioning.
+  try {
+    const setupBody = await setupRes.clone().json().catch(() => null) as
+      | { ok?: boolean; data?: { token?: string } } | null;
+    const seedToken = setupBody?.ok ? setupBody.data?.token : undefined;
+    if (seedToken) {
+      const seedRes = await fetch(`${storeUrl}/admin/products`, {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${seedToken}`,
+        },
+        body: JSON.stringify({
+          name:        "Welcome to your store",
+          description:
+            "This is a placeholder product so your store isn't empty when " +
+            "you first share the link. Edit or delete it from your " +
+            "dashboard — then add your real products.",
+          price:       1999, // $19.99 in smallest currency unit
+          currency:    input.store.currency,
+          stock:       -1,
+          active:      true,
+          images:      [],
+          metadata:    { seeded: true },
+        }),
+      });
+      if (!seedRes.ok) {
+        const body = await seedRes.text().catch(() => "");
+        console.warn(`Starter product seed failed (${seedRes.status}): ${body}`);
+      }
+    }
+  } catch (e) {
+    console.warn(`Starter product seed threw; ignoring:`, (e as Error).message);
   }
 
   // ── Done ──────────────────────────────────────────────────────────────────
