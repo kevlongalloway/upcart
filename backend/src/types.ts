@@ -7,6 +7,12 @@ export type Bindings = {
   // R2 bucket for image storage
   IMAGES: R2Bucket;
 
+  // Static storefront assets (HTML/CSS/JS from customer-store/).
+  // Bundled into the Worker by the provisioning service's assets upload.
+  // Optional: when absent (e.g. standalone single-tenant deploy without
+  // static assets), the Worker responds to non-API routes with a JSON 404.
+  ASSETS?: Fetcher;
+
   // ── Secrets (set via `wrangler secret put`) ──
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;

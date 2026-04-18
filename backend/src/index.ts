@@ -109,10 +109,29 @@ app.route("/admin/connect", connect);
 app.route("/admin/settings", adminSettings);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
+//
+// No API route matched. If the Worker has a static-assets binding (ASSETS),
+// fall through to it so the tenant storefront (index.html, products.html, etc.)
+// is served from the same origin as the API. If there's no assets binding, or
+// the caller clearly wants JSON, return a structured 404.
 
-app.notFound((c) =>
-  c.json({ ok: false, error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
-);
+const API_PREFIXES = ["/admin", "/webhooks", "/setup", "/checkout", "/connect"];
+
+app.notFound(async (c) => {
+  const path   = c.req.path;
+  const accept = c.req.header("accept") ?? "";
+  const looksLikeApi =
+    accept.includes("application/json") ||
+    API_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+
+  if (!c.env.ASSETS || looksLikeApi) {
+    return c.json(
+      { ok: false, error: `Route not found: ${c.req.method} ${path}` },
+      404
+    );
+  }
+  return c.env.ASSETS.fetch(c.req.raw);
+});
 
 // ─── Error Handler ────────────────────────────────────────────────────────────
 

@@ -27,6 +27,13 @@ export type Bindings = {
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
   WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
   CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
+
+  // R2 prefix holding the static storefront files (index.html, etc.).
+  // Every object under this prefix is uploaded as a Worker asset for each new
+  // tenant, so hitting <sub>.upcart.online/ serves the storefront and
+  // <sub>.upcart.online/products returns JSON — from the same Worker.
+  // Default: "storefront/"
+  STOREFRONT_BUNDLE_PREFIX?: string;
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────
@@ -128,6 +135,18 @@ export type CfWorkerScript = {
   etag: string;
   handlers: string[];
   modified_on: string;
+};
+
+/**
+ * Response from POST /accounts/{id}/workers/scripts/{name}/assets-upload-session.
+ * The API compares the supplied manifest against what's already stored and
+ * returns the `buckets` of file hashes we still need to upload. If every file
+ * is already present, `buckets` is empty — only the JWT is used.
+ * Reference: https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/assets/subresources/upload/
+ */
+export type CfAssetsUploadSession = {
+  jwt: string;
+  buckets: string[][];
 };
 
 export type CfWorkerRoute = {

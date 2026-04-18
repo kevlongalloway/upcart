@@ -10,7 +10,8 @@
     "db:migrate":    "wrangler d1 migrations apply upcart-provisioning-db",
     "db:migrate:local": "wrangler d1 migrations apply upcart-provisioning-db --local",
     "r2:create":     "wrangler r2 bucket create upcart-worker-bundles",
-    "bundle:upload": "wrangler r2 object put upcart-worker-bundles/store-worker.js --file ../backend/dist/index.js"
+    "bundle:upload": "wrangler r2 object put upcart-worker-bundles/store-worker.js --file ../backend/dist/index.js --remote",
+    "storefront:upload": "node scripts/upload-storefront.mjs"
   },
   "dependencies": {
     "hono": "^4.6.0",

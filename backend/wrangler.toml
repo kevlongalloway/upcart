@@ -18,6 +18,18 @@ database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 binding = "IMAGES"
 bucket_name = "upcart-r2"
 
+# ─── Static Storefront Assets ────────────────────────────────────────────────
+# Serves the customer-store/ HTML/CSS/JS directly from this Worker. The API
+# router handles matching routes first; anything that doesn't match (e.g.
+# "/", "/products.html") falls through to static files (see src/index.ts).
+# For multi-tenant deploys, the provisioning service re-uploads these files
+# per tenant via the assets upload session API — see
+# provisioning-service/src/cloudflare-api.ts :: uploadAssets.
+[assets]
+directory = "../customer-store"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
 # ─── Public Variables (non-sensitive) ────────────────────────────────────────
 [vars]
 # Which database adapter to use: "d1" or "mongodb"

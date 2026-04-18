@@ -166,6 +166,42 @@ function generateSecret(): string {
     .join("");
 }
 
+// ─── Storefront asset loader ──────────────────────────────────────────────────
+
+/**
+ * List every object under `prefix` in the WORKER_BUNDLES R2 bucket and return
+ * a Map<assetPath, bytes> suitable for CloudflareAPI.uploadAssets().
+ *
+ * The asset path is the R2 key with `prefix` stripped and a leading "/"
+ * prepended — e.g. prefix "storefront/" + key "storefront/index.html" becomes
+ * "/index.html", which is what Workers Static Assets expects.
+ */
+async function loadStorefrontFiles(
+  bucket: R2Bucket,
+  prefix: string
+): Promise<Map<string, ArrayBuffer>> {
+  const files: Map<string, ArrayBuffer> = new Map();
+  let cursor: string | undefined;
+
+  // R2 list is paginated; follow the cursor until exhausted.
+  do {
+    const page = await bucket.list({ prefix, cursor, limit: 1000 });
+    for (const obj of page.objects) {
+      // Skip pseudo-directory markers and the prefix itself.
+      if (obj.key === prefix || obj.key.endsWith("/")) continue;
+
+      const body = await bucket.get(obj.key);
+      if (!body) continue;
+      const bytes   = await body.arrayBuffer();
+      const relPath = obj.key.slice(prefix.length);
+      files.set("/" + relPath, bytes);
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  return files;
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const provisionRouter = new Hono<{ Bindings: Bindings }>();
@@ -345,6 +381,27 @@ async function runProvisioning(
   }
   const bundle = await bundleObj.arrayBuffer();
 
+  // ── Step 3a: Upload storefront static assets ─────────────────────────────
+  // Pull every object under STOREFRONT_BUNDLE_PREFIX (default "storefront/")
+  // out of the WORKER_BUNDLES R2 bucket and attach them to this tenant's
+  // Worker as static assets. Skipped silently if the prefix is empty — the
+  // Worker still runs, it just serves JSON 404s for non-API routes.
+  const storefrontPrefix = env.STOREFRONT_BUNDLE_PREFIX ?? "storefront/";
+  const storefrontFiles  = await loadStorefrontFiles(env.WORKER_BUNDLES, storefrontPrefix);
+
+  let assetsJwt: string | null = null;
+  if (storefrontFiles.size > 0) {
+    assetsJwt = await cf.uploadAssets(workerName, storefrontFiles);
+    console.log(
+      `Uploaded ${storefrontFiles.size} storefront asset(s) for ${workerName}`
+    );
+  } else {
+    console.warn(
+      `No storefront files found under R2 prefix "${storefrontPrefix}"; ` +
+      `tenant ${tenantId} will serve API only.`
+    );
+  }
+
   const jwtSecret = generateSecret();
 
   // Public (plain-text) environment variables.
@@ -379,7 +436,7 @@ async function runProvisioning(
     STORE_PHONE:           "",
   };
 
-  await cf.deployWorker(workerName, bundle, d1.uuid, r2BucketName, vars);
+  await cf.deployWorker(workerName, bundle, d1.uuid, r2BucketName, vars, assetsJwt ?? undefined);
   created.workerName = workerName;
   await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
 

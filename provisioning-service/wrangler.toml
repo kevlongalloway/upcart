@@ -33,6 +33,14 @@ WORKER_SCRIPT_PREFIX = "upcart-store"
 # Update this whenever you ship a new backend version.
 WORKER_BUNDLE_KEY = "store-worker.js"
 
+# R2 prefix under which the static storefront files (customer-store/*) live.
+# Every object under this prefix is attached to the tenant's Worker as a static
+# asset, so each tenant's subdomain serves both the API and the storefront HTML
+# from one Worker. Re-upload these files whenever the storefront changes:
+#   cd ../customer-store && API_BASE_URL="" sh build.sh
+#   cd ../provisioning-service && npm run storefront:upload
+STOREFRONT_BUNDLE_PREFIX = "storefront/"
+
 # CORS origins for the provisioning API. Allow:
 #   - the landing page (root + www) — for POST /provision
 #   - the central dashboard         — for POST /auth/login + GET /auth/context

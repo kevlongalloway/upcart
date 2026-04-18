@@ -1,5 +1,6 @@
 import type {
   CfApiResult,
+  CfAssetsUploadSession,
   CfD1Database,
   CfR2Bucket,
   CfWorkerScript,
@@ -201,28 +202,51 @@ export class CloudflareAPI {
    * @param d1Id       - D1 database UUID to bind as "DB"
    * @param r2Bucket   - R2 bucket name to bind as "IMAGES"
    * @param vars       - Additional plain-text environment variables
+   * @param assetsJwt  - Optional JWT from uploadAssets(). When supplied, the
+   *                    deployed script gets an `ASSETS` fetcher binding that
+   *                    serves the uploaded static files (storefront HTML/CSS/JS).
    */
   async deployWorker(
     scriptName: string,
     bundle: ArrayBuffer,
     d1Id: string,
     r2Bucket: string,
-    vars: Record<string, string>
+    vars: Record<string, string>,
+    assetsJwt?: string
   ): Promise<CfWorkerScript> {
-    const metadata = {
+    const bindings: Array<Record<string, unknown>> = [
+      { type: "d1", name: "DB", id: d1Id },
+      { type: "r2_bucket", name: "IMAGES", bucket_name: r2Bucket },
+      ...Object.entries(vars).map(([name, text]) => ({
+        type: "plain_text",
+        name,
+        text,
+      })),
+    ];
+
+    if (assetsJwt) {
+      // ASSETS fetcher binding — lets the Worker call c.env.ASSETS.fetch(req)
+      // to serve the uploaded static files.
+      bindings.push({ type: "assets", name: "ASSETS" });
+    }
+
+    const metadata: Record<string, unknown> = {
       main_module: "worker.js",
       compatibility_date: "2025-01-01",
       compatibility_flags: ["nodejs_compat_v2"],
-      bindings: [
-        { type: "d1", name: "DB", id: d1Id },
-        { type: "r2_bucket", name: "IMAGES", bucket_name: r2Bucket },
-        ...Object.entries(vars).map(([name, text]) => ({
-          type: "plain_text",
-          name,
-          text,
-        })),
-      ],
+      bindings,
     };
+
+    if (assetsJwt) {
+      // Associate the previously-uploaded assets with this deployment.
+      // `html_handling: "auto-trailing-slash"` lets "/products" resolve to
+      // "/products.html"; "single-page-application" returns index.html for
+      // unmatched paths which is too broad here because we also have API routes.
+      metadata.assets = {
+        jwt: assetsJwt,
+        config: { html_handling: "auto-trailing-slash" },
+      };
+    }
 
     const form = new FormData();
     form.append(
@@ -242,6 +266,100 @@ export class CloudflareAPI {
       form
     );
     return res.result;
+  }
+
+  // ── Worker Assets (static files) ─────────────────────────────────────────────
+  //
+  // Two-step protocol for attaching static files to a Worker:
+  //
+  //   1. POST /workers/scripts/{name}/assets-upload-session with a manifest of
+  //      { path → { hash, size } }. The API replies with a JWT and `buckets`
+  //      — lists of file hashes we still need to upload (already-cached files
+  //      are omitted).
+  //   2. For each bucket, POST /workers/assets/upload with a multipart body
+  //      where each field name is a file hash and each value is the file
+  //      contents, using the JWT for auth.
+  //
+  // The JWT is then passed to deployWorker() via the `assets` metadata so the
+  // new script version references these uploaded files.
+  //
+  // Reference: https://developers.cloudflare.com/workers/static-assets/direct-upload/
+
+  /**
+   * Upload a set of static files to a Worker script as assets.
+   *
+   * @param scriptName - Target Worker script name
+   * @param files      - Map of absolute asset path ("/index.html") → file bytes
+   * @returns          A JWT to pass to deployWorker()'s `assetsJwt` parameter.
+   *                   Returns `null` if `files` is empty (nothing to upload).
+   */
+  async uploadAssets(
+    scriptName: string,
+    files: Map<string, ArrayBuffer>
+  ): Promise<string | null> {
+    if (files.size === 0) return null;
+
+    // Build the manifest keyed by hash so we can look up contents later.
+    const manifest: Record<string, { hash: string; size: number }> = {};
+    const byHash   = new Map<string, ArrayBuffer>();
+
+    for (const [path, buf] of files) {
+      const digest = await crypto.subtle.digest("SHA-256", buf);
+      // Cloudflare expects a 32-char hex hash (first 16 bytes of SHA-256).
+      const hash   = Array.from(new Uint8Array(digest).slice(0, 16))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      manifest[path] = { hash, size: buf.byteLength };
+      byHash.set(hash, buf);
+    }
+
+    // Step 1: open the upload session.
+    const sessionRes = await this.request<CfAssetsUploadSession>(
+      "POST",
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}/assets-upload-session`,
+      { manifest }
+    );
+    const { jwt, buckets } = sessionRes.result;
+
+    // Step 2: upload each bucket of missing files.
+    // The upload endpoint uses the session JWT (not the account API token)
+    // and a multipart body where each part's name is the file's hash.
+    for (const bucket of buckets ?? []) {
+      if (bucket.length === 0) continue;
+
+      const form = new FormData();
+      for (const hash of bucket) {
+        const buf = byHash.get(hash);
+        if (!buf) {
+          throw new Error(
+            `Asset upload requested hash ${hash} that is not in our manifest`
+          );
+        }
+        // The API expects base64-encoded file contents for each field.
+        const b64 = arrayBufferToBase64(buf);
+        form.append(
+          hash,
+          new Blob([b64], { type: "application/octet-stream" }),
+          hash
+        );
+      }
+
+      const res = await fetch(`${CF_BASE}/accounts/${this.accountId}/workers/assets/upload?base64=true`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+        body: form,
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(
+          `Asset upload failed for bucket of ${bucket.length} files: ` +
+          `HTTP ${res.status} ${txt}`
+        );
+      }
+    }
+
+    return jwt;
   }
 
   /** Delete a Worker script by name. Used for rollback on failed provisioning. */
@@ -354,4 +472,20 @@ export class CloudflareAPI {
       `/zones/${zoneId}/workers/routes/${routeId}`
     );
   }
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Base64-encode an ArrayBuffer without overflowing String.fromCharCode.apply
+ * on large payloads. Works on Workers (no Buffer global).
+ */
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary  = "";
+  const chunk = 0x8000; // 32 KiB — safely under the apply() arg limit
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
