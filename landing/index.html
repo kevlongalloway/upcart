@@ -878,69 +878,23 @@
         return;
       }
 
-      // Poll for completion
-      await pollProvisionStatus(tenantId);
-    }
+      // The actual Cloudflare provisioning (D1 → R2 → Worker → DNS → Custom
+      // Domain) runs async on the provisioning service via ctx.waitUntil and
+      // takes a few minutes — far longer than we want to keep the merchant
+      // staring at this page. We show the "finalizing" animation for ~5s
+      // (just so the transition feels intentional) and hand them off to the
+      // dashboard. The dashboard's /welcome view fetches status on load
+      // (and on refresh — no polling) and either renders a "still setting
+      // up" panel or the login form once the worker is ready.
+      applyStatus('finalizing');
+      await new Promise(r => setTimeout(r, 5000));
 
-    async function pollProvisionStatus(tenantId) {
-      const MAX_POLLS = 60;   // 60 × 3s = 3 minutes max
-      const INTERVAL  = 3000;
-
-      for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise(r => setTimeout(r, INTERVAL));
-
-        let body;
-        try {
-          const res = await fetch(`${PROVISION_URL}/provision/${encodeURIComponent(tenantId)}/status`);
-          body = await res.json();
-          if (!res.ok) throw new Error(body.error || 'Status check failed');
-        } catch {
-          continue; // transient error — keep polling
-        }
-
-        const { status, store_url, admin_url } = body.data ?? {};
-        applyStatus(status);
-
-        if (status === 'active') {
-          showSuccessPanel(store_url, admin_url);
-          return;
-        }
-
-        if (status === 'failed') {
-          goToStep(3);
-          const btn = document.getElementById('finish-btn');
-          btn.disabled = false;
-          btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
-          showError(body.data?.error_message || 'Provisioning failed. Please try again or contact support.');
-          return;
-        }
-      }
-
-      // Timed out
-      goToStep(3);
-      const btn = document.getElementById('finish-btn');
-      btn.disabled = false;
-      btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
-      showError('Provisioning is taking longer than expected. Check back in a few minutes — your store may still be setting up.');
-    }
-
-    function showSuccessPanel(storeUrl, adminUrl) {
-      // Every merchant on the platform shares a single dashboard deployment at
-      // dashboard.upcart.online — the provisioning service returns that URL
-      // in `admin_url`. We fall back to it here so the merchant is always
-      // pointed at the central login, not a per-tenant admin path.
-      const adminHost = adminUrl || DASHBOARD_URL;
-      const storeHost = storeUrl || `https://${state.subdomain}.upcart.online`;
-
-      document.getElementById('link-admin').href       = adminHost;
-      document.getElementById('link-admin-url').textContent = adminHost.replace('https://', '');
-      document.getElementById('link-store').href       = storeHost;
-      document.getElementById('link-store-url').textContent = storeHost.replace('https://', '');
-
-      // Sign in link always goes to the central dashboard.
-      document.getElementById('sign-in-link').href = adminHost;
-
-      goToStep('success');
+      const params = new URLSearchParams({
+        tenant:    tenantId,
+        email:     state.admin.email,
+        subdomain: state.subdomain,
+      });
+      location.href = `${DASHBOARD_URL}/#/welcome?${params.toString()}`;
     }
   </script>
 </body>

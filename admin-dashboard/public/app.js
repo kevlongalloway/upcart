@@ -63,6 +63,14 @@ const Auth = {
     let body;
     try { body = await res.json(); }
     catch { throw new ApiError('Unexpected response from login service.', res.status); }
+
+    // 202 = the store hasn't finished provisioning yet. The provisioning
+    // service returns the current status so we can render an inline panel
+    // instead of a hard error. No session is saved.
+    if (res.status === 202 && body.ok && body.data && body.data.provisioning) {
+      return { provisioning: true, ...body.data };
+    }
+
     if (!res.ok || !body.ok) {
       throw new ApiError(body.error || 'Login failed.', res.status);
     }
@@ -373,9 +381,60 @@ function renderNavbar() {
 // ═══════════════════════════════════════════════════════════════
 // View: Login
 // ═══════════════════════════════════════════════════════════════
+
+// ── Provisioning status helpers ────────────────────────────────────────
+// Shared by LoginView and WelcomeView. Status checks run ONCE per page
+// load (no polling) — re-checking happens via the "Refresh status" button
+// which just reloads the page. This keeps Cloudflare API quota usage
+// down for stores that take several minutes to come up.
+const PROVISION_STEPS = [
+  { key: 'creating_database',  label: 'Creating database' },
+  { key: 'creating_storage',   label: 'Creating storage' },
+  { key: 'deploying_worker',   label: 'Deploying store worker' },
+  { key: 'configuring_domain', label: 'Configuring domain & SSL' },
+  { key: 'finalizing',         label: 'Finalizing setup' },
+];
+
+function provisioningPanelHtml(info) {
+  const statusKey = info.status || 'creating_database';
+  const idx = Math.max(0, PROVISION_STEPS.findIndex(s => s.key === statusKey));
+  const subdomain = info.subdomain ? escHtml(info.subdomain) : 'your-store';
+  const baseDomain = escHtml(Config.baseDomain || 'upcart.online');
+  const storeName = info.store_name ? escHtml(info.store_name) : 'Your store';
+  const stepsHtml = PROVISION_STEPS.map((s, i) => {
+    const state = i < idx ? 'done' : (i === idx ? 'active' : 'pending');
+    const icon = state === 'done'
+      ? '<i class="bi bi-check-circle-fill text-success"></i>'
+      : state === 'active'
+        ? '<span class="spinner-border spinner-border-sm text-primary" role="status"></span>'
+        : '<i class="bi bi-circle text-secondary"></i>';
+    const cls = state === 'pending' ? 'text-secondary' : '';
+    return `<li class="d-flex align-items-center gap-2 mb-2 ${cls}">${icon}<span class="small">${escHtml(s.label)}</span></li>`;
+  }).join('');
+  return `
+    <div class="alert alert-info py-3 mb-4" role="status">
+      <p class="fw-semibold mb-1">${storeName} is still being set up</p>
+      <p class="small mb-3 text-secondary">
+        Cloudflare DNS, SSL, and Workers can take a few minutes to provision.
+        Refresh this page to check progress — you'll be able to sign in once
+        your store is live at <code>${subdomain}.${baseDomain}</code>.
+      </p>
+      <ul class="list-unstyled mb-3">${stepsHtml}</ul>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="refresh-status-btn">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh status
+      </button>
+    </div>`;
+}
+
+function wireRefreshStatusButton() {
+  const btn = document.getElementById('refresh-status-btn');
+  if (btn) btn.addEventListener('click', () => location.reload());
+}
+
 const LoginView = {
-  render() {
+  render(prefillEmail) {
     const signupUrl = Config.signupUrl || 'https://upcart.online';
+    const email = prefillEmail ? escHtml(prefillEmail) : '';
     return `
       <div class="login-wrap">
         <div class="card login-card">
@@ -388,11 +447,12 @@ const LoginView = {
               <p class="mb-0 mt-1" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Merchant Dashboard</p>
               <p class="text-secondary small mt-3 mb-0">Sign in to manage your store</p>
             </div>
+            <div id="provisioning-panel"></div>
             <div id="login-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
             <form id="login-form" novalidate>
               <div class="mb-3">
                 <label for="login-email" class="form-label small fw-semibold">Email</label>
-                <input type="email" class="form-control" id="login-email" autocomplete="email" required placeholder="you@example.com">
+                <input type="email" class="form-control" id="login-email" autocomplete="email" required placeholder="you@example.com" value="${email}">
               </div>
               <div class="mb-4">
                 <label for="login-password" class="form-label small fw-semibold">Password</label>
@@ -417,16 +477,31 @@ const LoginView = {
     const form   = document.getElementById('login-form');
     const btn    = document.getElementById('login-btn');
     const errEl  = document.getElementById('login-error');
+    const panel  = document.getElementById('provisioning-panel');
+
+    // Focus password if email was pre-filled (from signup → /welcome flow).
+    const emailInput = document.getElementById('login-email');
+    if (emailInput.value) document.getElementById('login-password').focus();
+    else emailInput.focus();
 
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const email    = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       errEl.classList.add('d-none');
+      panel.innerHTML = '';
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in…';
       try {
-        await Auth.login(email, password);
+        const result = await Auth.login(email, password);
+        if (result && result.provisioning) {
+          // Store isn't ready yet — render the inline status panel.
+          panel.innerHTML = provisioningPanelHtml(result);
+          wireRefreshStatusButton();
+          btn.disabled = false;
+          btn.textContent = 'Sign in';
+          return;
+        }
         Router.go('/products');
       } catch (err) {
         errEl.textContent = err.message;
@@ -435,6 +510,96 @@ const LoginView = {
         btn.textContent = 'Sign in';
       }
     });
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// View: Welcome (post-signup landing)
+// ═══════════════════════════════════════════════════════════════
+// Reached via redirect from the landing page after a successful signup:
+//   #/welcome?tenant=<id>&email=<email>&subdomain=<sub>
+// On load (and only on load — no polling) it fetches the tenant's status
+// once. If active, it renders the login form pre-filled with the email.
+// If still provisioning, it renders the status panel with a refresh button.
+const WelcomeView = {
+  async render() {
+    const params    = new URLSearchParams((location.hash.split('?')[1] || ''));
+    const tenantId  = params.get('tenant');
+    const email     = params.get('email') || '';
+    const subdomain = params.get('subdomain') || '';
+
+    if (!tenantId) {
+      // No tenant context — fall through to the standard login form.
+      return { html: LoginView.render(email), mode: 'login', email };
+    }
+
+    let info = null;
+    try {
+      const res  = await fetch(`${Config.provisionUrl}/provision/${encodeURIComponent(tenantId)}/status`);
+      const body = await res.json();
+      if (res.ok && body.ok) info = body.data;
+    } catch { /* network blip — treat as still provisioning */ }
+
+    const status = info?.status;
+
+    if (status === 'active') {
+      return { html: LoginView.render(email), mode: 'login', email };
+    }
+
+    if (status === 'failed') {
+      return {
+        html: `
+          <div class="login-wrap">
+            <div class="card login-card">
+              <div class="card-body p-4 p-sm-5">
+                <div class="alert alert-danger" role="alert">
+                  <p class="fw-semibold mb-1">Store setup failed</p>
+                  <p class="small mb-2 text-secondary">${escHtml(info.error_message || 'Provisioning ran into an error.')}</p>
+                  <a href="${escHtml(Config.signupUrl || 'https://upcart.online')}" class="btn btn-sm btn-outline-danger">Start over</a>
+                </div>
+              </div>
+            </div>
+          </div>`,
+        mode: 'failed',
+      };
+    }
+
+    // Still provisioning (or status unknown) — render the status panel
+    // alongside a disabled login form so users know what's happening.
+    const provisioningInfo = {
+      status:     status || 'creating_database',
+      subdomain:  subdomain || info?.subdomain,
+      store_name: info?.store_name,
+    };
+    return {
+      html: `
+        <div class="login-wrap">
+          <div class="card login-card">
+            <div class="card-body p-4 p-sm-5">
+              <div class="text-center mb-4">
+                <div class="login-logo">
+                  <span class="brand-badge brand-badge-lg">U</span>
+                </div>
+                <h5 class="fw-bold mt-3 mb-0">Upcart</h5>
+                <p class="mb-0 mt-1" style="font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted)">Merchant Dashboard</p>
+              </div>
+              ${provisioningPanelHtml(provisioningInfo)}
+              <p class="small text-secondary mb-0 text-center">
+                Already have access? <a href="#/login">Sign in</a>
+              </p>
+            </div>
+          </div>
+        </div>`,
+      mode: 'provisioning',
+    };
+  },
+
+  init(mode) {
+    if (mode === 'login') {
+      LoginView.init();
+    } else if (mode === 'provisioning') {
+      wireRefreshStatusButton();
+    }
   },
 };
 
@@ -2799,7 +2964,10 @@ const Router = {
   },
 
   _route() {
-    const hash = location.hash.replace(/^#/, '') || '/';
+    const raw  = location.hash.replace(/^#/, '') || '/';
+    // Strip query string before route matching — public routes like
+    // /welcome carry signup metadata as ?tenant=…&email=…&subdomain=…
+    const hash = raw.split('?')[0] || '/';
     const app  = document.getElementById('app');
 
     // Redirect root
@@ -2808,9 +2976,22 @@ const Router = {
       return;
     }
 
+    // Public routes — no auth required.
+    const isPublic = hash === '/login' || hash === '/welcome';
+
     // Auth guard
-    if (hash !== '/login' && !Auth.isLoggedIn()) { this.go('/login'); return; }
+    if (!isPublic && !Auth.isLoggedIn())         { this.go('/login'); return; }
     if (hash === '/login' && Auth.isLoggedIn())  { this.go('/products'); return; }
+
+    if (hash === '/welcome') {
+      // WelcomeView fetches /provision/:id/status once (no polling) and
+      // renders either the login form (if active) or a status panel.
+      WelcomeView.render().then(({ html, mode }) => {
+        app.innerHTML = html;
+        WelcomeView.init(mode);
+      });
+      return;
+    }
 
     if (hash === '/login') {
       app.innerHTML = LoginView.render();

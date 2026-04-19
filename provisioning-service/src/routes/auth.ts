@@ -43,7 +43,18 @@ authRouter.post("/login", zValidator("json", loginSchema), async (c) => {
     if (tenant.status === "suspended")  return c.json(err("Your store is suspended. Please contact support."), 403);
     if (tenant.status === "cancelled")  return c.json(err("This store has been cancelled."), 403);
     if (tenant.status === "failed")     return c.json(err("Your store setup failed. Please sign up again or contact support."), 409);
-    return c.json(err("Your store is still being set up. Please try again in a moment."), 425);
+    // Still provisioning — return 202 with the current state so the dashboard
+    // can render an inline "still setting up" panel with a refresh button
+    // instead of a hard error. We deliberately don't validate the password
+    // yet (the tenant worker isn't reachable to check it) — once the store
+    // is active they'll re-submit and authenticate normally.
+    return c.json(ok({
+      provisioning: true,
+      status:       tenant.status,
+      tenant_id:    tenant.id,
+      subdomain:    tenant.subdomain,
+      store_name:   tenant.store_name,
+    }), 202);
   }
 
   if (!tenant.store_url || !tenant.username) return generic();
