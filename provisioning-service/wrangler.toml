@@ -42,9 +42,17 @@ CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboar
 # ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
 # The following secrets must be set before deploying:
 #
+#   # Cloudflare (required)
 #   wrangler secret put CF_ACCOUNT_ID    (your Cloudflare account ID)
 #   wrangler secret put CF_API_TOKEN     (see required scopes below)
 #   wrangler secret put CF_ZONE_ID       (zone ID for upcart.online)
+#
+#   # Platform Stripe — propagated into every tenant worker at provisioning
+#   # time. All merchants run through the platform's Stripe account via
+#   # Stripe Connect; they do NOT bring their own keys.
+#   wrangler secret put STRIPE_SECRET_KEY       (sk_live_... or sk_test_...)
+#   wrangler secret put STRIPE_WEBHOOK_SECRET   (whsec_... — single platform endpoint)
+#   wrangler secret put STRIPE_PUBLISHABLE_KEY  (pk_live_... or pk_test_...)
 #
 # Find your account ID: Cloudflare dashboard → right sidebar
 # Find your zone ID:    Cloudflare dashboard → upcart.online → right sidebar
@@ -52,7 +60,7 @@ CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboar
 #
 # Required API token permissions:
 #   Account scope:
-#     - Workers Scripts: Edit   (deploy/delete Worker scripts)
+#     - Workers Scripts: Edit   (deploy/delete Worker scripts, set secrets)
 #     - D1: Edit                (create databases, run migrations)
 #     - R2 Storage: Edit        (create image buckets)
 #     - Workers Custom Domains: Edit  (bind workers to subdomains)

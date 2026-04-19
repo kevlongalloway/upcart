@@ -17,3 +17,16 @@ CF_API_TOKEN=your-cloudflare-api-token
 # Zone ID for the BASE_DOMAIN (set in wrangler.toml [vars]).
 # Find it in the Cloudflare dashboard → <your-domain> → right sidebar.
 CF_ZONE_ID=your-zone-id
+
+# ── Platform Stripe credentials ─────────────────────────────────────────────
+# The platform runs one Stripe account; every tenant worker inherits these
+# at provisioning time. Merchants connect via Stripe Connect and never see
+# the platform keys.
+#
+# Generate test keys at https://dashboard.stripe.com/test/apikeys
+# Create a webhook endpoint at https://dashboard.stripe.com/test/webhooks
+# pointing at https://<provisioning-worker>/webhooks/stripe (or a
+# per-tenant URL; see DEPLOY.md) to obtain the signing secret.
+STRIPE_SECRET_KEY=sk_test_YOUR_PLATFORM_TEST_KEY
+STRIPE_WEBHOOK_SECRET=whsec_YOUR_PLATFORM_WEBHOOK_SECRET
+STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_PLATFORM_TEST_KEY

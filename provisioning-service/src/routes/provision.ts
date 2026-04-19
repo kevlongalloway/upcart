@@ -359,12 +359,18 @@ async function runProvisioning(
     `https://dashboard.${baseDomain}`,
   ].join(",");
 
+  // Stripe publishable key: always the platform's (merchants do NOT supply
+  // their own Stripe keys — they connect via Stripe Connect). The
+  // `stripe_publishable_key` input is kept for back-compat only and ignored
+  // when the platform value is set.
+  const publishableKey = env.STRIPE_PUBLISHABLE_KEY || input.stripe_publishable_key || "";
+
   const vars: Record<string, string> = {
     DB_ADAPTER:            "d1",
     CORS_ORIGINS:          corsOrigins,
     CORS_METHODS:          "GET,POST,PUT,DELETE,OPTIONS",
     CSRF_ENABLED:          "false",
-    STRIPE_PUBLISHABLE_KEY: input.stripe_publishable_key,
+    STRIPE_PUBLISHABLE_KEY: publishableKey,
     DEFAULT_CURRENCY:      input.store.currency,
     R2_PUBLIC_URL:         `https://pub-${r2BucketName}.r2.dev`,
     TENANT_ID:             tenantId,
@@ -383,8 +389,36 @@ async function runProvisioning(
   created.workerName = workerName;
   await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
 
-  // Set secrets (these are never in plain-text vars)
+  // Set secrets (these are never in plain-text vars).
+  //
+  // JWT_SECRET is unique per tenant so a leak in one store can't be used to
+  // forge admin tokens for another.
+  //
+  // STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are the platform's — all
+  // tenants share them because all checkout flows run through the platform's
+  // Stripe account via Connect destination charges. The tenant worker needs
+  // them to create checkout sessions / payment intents (checkout.ts),
+  // create/retrieve Connect accounts (connect.ts), and verify incoming
+  // Stripe webhooks (webhooks.ts).
   await cf.setWorkerSecret(workerName, "JWT_SECRET", jwtSecret);
+
+  if (env.STRIPE_SECRET_KEY) {
+    await cf.setWorkerSecret(workerName, "STRIPE_SECRET_KEY", env.STRIPE_SECRET_KEY);
+  } else {
+    console.warn(
+      `STRIPE_SECRET_KEY not set on provisioning worker — tenant ${tenantId} ` +
+      `will not be able to run Stripe checkout until it is propagated.`
+    );
+  }
+
+  if (env.STRIPE_WEBHOOK_SECRET) {
+    await cf.setWorkerSecret(workerName, "STRIPE_WEBHOOK_SECRET", env.STRIPE_WEBHOOK_SECRET);
+  } else {
+    console.warn(
+      `STRIPE_WEBHOOK_SECRET not set on provisioning worker — tenant ${tenantId} ` +
+      `will reject Stripe webhooks until it is propagated.`
+    );
+  }
 
   // ── Step 4: Provision subdomain DNS + Worker binding ─────────────────────
   //

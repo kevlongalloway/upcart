@@ -22,6 +22,16 @@ export type Bindings = {
   // Zone ID for upcart.online — used for DNS record and route management
   CF_ZONE_ID: string;
 
+  // ── Platform Stripe credentials (propagated to every tenant worker) ──
+  // The platform owns one Stripe account; individual merchants connect to it
+  // via Stripe Connect (see backend/src/routes/connect.ts). Each tenant worker
+  // needs the platform's secret/webhook keys to create sessions + verify
+  // webhooks. The publishable key is public and flows into tenant [vars];
+  // the secret + webhook secret flow in as wrangler secrets per tenant.
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
+  STRIPE_PUBLISHABLE_KEY: string;
+
   // ── Config vars (set in wrangler.toml [vars]) ──
   BASE_DOMAIN: string;           // "upcart.online"
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
