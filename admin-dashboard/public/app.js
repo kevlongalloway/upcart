@@ -41,6 +41,16 @@ const Auth = {
   },
 
   _save({ token, worker_url, ...ctx }) {
+    // Guard against a partially-populated login response — storing
+    // `undefined` via setItem silently coerces it to the literal string
+    // "undefined", which later produces URLs like
+    // https://dashboard.upcart.online/undefined/admin/products.
+    if (!token || typeof token !== 'string') {
+      throw new ApiError('Login response missing token.', 500);
+    }
+    if (!worker_url || typeof worker_url !== 'string') {
+      throw new ApiError('Login response missing store URL — your tenant may still be provisioning.', 500);
+    }
     sessionStorage.setItem(this._K_TOKEN,      token);
     sessionStorage.setItem(this._K_WORKER_URL, worker_url);
     sessionStorage.setItem(this._K_CTX,        JSON.stringify(ctx));
