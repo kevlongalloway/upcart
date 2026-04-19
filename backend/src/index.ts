@@ -19,6 +19,7 @@ import { discountValidate } from "./routes/discountValidate.js";
 import { setup } from "./routes/setup.js";
 import { connect } from "./routes/connect.js";
 import { publicSettings, adminSettings } from "./routes/settings.js";
+import { storefront } from "./routes/storefront.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -36,17 +37,6 @@ app.use("*", corsMiddleware());
 app.use("*", csrfMiddleware());
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
-
-app.get("/", (c) =>
-  c.json({
-    ok: true,
-    data: {
-      service: "e-commaxxing",
-      version: "1.1.0",
-      db: c.env.DB_ADAPTER ?? "d1",
-    },
-  })
-);
 
 app.get("/health", (c) => c.json({ ok: true, data: { status: "healthy" } }));
 
@@ -107,6 +97,13 @@ app.route("/admin/connect", connect);
 
 // Storefront theme + branding settings (admin only — read/write)
 app.route("/admin/settings", adminSettings);
+
+// ─── Storefront (static HTML/CSS/JS) ──────────────────────────────────────────
+// Generated from ../customer-store/ at build time. Registered last so API
+// routes win any collision; storefront paths (/, /*.html, /config.js,
+// /cart.js, /theme.js, /themes/*.css) don't overlap with API routes.
+
+app.route("/", storefront);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 

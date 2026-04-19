@@ -242,36 +242,41 @@ request goes straight to the tenant worker.
 
 ---
 
-## 5. Customer store
+## 5. Customer store — nothing to deploy
 
-The shopper-facing HTML/CSS/JS site. One build, one deployment, serves
-every tenant — the tenant's worker returns a `STORE_THEME` in
-`/settings/public` and the storefront reads it at load time.
+The storefront ships **inside** every tenant worker. `npm run build` in
+Step 1 reads `customer-store/*.{html,js,css}` + `customer-store/themes/*.css`,
+inlines them into the bundle via `backend/build.mjs`, and the tenant
+worker serves them at `/`, `/products.html`, `/product.html`, `/cart.html`,
+`/success.html`, plus `/config.js`, `/cart.js`, `/theme.js`, `/themes/*.css`.
+
+So the moment provisioning finishes Step 4 (DNS + Custom Domain binding),
+`https://<subdomain>.upcart.online/` renders the full storefront —
+**no second deploy required**. The storefront uses same-origin fetches
+(`window.BST_API_BASE = ""`) so it automatically talks to the same tenant
+worker for `/products`, `/settings/public`, `/checkout/*`, `/orders/*`.
+
+Branding and theme are still live-editable: the dashboard writes to
+`/admin/settings` and `theme.js` re-fetches `/settings/public` on every
+page load, so theme changes take effect without a rebuild.
+
+### When you edit `customer-store/`
+
+Re-ship the bundle so new signups pick up your changes:
 
 ```bash
-cd customer-store
-cp .env.example .env
-# edit .env: API_BASE_URL=https://<a-known-subdomain>.upcart.online
-sh build.sh
+cd backend                && npm run build         # regenerate storefront + bundle
+cd ../provisioning-service && npm run bundle:upload # push to R2
 ```
 
-`build.sh` writes `config.js` with `window.BST_API_BASE`. The storefront
-reads this once and talks to the tenant's worker for everything.
+Existing tenants keep their old bundle until re-provisioned; only new
+signups pick up the fresh one (same rolling story as any backend change —
+see Step 2.3).
 
-There are two ways to host this in production:
-
-- **Deploy once, point every subdomain at it.** In Cloudflare Pages, set
-  a Workers Custom Domain per subdomain that routes `/` to the tenant
-  worker and `/assets/*` to the static site. Tenant workers already serve
-  `/settings/public`, `/products`, `/checkout/*`, and `/orders/*`, so a
-  path-based split works.
-- **Deploy per tenant.** `render.yaml` is set up for Render static sites;
-  clone the deploy per merchant and set `API_BASE_URL` to that merchant's
-  subdomain. Simpler but scales worse.
-
-The current codebase does **not** include an automated storefront upload
-step; don't look for `storefront:upload` or `STOREFRONT_BUNDLE_PREFIX`, they
-don't exist.
+> The `customer-store/render.yaml` + `build.sh` are still there if you
+> ever want to deploy the storefront *independently* (e.g. to debug
+> against a staging API). They are **not** part of the normal deploy
+> path and you can ignore them.
 
 ---
 

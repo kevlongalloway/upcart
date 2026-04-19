@@ -265,12 +265,10 @@
      per-tenant worker at runtime. This lets merchants retune their theme
      from the dashboard without a rebuild. */
   var base = String(window.BST_API_BASE || '').replace(/\/$/, '');
-  if (base) {
-    fetch(base + '/settings/public', { credentials: 'omit' })
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (body) {
-        if (body && body.ok && body.data) applyBrandOverrides(body.data);
-      })
-      .catch(function () { /* silent — keep the preset */ });
-  }
+  fetch(base + '/settings/public', { credentials: 'omit' })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (body) {
+      if (body && body.ok && body.data) applyBrandOverrides(body.data);
+    })
+    .catch(function () { /* silent — keep the preset */ });
 })();
