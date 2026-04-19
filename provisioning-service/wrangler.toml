@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat_v2"]
 [[d1_databases]]
 binding  = "DB"
 database_name = "upcart-provisioning-db"
-database_id   = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id   = "b748b0fe-5002-477f-815b-ee1fab4e81a2"
 
 # ─── R2 — compiled store worker bundles ──────────────────────────────────────
 # Create with: wrangler r2 bucket create upcart-worker-bundles
