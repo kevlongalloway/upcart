@@ -59,7 +59,7 @@ DEFAULT_CURRENCY = "usd"
 
 # Public base URL of your R2 bucket (from Cloudflare dashboard → R2 → bucket → Public Access)
 # Example: "https://pub-abc123def456.r2.dev"
-R2_PUBLIC_URL = "https://pub-1a71d6fe08994f2daf1877353b918043.r2.dev"
+R2_PUBLIC_URL = "https://pub-0adf367f3a324276b6c78d01050bd58a.r2.dev"
 
 # ─── Shipping address collection ─────────────────────────────────────────────
 # Comma-separated ISO 3166-1 alpha-2 country codes that Stripe Checkout will
