@@ -513,6 +513,26 @@ async function runProvisioning(
   // store worker directly, so we no longer deploy a per-tenant admin SPA.
   const adminUrl = `https://dashboard.${baseDomain}`;
 
+  // Poll /health until the new Custom Domain is routable. First-time SSL +
+  // edge propagation can take 30–90s; without this the /setup call below
+  // often hits Cloudflare 530/1016 "Origin DNS error".
+  const healthDeadline = Date.now() + 90_000;
+  let healthy = false;
+  while (Date.now() < healthDeadline) {
+    try {
+      const ping = await fetch(`${storeUrl}/health`, { method: "GET" });
+      if (ping.ok) { healthy = true; break; }
+    } catch { /* transient — keep polling */ }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  if (!healthy) {
+    throw new Error(
+      `Tenant worker at ${storeUrl} never became reachable (90s). ` +
+      `Likely a Custom Domain SSL provisioning delay — retry signup, or ` +
+      `check the binding in the Cloudflare dashboard.`
+    );
+  }
+
   const setupRes = await fetch(`${storeUrl}/setup`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
