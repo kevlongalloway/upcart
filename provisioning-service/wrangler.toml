@@ -47,16 +47,40 @@ STOREFRONT_BUNDLE_PREFIX = "storefront/"
 # Add extra origins for local dev: "http://localhost:3000,http://localhost:8080".
 CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboard.upcart.online"
 
+# ─── Stripe billing (paywalled signup) ───────────────────────────────────────
+#
+# The landing page collects a card *before* provisioning via Stripe Elements.
+# No charge happens at signup — a trialing Subscription is created instead and
+# Stripe bills automatically TRIAL_DAYS later.
+#
+# STRIPE_PUBLISHABLE_KEY is safe to expose; it's returned from /billing-intent
+# and used by Stripe.js in the browser. It MUST match the test/live mode of
+# STRIPE_SECRET_KEY. Get both from https://dashboard.stripe.com/apikeys.
+# Use test keys (sk_test_.../pk_test_...) during development.
+STRIPE_PUBLISHABLE_KEY = "pk_test_REPLACE_ME"
+
+# Free-trial length in days.
+TRIAL_DAYS = "14"
+
+# Platform plan — auto-created in Stripe on first signup, cached in the
+# platform_settings D1 table. Changing these after the first signup has no
+# effect until the cached `stripe_product_id`/`stripe_price_id` are cleared.
+PLATFORM_PRODUCT_NAME   = "Upcart Subscription"
+PLATFORM_PRICE_AMOUNT   = "2900"   # smallest currency unit → $29.00 USD
+PLATFORM_PRICE_CURRENCY = "usd"
+
 # ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
 # The following secrets must be set before deploying:
 #
-#   wrangler secret put CF_ACCOUNT_ID    (your Cloudflare account ID)
-#   wrangler secret put CF_API_TOKEN     (see required scopes below)
-#   wrangler secret put CF_ZONE_ID       (zone ID for upcart.online)
+#   wrangler secret put CF_ACCOUNT_ID       (your Cloudflare account ID)
+#   wrangler secret put CF_API_TOKEN        (see required scopes below)
+#   wrangler secret put CF_ZONE_ID          (zone ID for upcart.online)
+#   wrangler secret put STRIPE_SECRET_KEY   (sk_test_... or sk_live_...)
 #
 # Find your account ID: Cloudflare dashboard → right sidebar
 # Find your zone ID:    Cloudflare dashboard → upcart.online → right sidebar
 # Create the API token: https://dash.cloudflare.com/profile/api-tokens
+# Stripe keys:          https://dashboard.stripe.com/apikeys
 #
 # Required API token permissions:
 #   Account scope:

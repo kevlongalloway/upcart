@@ -3,8 +3,9 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
-import { TenantDB } from "../db.js";
+import { TenantDB, PlatformSettings } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
+import { StripeAPI } from "../stripe.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -136,9 +137,19 @@ const provisionSchema = z.object({
     username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_]+$/),
     password: z.string().min(8),
   }),
-  // No longer required — the platform manages payments via Stripe Connect.
-  // Merchants connect their bank accounts after store setup.
-  stripe_publishable_key: z.string().optional().default(""),
+  // Free-trial card check. The client creates these via POST /billing-intent
+  // and confirms the SetupIntent with Stripe.js before posting to /provision.
+  // No charge is made now — Stripe bills after TRIAL_DAYS days.
+  billing: z.object({
+    customer_id:     z.string().startsWith("cus_"),
+    setup_intent_id: z.string().startsWith("seti_"),
+  }),
+});
+
+// Inputs for POST /provision/billing-intent.
+const billingIntentSchema = z.object({
+  email: z.string().email(),
+  name:  z.string().max(200).optional().default(""),
 });
 
 // ─── Password hashing ─────────────────────────────────────────────────────────
@@ -206,6 +217,96 @@ async function loadStorefrontFiles(
 
 export const provisionRouter = new Hono<{ Bindings: Bindings }>();
 
+// ─── Platform billing helpers ─────────────────────────────────────────────────
+
+const DEFAULT_TRIAL_DAYS          = 14;
+const DEFAULT_PLATFORM_PRODUCT    = "Upcart Subscription";
+const DEFAULT_PLATFORM_AMOUNT     = 2900;   // $29.00
+const DEFAULT_PLATFORM_CURRENCY   = "usd";
+
+function resolveTrialDays(env: Bindings): number {
+  const n = parseInt(env.TRIAL_DAYS ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_TRIAL_DAYS;
+}
+
+/**
+ * Return the platform subscription Price ID, creating the Product + Price in
+ * Stripe on first use and caching the IDs in platform_settings. Idempotent:
+ * subsequent calls return the cached ID without any Stripe round trips.
+ *
+ * This is what makes the deploy zero-intervention — an operator doesn't need
+ * to visit the Stripe dashboard; the first signup implicitly bootstraps the
+ * platform's billing catalog.
+ */
+async function resolvePlatformPriceId(
+  stripe: StripeAPI,
+  settings: PlatformSettings,
+  env: Bindings
+): Promise<string> {
+  const cached = await settings.get("stripe_price_id");
+  if (cached) return cached;
+
+  const productName = env.PLATFORM_PRODUCT_NAME    ?? DEFAULT_PLATFORM_PRODUCT;
+  const amount      = parseInt(env.PLATFORM_PRICE_AMOUNT ?? "", 10) || DEFAULT_PLATFORM_AMOUNT;
+  const currency    = (env.PLATFORM_PRICE_CURRENCY ?? DEFAULT_PLATFORM_CURRENCY).toLowerCase();
+
+  // Prefer existing Stripe objects so repeated deploys (or forgotten cache
+  // clears) don't duplicate the catalog.
+  let product = await stripe.findProductByName(productName);
+  if (!product) product = await stripe.createProduct(productName);
+  await settings.put("stripe_product_id", product.id);
+
+  let price = await stripe.findMonthlyPriceForProduct(product.id, amount, currency);
+  if (!price) price = await stripe.createMonthlyPrice(product.id, amount, currency);
+  await settings.put("stripe_price_id", price.id);
+
+  return price.id;
+}
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+/**
+ * POST /provision/billing-intent
+ * Step 1 of signup: we create a Stripe Customer and a SetupIntent so the
+ * landing page can collect a card via Stripe Elements without charging it.
+ * The returned client_secret + publishable_key are safe to expose to the
+ * browser.
+ */
+provisionRouter.post(
+  "/billing-intent",
+  zValidator("json", billingIntentSchema),
+  async (c) => {
+    const { email, name } = c.req.valid("json");
+
+    if (!c.env.STRIPE_SECRET_KEY || !c.env.STRIPE_PUBLISHABLE_KEY) {
+      return c.json(
+        err("Platform billing is not configured. Contact support."),
+        503
+      );
+    }
+
+    const stripe = new StripeAPI(c.env.STRIPE_SECRET_KEY);
+
+    try {
+      const customer     = await stripe.createCustomer({ email, name });
+      const setupIntent  = await stripe.createSetupIntent(customer.id);
+
+      return c.json(ok({
+        customer_id:      customer.id,
+        setup_intent_id:  setupIntent.id,
+        client_secret:    setupIntent.client_secret,
+        publishable_key:  c.env.STRIPE_PUBLISHABLE_KEY,
+        trial_days:       resolveTrialDays(c.env),
+        plan_amount:      parseInt(c.env.PLATFORM_PRICE_AMOUNT   ?? "", 10) || DEFAULT_PLATFORM_AMOUNT,
+        plan_currency:    (c.env.PLATFORM_PRICE_CURRENCY ?? DEFAULT_PLATFORM_CURRENCY).toLowerCase(),
+      }));
+    } catch (e) {
+      console.error("billing-intent failed:", e);
+      return c.json(err((e as Error).message ?? "Could not start billing."), 502);
+    }
+  }
+);
+
 /**
  * GET /provision/check-subdomain?name=<subdomain>
  * Returns whether a subdomain is available to register.
@@ -229,7 +330,7 @@ provisionRouter.get("/check-subdomain", async (c) => {
  * so the client can poll for status.
  */
 provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
-  const { store, admin, stripe_publishable_key } = c.req.valid("json");
+  const { store, admin, billing } = c.req.valid("json");
   const subdomain = store.subdomain.toLowerCase();
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -244,6 +345,62 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
     return c.json(err("That subdomain is already taken. Please choose another."), 409);
   }
 
+  // ── Billing check (before any Cloudflare work) ────────────────────────────
+  // Verify the SetupIntent succeeded on Stripe's side and create the trialing
+  // subscription. If the card is declined, failed 3DS, or otherwise incomplete,
+  // we abort here so we don't waste a tenant row / CF resources.
+  if (!c.env.STRIPE_SECRET_KEY) {
+    return c.json(err("Platform billing is not configured."), 503);
+  }
+
+  const stripe   = new StripeAPI(c.env.STRIPE_SECRET_KEY);
+  const settings = new PlatformSettings(c.env.DB);
+
+  let subscriptionId:    string;
+  let paymentMethodId:   string;
+  let trialEndsAt:       string | null;
+  let subscriptionStatus: string;
+
+  try {
+    const setupIntent = await stripe.retrieveSetupIntent(billing.setup_intent_id);
+    if (setupIntent.status !== "succeeded") {
+      return c.json(
+        err(`Card not confirmed (status: ${setupIntent.status}). Please re-enter your card.`),
+        402
+      );
+    }
+    if (setupIntent.customer !== billing.customer_id) {
+      return c.json(err("Billing context mismatch. Please restart signup."), 400);
+    }
+    if (!setupIntent.payment_method) {
+      return c.json(err("No payment method attached. Please re-enter your card."), 400);
+    }
+    paymentMethodId = setupIntent.payment_method;
+
+    const priceId = await resolvePlatformPriceId(stripe, settings, c.env);
+    const trialDays = resolveTrialDays(c.env);
+
+    const sub = await stripe.createTrialSubscription({
+      customerId:      billing.customer_id,
+      priceId,
+      paymentMethodId,
+      trialDays,
+      metadata: { subdomain, store_name: store.name },
+    });
+
+    subscriptionId     = sub.id;
+    subscriptionStatus = sub.status;
+    trialEndsAt        = sub.trial_end
+      ? new Date(sub.trial_end * 1000).toISOString()
+      : null;
+  } catch (e) {
+    console.error("Subscription creation failed:", e);
+    return c.json(
+      err((e as Error).message ?? "Could not start subscription. Please try again."),
+      502
+    );
+  }
+
   // ── Create tenant record ──────────────────────────────────────────────────
   const passwordHash = await hashPassword(admin.password);
 
@@ -255,14 +412,33 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
     password_hash: passwordHash,
   });
 
+  await tenantDB.updateResources(tenant.id, {
+    stripe_customer_id:       billing.customer_id,
+    stripe_subscription_id:   subscriptionId,
+    stripe_payment_method_id: paymentMethodId,
+    trial_ends_at:            trialEndsAt ?? undefined,
+    subscription_status:      subscriptionStatus,
+  });
+
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
   c.executionCtx.waitUntil(
-    runProvisioning(c.env, tenant.id, { store, admin, stripe_publishable_key }, tenantDB)
-      .catch(async (e) => {
-        console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
-        await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
-      })
+    runProvisioning(
+      c.env,
+      tenant.id,
+      { store, admin, subscriptionId },
+      tenantDB
+    ).catch(async (e) => {
+      console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
+      // Best-effort: cancel the trialing subscription so the merchant isn't
+      // billed for a store that never worked.
+      try {
+        await stripe.cancelSubscription(subscriptionId);
+      } catch (cancelErr) {
+        console.error("Also failed to cancel subscription:", cancelErr);
+      }
+      await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
+    })
   );
 
   return c.json(
@@ -335,7 +511,7 @@ async function runProvisioning(
   input: {
     store: z.infer<typeof provisionSchema>["store"];
     admin: z.infer<typeof provisionSchema>["admin"];
-    stripe_publishable_key: string;
+    subscriptionId: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
@@ -421,7 +597,7 @@ async function runProvisioning(
     CORS_ORIGINS:          corsOrigins,
     CORS_METHODS:          "GET,POST,PUT,DELETE,OPTIONS",
     CSRF_ENABLED:          "false",
-    STRIPE_PUBLISHABLE_KEY: input.stripe_publishable_key,
+    STRIPE_PUBLISHABLE_KEY: env.STRIPE_PUBLISHABLE_KEY,
     DEFAULT_CURRENCY:      input.store.currency,
     R2_PUBLIC_URL:         `https://pub-${r2BucketName}.r2.dev`,
     TENANT_ID:             tenantId,
@@ -440,8 +616,11 @@ async function runProvisioning(
   created.workerName = workerName;
   await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
 
-  // Set secrets (these are never in plain-text vars)
+  // Set secrets (these are never in plain-text vars).
+  // STRIPE_SECRET_KEY is propagated from the platform so customer storefront
+  // purchases work on Cloudflare without any per-tenant configuration.
   await cf.setWorkerSecret(workerName, "JWT_SECRET", jwtSecret);
+  await cf.setWorkerSecret(workerName, "STRIPE_SECRET_KEY", env.STRIPE_SECRET_KEY);
 
   // ── Step 4: Provision subdomain DNS + Worker binding ─────────────────────
   //
@@ -552,7 +731,7 @@ async function runProvisioning(
         email:    input.admin.email,
         password: input.admin.password,
       },
-      stripe_publishable_key: input.stripe_publishable_key,
+      stripe_publishable_key: env.STRIPE_PUBLISHABLE_KEY,
     }),
   });
 

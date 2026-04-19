@@ -22,6 +22,13 @@ export type Bindings = {
   // Zone ID for upcart.online — used for DNS record and route management
   CF_ZONE_ID: string;
 
+  // ── Platform Stripe credentials (set via `wrangler secret put`) ──
+  // Used for signup billing: create Customer + SetupIntent on the landing
+  // page, then create a trialing Subscription when the tenant is provisioned.
+  // Use sk_test_... + pk_test_... during development; switching to live
+  // keys is the only change needed to go-live.
+  STRIPE_SECRET_KEY: string;
+
   // ── Config vars (set in wrangler.toml [vars]) ──
   BASE_DOMAIN: string;           // "upcart.online"
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
@@ -34,6 +41,22 @@ export type Bindings = {
   // <sub>.upcart.online/products returns JSON — from the same Worker.
   // Default: "storefront/"
   STOREFRONT_BUNDLE_PREFIX?: string;
+
+  // ── Stripe billing config (set in wrangler.toml [vars]) ──
+  // Returned verbatim to the landing page so Stripe.js can confirm the
+  // SetupIntent in the browser. Must match the test/live mode of STRIPE_SECRET_KEY.
+  STRIPE_PUBLISHABLE_KEY: string;
+
+  // Free-trial length in days (stringified for wrangler var passthrough).
+  // Default: "14"
+  TRIAL_DAYS?: string;
+
+  // Platform plan — auto-created in Stripe on first signup, then cached in
+  // platform_settings. Changing these after first use has no effect unless
+  // the cached IDs are cleared.
+  PLATFORM_PRODUCT_NAME?: string;     // default "Upcart Subscription"
+  PLATFORM_PRICE_AMOUNT?: string;     // smallest currency unit; default "2900" = $29.00
+  PLATFORM_PRICE_CURRENCY?: string;   // lowercase ISO; default "usd"
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────
@@ -74,9 +97,17 @@ export type Tenant = {
   cf_custom_domain_id: string | null;  // Workers Custom Domain binding ID
   cf_route_id: string | null;          // Workers Route ID (fallback only)
 
-  // Stripe Connect
+  // Stripe Connect (per-tenant merchant payout account — set later by the
+  // merchant through the admin dashboard, not during signup)
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
+
+  // Platform billing (signup card + trial subscription)
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_payment_method_id: string | null;
+  trial_ends_at: string | null;
+  subscription_status: string | null;
 
   // Live URLs (set once provisioning completes)
   store_url: string | null;

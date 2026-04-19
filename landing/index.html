@@ -167,6 +167,33 @@
       text-align: center;
       padding: 4px 4px 5px;
     }
+
+    /* Stripe card element — visually consistent with our .form-control */
+    .stripe-card-mount {
+      background: var(--bg-input, var(--bg-base));
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      padding: 0.625rem 0.75rem;
+      min-height: 42px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .stripe-card-mount.StripeElement--focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px var(--gold-glow);
+    }
+    .stripe-card-mount.StripeElement--invalid {
+      border-color: #dc3545;
+    }
+
+    .trial-summary {
+      background: var(--bg-base);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      padding: 0.75rem 0.9rem;
+      font-size: 0.78rem;
+    }
+    .trial-summary .label { color: var(--text-muted); }
+    .trial-summary .value { font-weight: 600; }
   </style>
 </head>
 <body>
@@ -398,36 +425,56 @@
             </form>
           </div>
 
-          <!-- ══ Step 3: Payments ══ -->
+          <!-- ══ Step 3: Free trial + card ══ -->
           <div class="step-panel" id="panel-3">
-            <div class="step-title">Payments</div>
-            <div class="step-subtitle">
-              We handle all payment processing. After your store is live, you'll connect your
-              bank account via Stripe to receive payouts.
+            <div class="step-title">Start your free trial</div>
+            <div class="step-subtitle" id="step3-subtitle">
+              Enter a card to unlock your store. You won't be charged today —
+              we'll bill after your free trial ends, and you can cancel anytime.
             </div>
             <form id="form-3" novalidate>
-              <div class="mb-1">
-                <div class="card" style="background:var(--bg-base);border:1px solid var(--border-default)">
-                  <div class="card-body py-3 px-3">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                      <i class="bi bi-shield-check" style="color:var(--gold);font-size:1.1rem"></i>
-                      <span class="fw-semibold" style="font-size:0.85rem">How it works</span>
-                    </div>
-                    <ul class="mb-0 ps-3" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
-                      <li>No API keys needed — we manage payments for you</li>
-                      <li>Customers pay securely via Stripe checkout</li>
-                      <li>Funds are held until the order is marked as delivered</li>
-                      <li>Withdraw to your bank anytime, or set up auto-payouts</li>
-                    </ul>
-                  </div>
+
+              <!-- Trial summary -->
+              <div class="trial-summary mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="label">Free trial</span>
+                  <span class="value" id="trial-summary-days">14 days</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="label">Then</span>
+                  <span class="value" id="trial-summary-price">$29.00 / month</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="label">Today</span>
+                  <span class="value" style="color:var(--gold)">$0.00</span>
                 </div>
               </div>
+
+              <!-- Card element -->
+              <div class="mb-2">
+                <label class="form-label">Card details <span class="text-danger">*</span></label>
+                <div id="stripe-card-element" class="stripe-card-mount">
+                  <!-- Stripe Elements mounts here once the billing intent loads -->
+                  <div class="text-center py-2" id="stripe-card-placeholder" style="color:var(--text-muted);font-size:0.78rem">
+                    <span class="spinner-border spinner-border-sm me-2" style="width:0.8rem;height:0.8rem;border-width:2px"></span>
+                    Loading secure card entry…
+                  </div>
+                </div>
+                <div id="stripe-card-error" class="invalid-feedback d-block" style="display:none !important"></div>
+              </div>
+
+              <p class="mb-3" style="font-size:0.72rem;color:var(--text-muted);line-height:1.5">
+                <i class="bi bi-lock-fill me-1" style="color:var(--gold)"></i>
+                Your card is encrypted and stored by Stripe. We never see or store your card number.
+                Test mode — use <code>4242 4242 4242 4242</code> with any future date and any CVC.
+              </p>
+
               <div class="d-flex justify-content-between mt-4">
                 <button type="button" class="btn btn-secondary px-3" id="back-to-2">
                   <i class="bi bi-arrow-left me-1"></i>Back
                 </button>
-                <button type="submit" class="btn btn-primary px-4" id="finish-btn">
-                  Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>
+                <button type="submit" class="btn btn-primary px-4" id="finish-btn" disabled>
+                  Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>
                 </button>
               </div>
             </form>
@@ -522,6 +569,7 @@
   </div><!-- /setup-wrap -->
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
   <script>
     'use strict';
 
@@ -555,10 +603,27 @@
     const state = {
       store: {},
       admin: {},
-      stripe_publishable_key: '',
       subdomain: '',
       subdomainAvailable: false,
       theme: 'mono',
+
+      // Billing (populated in step 3 before /provision is called).
+      // customer_id + setup_intent_id are returned by POST /billing-intent;
+      // the SetupIntent is confirmed client-side via Stripe.js.
+      billing: {
+        customer_id: '',
+        setup_intent_id: '',
+      },
+    };
+
+    // Stripe.js references — created on step-3 entry and reused on retries.
+    const stripeCtx = {
+      stripe: null,
+      elements: null,
+      cardElement: null,
+      clientSecret: '',
+      ready: false,       // true once Elements has mounted
+      confirmed: false,   // true once the SetupIntent has succeeded
     };
 
     // ── Theme picker ──────────────────────────────────────────────────────────
@@ -777,12 +842,159 @@
 
       state.admin = { email, username, password };
       goToStep(3);
+      initBillingStep();
     });
 
-    // ── Step 3: Payments ────────────────────────────────────────────────────────
+    // ── Step 3: Free trial + card ──────────────────────────────────────────────
+    //
+    // On step entry we:
+    //   1. POST /provision/billing-intent with the admin email to create a
+    //      Stripe Customer + SetupIntent. The response contains a client_secret
+    //      + the platform's publishable_key (both safe to expose), plus the
+    //      trial length and plan price to show the user.
+    //   2. Mount Stripe Elements' card element against that client_secret.
+    //
+    // On submit we call stripe.confirmCardSetup — this sends the card to
+    // Stripe directly (we never see it). If it succeeds, we stash the
+    // customer_id + setup_intent_id in state and fire submitProvision().
+
+    async function initBillingStep() {
+      if (stripeCtx.ready) return;         // already initialised
+
+      const placeholder = document.getElementById('stripe-card-placeholder');
+      const cardMount   = document.getElementById('stripe-card-element');
+      const finishBtn   = document.getElementById('finish-btn');
+      const errorEl     = document.getElementById('stripe-card-error');
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+
+      try {
+        const res = await fetch(`${PROVISION_URL}/provision/billing-intent`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            email: state.admin.email,
+            name:  state.store.name,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok || !body.ok) {
+          throw new Error(body.error || 'Could not start billing. Please try again.');
+        }
+
+        const data = body.data;
+        state.billing.customer_id     = data.customer_id;
+        state.billing.setup_intent_id = data.setup_intent_id;
+        stripeCtx.clientSecret        = data.client_secret;
+
+        // Populate the trial summary with real numbers from the server.
+        document.getElementById('trial-summary-days').textContent =
+          `${data.trial_days} day${data.trial_days === 1 ? '' : 's'}`;
+        document.getElementById('trial-summary-price').textContent =
+          `${formatMoney(data.plan_amount, data.plan_currency)} / month`;
+
+        // ── Mount Stripe Elements ────────────────────────────────────────────
+        if (typeof Stripe !== 'function') {
+          throw new Error('Stripe.js did not load. Please disable ad-blockers and retry.');
+        }
+        stripeCtx.stripe   = Stripe(data.publishable_key);
+        stripeCtx.elements = stripeCtx.stripe.elements();
+        stripeCtx.cardElement = stripeCtx.elements.create('card', {
+          hidePostalCode: false,
+          style: {
+            base: {
+              color: '#ffffff',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: '14px',
+              '::placeholder': { color: '#8a8a8a' },
+              iconColor: '#c9a227',
+            },
+            invalid: { color: '#dc3545', iconColor: '#dc3545' },
+          },
+        });
+
+        placeholder.remove();
+        stripeCtx.cardElement.mount(cardMount);
+
+        stripeCtx.cardElement.on('change', (ev) => {
+          if (ev.error) {
+            errorEl.textContent = ev.error.message;
+            errorEl.style.display = 'block';
+          } else {
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+          }
+          finishBtn.disabled = !ev.complete;
+        });
+
+        stripeCtx.ready = true;
+      } catch (err) {
+        placeholder.innerHTML =
+          '<span style="color:#dc3545">' + (err.message || 'Could not load billing') + '</span>';
+        showError(err.message || 'Could not load billing. Please retry.');
+      }
+    }
+
+    function formatMoney(amount, currency) {
+      const asNum = Number(amount) / 100;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: (currency || 'usd').toUpperCase(),
+          maximumFractionDigits: 2,
+        }).format(asNum);
+      } catch {
+        return `${asNum.toFixed(2)} ${(currency || 'usd').toUpperCase()}`;
+      }
+    }
+
     document.getElementById('form-3').addEventListener('submit', async e => {
       e.preventDefault();
-      state.stripe_publishable_key = ''; // Platform manages payments via Stripe Connect
+
+      if (!stripeCtx.ready) {
+        showError('Card entry is still loading. Please wait a moment.');
+        return;
+      }
+
+      const btn = document.getElementById('finish-btn');
+      const errorEl = document.getElementById('stripe-card-error');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying card…';
+      hideError();
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+
+      try {
+        // Confirm the SetupIntent client-side. Stripe may require 3DS; the SDK
+        // handles the redirect/popup flow and resolves once the user completes
+        // it. No money moves — we just attach a PaymentMethod for later.
+        if (!stripeCtx.confirmed) {
+          const { error, setupIntent } = await stripeCtx.stripe.confirmCardSetup(
+            stripeCtx.clientSecret,
+            {
+              payment_method: {
+                card: stripeCtx.cardElement,
+                billing_details: { email: state.admin.email, name: state.store.name },
+              },
+            }
+          );
+
+          if (error) {
+            throw new Error(error.message || 'Card was declined. Please try another.');
+          }
+          if (!setupIntent || setupIntent.status !== 'succeeded') {
+            throw new Error('Card confirmation did not complete. Please try again.');
+          }
+          stripeCtx.confirmed = true;
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+        return;
+      }
+
       await submitProvision();
     });
 
@@ -856,9 +1068,9 @@
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
-            store:                  state.store,
-            admin:                  state.admin,
-            stripe_publishable_key: state.stripe_publishable_key,
+            store:   state.store,
+            admin:   state.admin,
+            billing: state.billing,
           }),
         });
         const body = await res.json();
@@ -870,7 +1082,7 @@
       } catch (err) {
         goToStep(3);
         btn.disabled = false;
-        btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
+        btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
         showError(err.message);
         return;
       }
@@ -907,7 +1119,7 @@
           goToStep(3);
           const btn = document.getElementById('finish-btn');
           btn.disabled = false;
-          btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
+          btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
           showError(body.data?.error_message || 'Provisioning failed. Please try again or contact support.');
           return;
         }

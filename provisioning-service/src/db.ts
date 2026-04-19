@@ -20,6 +20,11 @@ type TenantRow = {
   cf_route_id: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: number;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_payment_method_id: string | null;
+  trial_ends_at: string | null;
+  subscription_status: string | null;
   store_url: string | null;
   admin_url: string | null;
   error_message: string | null;
@@ -140,6 +145,11 @@ export class TenantDB {
       cf_route_id?: string;
       store_url?: string;
       admin_url?: string;
+      stripe_customer_id?: string;
+      stripe_subscription_id?: string;
+      stripe_payment_method_id?: string;
+      trial_ends_at?: string;
+      subscription_status?: string;
     }
   ): Promise<void> {
     const now = new Date().toISOString();
@@ -155,6 +165,11 @@ export class TenantDB {
       "cf_route_id",
       "store_url",
       "admin_url",
+      "stripe_customer_id",
+      "stripe_subscription_id",
+      "stripe_payment_method_id",
+      "trial_ends_at",
+      "subscription_status",
     ];
 
     for (const field of fields) {
@@ -168,6 +183,46 @@ export class TenantDB {
     await this.db
       .prepare(`UPDATE tenants SET ${sets.join(", ")} WHERE id = ?${bindings.length}`)
       .bind(...bindings)
+      .run();
+  }
+
+  /**
+   * Delete a tenant row. Used only when provisioning is aborted before any
+   * Cloudflare resources are created (e.g. the Stripe subscription fails) —
+   * in that case there's no state worth preserving and the same email may
+   * want to retry immediately.
+   */
+  async deleteTenant(id: string): Promise<void> {
+    await this.db.prepare("DELETE FROM tenants WHERE id = ?1").bind(id).run();
+  }
+}
+
+// ─── Global platform key/value store ──────────────────────────────────────────
+//
+// Used to cache IDs of Stripe resources (product, price) we auto-create on
+// first signup so that subsequent signups don't re-create them. Write-once
+// semantics: `get` reads, `put` upserts with updated_at.
+
+export class PlatformSettings {
+  constructor(private readonly db: D1Database) {}
+
+  async get(key: string): Promise<string | null> {
+    const row = await this.db
+      .prepare("SELECT value FROM platform_settings WHERE key = ?1")
+      .bind(key)
+      .first<{ value: string }>();
+    return row?.value ?? null;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO platform_settings (key, value, updated_at)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      )
+      .bind(key, value, now)
       .run();
   }
 }
