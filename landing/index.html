@@ -645,7 +645,10 @@
         try {
           const res  = await fetch(`${PROVISION_URL}/provision/check-subdomain?name=${encodeURIComponent(raw)}`);
           const body = await res.json();
-          if (body.available) {
+          // Provisioning API wraps every response in { ok, data }; the
+          // availability flag lives at body.data.available.
+          const available = body?.data?.available ?? false;
+          if (available) {
             fb.textContent = `✓ ${raw}.upcart.online is available`;
             fb.className   = 'subdomain-status available mt-1';
             state.subdomainAvailable = true;
