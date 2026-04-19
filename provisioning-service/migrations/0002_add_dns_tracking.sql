@@ -1,21 +1,13 @@
--- Migration: 0002_add_dns_tracking
--- Adds columns to track the three Cloudflare resources created during
--- subdomain provisioning so they can be cleaned up on deprovision:
+-- Migration: 0002_add_dns_tracking  (NO-OP)
 --
---   cf_dns_record_id    — Cloudflare DNS record (AAAA proxied placeholder).
---                         Created explicitly before adding a Worker Route.
---                         NULL when the Custom Domains API was used instead
---                         (Custom Domains manages DNS automatically).
+-- Historically added cf_dns_record_id + cf_custom_domain_id to `tenants`.
+-- Those columns are now declared directly in 0001_create_tenants.sql, so this
+-- migration would fail on a fresh database with:
+--     "duplicate column name: cf_dns_record_id"
 --
---   cf_custom_domain_id — Workers Custom Domain binding ID.
---                         Set when provisioning used addWorkerCustomDomain.
---                         NULL when the fallback route approach was used.
+-- The file is kept (instead of deleted) so databases that previously applied
+-- 0002 don't see the migration history shift and re-run later ones.
 --
--- cf_route_id already existed from migration 0001; it is set only for the
--- fallback route approach and remains NULL when Custom Domains is used.
---
--- Exactly one of (cf_custom_domain_id, cf_route_id) will be non-NULL per
--- active tenant, depending on which domain binding method succeeded.
+-- Safe no-op statement so wrangler still records the migration as applied.
 
-ALTER TABLE tenants ADD COLUMN cf_dns_record_id    TEXT;
-ALTER TABLE tenants ADD COLUMN cf_custom_domain_id TEXT;
+SELECT 1;
