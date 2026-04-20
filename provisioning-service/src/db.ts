@@ -22,6 +22,7 @@ type TenantRow = {
   stripe_connect_onboarding_complete: number;
   store_url: string | null;
   admin_url: string | null;
+  provisioning_data: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -47,6 +48,7 @@ export class TenantDB {
     email: string;
     username: string;
     password_hash: string;
+    provisioning_data: string;
     plan?: TenantPlan;
   }): Promise<Tenant> {
     const id  = randomUUID();
@@ -55,8 +57,8 @@ export class TenantDB {
     await this.db
       .prepare(
         `INSERT INTO tenants
-           (id, subdomain, store_name, plan, email, username, password_hash, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'provisioning', ?8, ?8)`
+           (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'provisioning', ?9, ?9)`
       )
       .bind(
         id,
@@ -66,11 +68,24 @@ export class TenantDB {
         input.email.toLowerCase().trim(),
         input.username,
         input.password_hash,
+        input.provisioning_data,
         now
       )
       .run();
 
     return (await this.getTenant(id))!;
+  }
+
+  /**
+   * Clear the cached signup payload once /setup has succeeded on the tenant
+   * worker — we don't want store config (or worse, anything that ever ends
+   * up in there) sitting in the registry after it's no longer useful.
+   */
+  async clearProvisioningData(id: string): Promise<void> {
+    await this.db
+      .prepare("UPDATE tenants SET provisioning_data = NULL, updated_at = ?1 WHERE id = ?2")
+      .bind(new Date().toISOString(), id)
+      .run();
   }
 
   async getTenant(id: string): Promise<Tenant | null> {

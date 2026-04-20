@@ -5,11 +5,11 @@ import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
+import { hashPassword } from "../password.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SUBDOMAIN_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$|^[a-z]{2,40}$/;
-const PBKDF2_ITERATIONS = 100_000;
 
 // Reserved subdomains that can't be registered
 const RESERVED_SUBDOMAINS = new Set([
@@ -141,23 +141,6 @@ const provisionSchema = z.object({
   stripe_publishable_key: z.string().optional().default(""),
 });
 
-// ─── Password hashing ─────────────────────────────────────────────────────────
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const salt    = crypto.getRandomValues(new Uint8Array(16));
-  const keyMat  = await crypto.subtle.importKey(
-    "raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
-    keyMat, 256
-  );
-  const toHex = (buf: Uint8Array) =>
-    Array.from(buf).map(b => b.toString(16).padStart(2, "0")).join("");
-  return `${toHex(salt)}:${toHex(new Uint8Array(bits))}`;
-}
-
 // ─── JWT secret generator ─────────────────────────────────────────────────────
 
 function generateSecret(): string {
@@ -211,18 +194,39 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
   // ── Create tenant record ──────────────────────────────────────────────────
   const passwordHash = await hashPassword(admin.password);
 
+  // Stash the full signup payload so we can replay it against the tenant
+  // worker's /setup endpoint at first login (see auth.ts). The plaintext
+  // password is intentionally NOT stored — it'll be re-supplied by the
+  // merchant when they sign in, validated against password_hash, and only
+  // then forwarded to the tenant worker.
+  const provisioningData = JSON.stringify({
+    store: {
+      name:        store.name,
+      description: store.description ?? "",
+      currency:    store.currency,
+      country:     store.country,
+      theme:       store.theme ?? "mono",
+    },
+    admin: {
+      username: admin.username,
+      email:    admin.email,
+    },
+    stripe_publishable_key: stripe_publishable_key ?? "",
+  });
+
   const tenant = await tenantDB.createTenant({
     subdomain,
     store_name: store.name,
     email:      admin.email,
     username:   admin.username,
     password_hash: passwordHash,
+    provisioning_data: provisioningData,
   });
 
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
   c.executionCtx.waitUntil(
-    runProvisioning(c.env, tenant.id, { store, admin, stripe_publishable_key }, tenantDB)
+    runProvisioning(c.env, tenant.id, { store }, tenantDB)
       .catch(async (e) => {
         console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
         await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
@@ -298,8 +302,6 @@ async function runProvisioning(
   tenantId: string,
   input: {
     store: z.infer<typeof provisionSchema>["store"];
-    admin: z.infer<typeof provisionSchema>["admin"];
-    stripe_publishable_key: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
@@ -360,10 +362,8 @@ async function runProvisioning(
   ].join(",");
 
   // Stripe publishable key: always the platform's (merchants do NOT supply
-  // their own Stripe keys — they connect via Stripe Connect). The
-  // `stripe_publishable_key` input is kept for back-compat only and ignored
-  // when the platform value is set.
-  const publishableKey = env.STRIPE_PUBLISHABLE_KEY || input.stripe_publishable_key || "";
+  // their own Stripe keys — they connect via Stripe Connect).
+  const publishableKey = env.STRIPE_PUBLISHABLE_KEY || "";
 
   const vars: Record<string, string> = {
     DB_ADAPTER:            "d1",
@@ -470,8 +470,6 @@ async function runProvisioning(
   // ── Phase B: Bind Worker to the subdomain ─────────────────────────────────
   // Try the Custom Domains API first.  Fall back to a Worker Route if the
   // account/plan doesn't support Custom Domains or if the API returns an error.
-  let usedCustomDomain = false;
-
   try {
     const customDomain = await cf.addWorkerCustomDomain(
       workerName,
@@ -480,7 +478,6 @@ async function runProvisioning(
     );
     created.customDomainId = customDomain.id;
     await tenantDB.updateResources(tenantId, { cf_custom_domain_id: customDomain.id });
-    usedCustomDomain = true;
     console.log(
       `Bound ${hostname} to worker "${workerName}" via Custom Domains (id: ${customDomain.id})`
     );
@@ -499,110 +496,27 @@ async function runProvisioning(
     );
   }
 
-  // Give Cloudflare a moment to propagate the DNS record and binding globally
-  // before we try to reach the new worker's /setup endpoint.
-  const propagationDelay = usedCustomDomain ? 5000 : 3000;
-  await new Promise(r => setTimeout(r, propagationDelay));
-
-  // ── Step 5: Run store setup via the worker's /setup endpoint ─────────────
-  await tenantDB.updateStatus(tenantId, "finalizing");
-
+  // ── Done with the fast path ──────────────────────────────────────────────
+  // We deliberately stop here. The tenant worker's /setup call (which creates
+  // the admin user, store settings, and seeds the starter product) is now
+  // deferred to first dashboard login (see auth.ts). That keeps this whole
+  // function under Cloudflare's waitUntil budget — the previous 90s health
+  // poll + /setup + seed routinely got killed mid-flow, leaving stores stuck
+  // in "finalizing".
+  //
+  // Status flips to "awaiting_setup" so the dashboard knows to attempt the
+  // bootstrap on the next login. store_url + admin_url are written now (not
+  // after /setup) so the login handler has somewhere to send the call.
   const storeUrl = `https://${hostname}`;
-  // Central dashboard — one deployment at dashboard.<BASE_DOMAIN> handles every
-  // merchant. The dashboard resolves the tenant at login time and calls this
-  // store worker directly, so we no longer deploy a per-tenant admin SPA.
   const adminUrl = `https://dashboard.${baseDomain}`;
 
-  // Poll /health until the new Custom Domain is routable. First-time SSL +
-  // edge propagation can take 30–90s; without this the /setup call below
-  // often hits Cloudflare 530/1016 "Origin DNS error".
-  const healthDeadline = Date.now() + 90_000;
-  let healthy = false;
-  while (Date.now() < healthDeadline) {
-    try {
-      const ping = await fetch(`${storeUrl}/health`, { method: "GET" });
-      if (ping.ok) { healthy = true; break; }
-    } catch { /* transient — keep polling */ }
-    await new Promise(r => setTimeout(r, 3000));
-  }
-  if (!healthy) {
-    throw new Error(
-      `Tenant worker at ${storeUrl} never became reachable (90s). ` +
-      `Likely a Custom Domain SSL provisioning delay — retry signup, or ` +
-      `check the binding in the Cloudflare dashboard.`
-    );
-  }
-
-  const setupRes = await fetch(`${storeUrl}/setup`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({
-      store: {
-        name:        input.store.name,
-        description: input.store.description ?? "",
-        currency:    input.store.currency,
-        country:     input.store.country,
-        theme:       input.store.theme ?? "mono",
-      },
-      admin: {
-        username: input.admin.username,
-        email:    input.admin.email,
-        password: input.admin.password,
-      },
-      stripe_publishable_key: input.stripe_publishable_key,
-    }),
-  });
-
-  if (!setupRes.ok) {
-    const body = await setupRes.text();
-    throw new Error(`Store setup call failed (${setupRes.status}): ${body}`);
-  }
-
-  // ── Step 6: Seed a starter product so the storefront isn't empty ─────────
-  // The setup call above returns a short-lived admin JWT. Using it, drop in a
-  // single placeholder product so a freshly-provisioned merchant can hit
-  // their storefront and see something immediately. The merchant can edit or
-  // delete it from the dashboard — this is a best-effort seed; any error
-  // here is logged but does not fail provisioning.
-  try {
-    const setupBody = await setupRes.clone().json().catch(() => null) as
-      | { ok?: boolean; data?: { token?: string } } | null;
-    const seedToken = setupBody?.ok ? setupBody.data?.token : undefined;
-    if (seedToken) {
-      const seedRes = await fetch(`${storeUrl}/admin/products`, {
-        method:  "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${seedToken}`,
-        },
-        body: JSON.stringify({
-          name:        "Welcome to your store",
-          description:
-            "This is a placeholder product so your store isn't empty when " +
-            "you first share the link. Edit or delete it from your " +
-            "dashboard — then add your real products.",
-          price:       1999, // $19.99 in smallest currency unit
-          currency:    input.store.currency,
-          stock:       -1,
-          active:      true,
-          images:      [],
-          metadata:    { seeded: true },
-        }),
-      });
-      if (!seedRes.ok) {
-        const body = await seedRes.text().catch(() => "");
-        console.warn(`Starter product seed failed (${seedRes.status}): ${body}`);
-      }
-    }
-  } catch (e) {
-    console.warn(`Starter product seed threw; ignoring:`, (e as Error).message);
-  }
-
-  // ── Done ──────────────────────────────────────────────────────────────────
   await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
-  await tenantDB.updateStatus(tenantId, "active");
+  await tenantDB.updateStatus(tenantId, "awaiting_setup");
 
-  console.log(`Tenant ${tenantId} (${subdomain}) provisioned successfully.`);
+  console.log(
+    `Tenant ${tenantId} (${subdomain}) provisioned to awaiting_setup; ` +
+    `dashboard login will trigger /setup on the tenant worker.`
+  );
   } catch (e) {
     // A step failed. Best-effort cleanup of anything we already created, then
     // re-throw so the outer waitUntil handler marks the tenant as "failed".

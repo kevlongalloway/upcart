@@ -878,16 +878,28 @@
         return;
       }
 
-      // The actual Cloudflare provisioning (D1 → R2 → Worker → DNS → Custom
-      // Domain) runs async on the provisioning service via ctx.waitUntil and
-      // takes a few minutes — far longer than we want to keep the merchant
-      // staring at this page. We show the "finalizing" animation for ~5s
-      // (just so the transition feels intentional) and hand them off to the
-      // dashboard. The dashboard's /welcome view fetches status on load
-      // (and on refresh — no polling) and either renders a "still setting
-      // up" panel or the login form once the worker is ready.
-      applyStatus('finalizing');
-      await new Promise(r => setTimeout(r, 5000));
+      // The provisioning service runs the Cloudflare API steps (D1, R2,
+      // Worker, DNS, Custom Domain) in the background via ctx.waitUntil and
+      // returns immediately. We don't poll — instead we walk the merchant
+      // through each step visually so the wait feels intentional rather than
+      // instant, then hand them off to the dashboard. The dashboard's
+      // /welcome view shows the login form pre-filled with their email; the
+      // tenant worker's /setup runs on first sign-in (auth.ts), and the
+      // dashboard renders a "still setting up" panel if SSL is still
+      // propagating when they try.
+      const FAKE_STEPS = [
+        { status: 'creating_database',  delayMs: 1400 },
+        { status: 'creating_storage',   delayMs: 1400 },
+        { status: 'deploying_worker',   delayMs: 1800 },
+        { status: 'configuring_domain', delayMs: 2000 },
+        { status: 'finalizing',         delayMs: 1600 },
+      ];
+      for (const { status, delayMs } of FAKE_STEPS) {
+        applyStatus(status);
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+      applyStatus('active');
+      await new Promise(r => setTimeout(r, 600));
 
       const params = new URLSearchParams({
         tenant:    tenantId,

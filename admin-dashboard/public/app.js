@@ -552,7 +552,12 @@ const WelcomeView = {
 
     const status = info?.status;
 
-    if (status === 'active') {
+    // Both `active` and `awaiting_setup` show the login form. For
+    // awaiting_setup, the tenant worker is deployed but its /setup hasn't
+    // been called yet — POST /auth/login triggers it inline using the
+    // password the merchant types here. The login will either succeed or
+    // return 202 if SSL is still propagating.
+    if (status === 'active' || status === 'awaiting_setup') {
       return { html: LoginView.render(email), mode: 'login', email };
     }
 

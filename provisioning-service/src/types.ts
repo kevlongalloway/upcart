@@ -48,6 +48,7 @@ export type TenantStatus =
   | "deploying_worker"
   | "configuring_domain"
   | "finalizing"
+  | "awaiting_setup"
   | "active"
   | "suspended"
   | "cancelled"
@@ -84,6 +85,12 @@ export type Tenant = {
   // Live URLs (set once provisioning completes)
   store_url: string | null;
   admin_url: string | null;
+
+  // JSON blob of the original POST /provision payload — needed because the
+  // tenant worker's /setup call is now deferred until first dashboard login
+  // (see provisioning-service/src/routes/auth.ts). Cleared after /setup
+  // succeeds so we don't keep store config around longer than necessary.
+  provisioning_data: string | null;
 
   // Non-null only when status === "failed"
   error_message: string | null;
