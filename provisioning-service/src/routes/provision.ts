@@ -226,11 +226,15 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
   c.executionCtx.waitUntil(
-    runProvisioning(c.env, tenant.id, { store }, tenantDB)
-      .catch(async (e) => {
-        console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
-        await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
-      })
+    runProvisioning(
+      c.env,
+      tenant.id,
+      { store, admin, stripe_publishable_key: stripe_publishable_key ?? "" },
+      tenantDB,
+    ).catch(async (e) => {
+      console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
+      await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
+    })
   );
 
   return c.json(
@@ -302,6 +306,8 @@ async function runProvisioning(
   tenantId: string,
   input: {
     store: z.infer<typeof provisionSchema>["store"];
+    admin: z.infer<typeof provisionSchema>["admin"];
+    stripe_publishable_key: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
@@ -496,27 +502,113 @@ async function runProvisioning(
     );
   }
 
-  // ── Done with the fast path ──────────────────────────────────────────────
-  // We deliberately stop here. The tenant worker's /setup call (which creates
-  // the admin user, store settings, and seeds the starter product) is now
-  // deferred to first dashboard login (see auth.ts). That keeps this whole
-  // function under Cloudflare's waitUntil budget — the previous 90s health
-  // poll + /setup + seed routinely got killed mid-flow, leaving stores stuck
-  // in "finalizing".
+  // ── Step 5: Wait for the subdomain to become routable ────────────────────
+  // Cloudflare Custom Domain SSL + edge propagation typically completes in
+  // well under a minute now, but we still need to wait for /health before
+  // hitting /setup — otherwise the setup call races the binding and hits
+  // 530 / 1016 "Origin DNS error".
   //
-  // Status flips to "awaiting_setup" so the dashboard knows to attempt the
-  // bootstrap on the next login. store_url + admin_url are written now (not
-  // after /setup) so the login handler has somewhere to send the call.
+  // Poll every 15s up to 2 minutes. store_url is written once we see a
+  // healthy response so the dashboard (and auth.ts) can target it.
+  await tenantDB.updateStatus(tenantId, "finalizing");
+
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://dashboard.${baseDomain}`;
 
-  await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
-  await tenantDB.updateStatus(tenantId, "awaiting_setup");
+  const healthDeadline = Date.now() + 120_000;
+  let healthy = false;
+  while (Date.now() < healthDeadline) {
+    try {
+      const ping = await fetch(`${storeUrl}/health`, { method: "GET" });
+      if (ping.ok) { healthy = true; break; }
+    } catch { /* transient — keep polling */ }
+    await new Promise(r => setTimeout(r, 15_000));
+  }
+  if (!healthy) {
+    throw new Error(
+      `Tenant worker at ${storeUrl} never became reachable (120s). ` +
+      `Likely a Custom Domain SSL provisioning delay — retry signup, or ` +
+      `check the binding in the Cloudflare dashboard.`
+    );
+  }
 
-  console.log(
-    `Tenant ${tenantId} (${subdomain}) provisioned to awaiting_setup; ` +
-    `dashboard login will trigger /setup on the tenant worker.`
-  );
+  await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
+
+  // ── Step 6: Run store setup via the worker's /setup endpoint ─────────────
+  const setupRes = await fetch(`${storeUrl}/setup`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      store: {
+        name:        input.store.name,
+        description: input.store.description ?? "",
+        currency:    input.store.currency,
+        country:     input.store.country,
+        theme:       input.store.theme ?? "mono",
+      },
+      admin: {
+        username: input.admin.username,
+        email:    input.admin.email,
+        password: input.admin.password,
+      },
+      stripe_publishable_key: input.stripe_publishable_key,
+    }),
+  });
+
+  if (!setupRes.ok && setupRes.status !== 409) {
+    const body = await setupRes.text().catch(() => "");
+    throw new Error(`Store setup call failed (${setupRes.status}): ${body}`);
+  }
+
+  // ── Step 7: Seed a starter product so the storefront isn't empty ─────────
+  // /setup returns a short-lived admin JWT. Using it, drop in a single
+  // placeholder product so a freshly-provisioned merchant can hit their
+  // storefront and see something immediately. Best-effort — any error is
+  // logged but does not fail provisioning.
+  try {
+    const setupBody = await setupRes.clone().json().catch(() => null) as
+      | { ok?: boolean; data?: { token?: string } } | null;
+    const seedToken = setupBody?.ok ? setupBody.data?.token : undefined;
+    if (seedToken) {
+      const seedRes = await fetch(`${storeUrl}/admin/products`, {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${seedToken}`,
+        },
+        body: JSON.stringify({
+          name:        "Welcome to your store",
+          description:
+            "This is a placeholder product so your store isn't empty when " +
+            "you first share the link. Edit or delete it from your " +
+            "dashboard — then add your real products.",
+          price:       1999,
+          currency:    input.store.currency,
+          stock:       -1,
+          active:      true,
+          images:      [],
+          metadata:    { seeded: true },
+        }),
+      });
+      if (!seedRes.ok) {
+        const body = await seedRes.text().catch(() => "");
+        console.warn(`Starter product seed failed (${seedRes.status}): ${body}`);
+      }
+    }
+  } catch (e) {
+    console.warn(`Starter product seed threw; ignoring:`, (e as Error).message);
+  }
+
+  // ── Done ──────────────────────────────────────────────────────────────────
+  // Provisioning is complete; the tenant can log in and use their dashboard.
+  // provisioning_data is cleared now that /setup has consumed it — keeping it
+  // around would just be stale. The firstLoginBootstrap path in auth.ts is
+  // preserved as a safety net for the rare case where /setup here fails and
+  // the tenant somehow lands in awaiting_setup instead of failed.
+  await tenantDB.updateStatus(tenantId, "active");
+  await tenantDB.clearProvisioningData(tenantId);
+
+  console.log(`Tenant ${tenantId} (${subdomain}) provisioned successfully.`);
   } catch (e) {
     // A step failed. Best-effort cleanup of anything we already created, then
     // re-throw so the outer waitUntil handler marks the tenant as "failed".
