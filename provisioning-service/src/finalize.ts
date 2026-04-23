@@ -66,8 +66,9 @@ export async function finalizeTenant(
 
   const storeUrl = tenant.store_url ?? `https://${tenant.subdomain}.${env.BASE_DOMAIN}`;
 
-  if (!(await probeHealthy(storeUrl))) {
-    return maybeFail(tenantDB, tenant, "Tenant worker /health is not yet healthy");
+  const health = await probeHealthy(storeUrl);
+  if (!health.healthy) {
+    return maybeFail(tenantDB, tenant, health.reason);
   }
 
   if (!tenant.provisioning_data) {
@@ -118,16 +119,48 @@ export async function finalizeTenant(
   return { outcome: "activated" };
 }
 
-async function probeHealthy(storeUrl: string): Promise<boolean> {
+// Worker-to-worker fetches inside Cloudflare use internal routing that can
+// lag public edge routing for newly-provisioned Custom Domains. The return
+// value surfaces the specific failure (HTTP status, parse failure, network
+// error) so the recheck endpoint can tell the dashboard what it got back
+// rather than just "not yet healthy".
+async function probeHealthy(storeUrl: string): Promise<{ healthy: boolean; reason: string }> {
+  let ping: Response;
   try {
-    const ping = await fetch(`${storeUrl}/health`, { method: "GET" });
-    if (!ping.ok) return false;
-    const data = await ping.json().catch(() => ({})) as
-      { ok?: boolean; data?: { status?: string } };
-    return data.ok === true && data.data?.status === "healthy";
-  } catch {
-    return false;
+    ping = await fetch(`${storeUrl}/health`, {
+      method:   "GET",
+      // Force a fresh request — some CF edge caches hold onto 404s from the
+      // brief pre-binding window before the Custom Domain was live.
+      cf:       { cacheTtl: 0, cacheEverything: false },
+      headers:  { "User-Agent": "upcart-provisioning-finalizer/1" },
+      redirect: "follow",
+    } as RequestInit & { cf?: unknown });
+  } catch (e) {
+    return { healthy: false, reason: `GET ${storeUrl}/health threw: ${(e as Error).message}` };
   }
+
+  if (!ping.ok) {
+    return { healthy: false, reason: `GET ${storeUrl}/health returned HTTP ${ping.status}` };
+  }
+
+  const raw = await ping.text().catch(() => "");
+  let data: { ok?: boolean; data?: { status?: string } } | null = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    return {
+      healthy: false,
+      reason:  `GET ${storeUrl}/health returned non-JSON body: ${raw.slice(0, 120)}`,
+    };
+  }
+
+  if (data?.ok === true && data.data?.status === "healthy") {
+    return { healthy: true, reason: "ok" };
+  }
+  return {
+    healthy: false,
+    reason:  `GET ${storeUrl}/health body not healthy: ${raw.slice(0, 120)}`,
+  };
 }
 
 async function maybeFail(
