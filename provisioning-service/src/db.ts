@@ -124,6 +124,18 @@ export class TenantDB {
     return row === null;
   }
 
+  /**
+   * All tenants currently sitting in the "finalizing" state. Used by the
+   * scheduled cron handler (see index.ts) to probe each one's /health and
+   * flip healthy ones to "active".
+   */
+  async getFinalizingTenants(): Promise<Tenant[]> {
+    const rows = await this.db
+      .prepare("SELECT * FROM tenants WHERE status = 'finalizing'")
+      .all<TenantRow>();
+    return rows.results ? rows.results.map(rowToTenant) : [];
+  }
+
   async updateStatus(
     id: string,
     status: TenantStatus,
