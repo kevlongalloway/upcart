@@ -39,6 +39,16 @@ WORKER_BUNDLE_KEY = "store-worker.js"
 # Add extra origins for local dev: "http://localhost:3000,http://localhost:8080".
 CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboard.upcart.online"
 
+# The account-level workers.dev subdomain. finalize.ts uses this to probe
+# newly provisioned tenant workers via `<worker-name>.<sub>.workers.dev`,
+# bypassing same-zone Custom Domain routing that returns HTTP 522 for the
+# first few minutes after binding.
+#
+# Find yours at: Cloudflare dashboard → Workers & Pages → right sidebar,
+# under "Subdomain". If it shows "acmecorp.workers.dev", set this to
+# "acmecorp". Leave empty to fall back to the Custom Domain URL.
+CF_WORKERS_SUBDOMAIN = ""
+
 # ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
 # The following secrets must be set before deploying:
 #

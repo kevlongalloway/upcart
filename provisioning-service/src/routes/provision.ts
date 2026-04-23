@@ -396,6 +396,20 @@ async function runProvisioning(
   created.workerName = workerName;
   await tenantDB.updateResources(tenantId, { cf_worker_name: workerName });
 
+  // Enable the workers.dev subdomain on this script so finalize.ts can reach
+  // it via `<workerName>.<account>.workers.dev` for the /health + /setup
+  // calls — same-zone worker-to-worker fetches on Custom Domains intermittently
+  // return HTTP 522 for the first few minutes after binding, but workers.dev
+  // routing is available immediately.
+  try {
+    await cf.enableWorkerSubdomain(workerName);
+  } catch (e) {
+    console.warn(
+      `Could not enable workers.dev subdomain for ${workerName}: ${(e as Error).message}. ` +
+      `Finalization will fall back to the Custom Domain URL.`
+    );
+  }
+
   // Set secrets (these are never in plain-text vars).
   //
   // JWT_SECRET is unique per tenant so a leak in one store can't be used to

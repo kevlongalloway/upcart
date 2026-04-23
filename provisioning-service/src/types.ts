@@ -37,6 +37,16 @@ export type Bindings = {
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
   WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
   CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
+
+  // The account-level workers.dev subdomain. Used by finalize.ts to probe
+  // newly provisioned tenant workers at `<worker>.<sub>.workers.dev`,
+  // bypassing same-zone Custom Domain routing (which returns HTTP 522
+  // for several minutes after binding). Find it at:
+  //   Cloudflare dashboard → Workers & Pages → right sidebar "Subdomain"
+  // Example: if your dashboard shows "acmecorp.workers.dev", set this
+  // to "acmecorp". Leave empty to skip the internal URL shortcut — in
+  // that case finalize.ts falls back to the Custom Domain URL.
+  CF_WORKERS_SUBDOMAIN?: string;
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────

@@ -268,6 +268,27 @@ export class CloudflareAPI {
     );
   }
 
+  /**
+   * Enable the `workers.dev` subdomain for a script so it becomes reachable
+   * at `<scriptName>.<account-subdomain>.workers.dev`.
+   *
+   * This is the workaround for HTTP 522 loops when one Worker on a zone
+   * fetches another Worker on the same zone through a Custom Domain —
+   * internal routing can return 522 for a window after binding, but the
+   * workers.dev URL doesn't go through the zone, so it's routable as soon
+   * as the script is deployed.
+   *
+   * Used by finalize.ts to probe /health and call /setup on newly
+   * provisioned tenant workers.
+   */
+  async enableWorkerSubdomain(scriptName: string): Promise<void> {
+    await this.request(
+      "POST",
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}/subdomain`,
+      { enabled: true, previews_enabled: false }
+    );
+  }
+
   // ── Worker Custom Domains ─────────────────────────────────────────────────────
   //
   // Custom Domains is the recommended approach for binding a Worker to a

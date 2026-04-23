@@ -64,9 +64,10 @@ export async function finalizeTenant(
     return { outcome: "noop", reason: `tenant status is ${tenant.status}, not finalizing` };
   }
 
-  const storeUrl = tenant.store_url ?? `https://${tenant.subdomain}.${env.BASE_DOMAIN}`;
+  const storeUrl    = tenant.store_url ?? `https://${tenant.subdomain}.${env.BASE_DOMAIN}`;
+  const internalUrl = internalWorkerUrl(env, tenant) ?? storeUrl;
 
-  const health = await probeHealthy(storeUrl);
+  const health = await probeHealthy(internalUrl);
   if (!health.healthy) {
     return maybeFail(tenantDB, tenant, health.reason);
   }
@@ -86,7 +87,7 @@ export async function finalizeTenant(
     return { outcome: "failed", reason: "Corrupted provisioning_data" };
   }
 
-  const setupRes = await fetch(`${storeUrl}/setup`, {
+  const setupRes = await fetch(`${internalUrl}/setup`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({
@@ -111,7 +112,7 @@ export async function finalizeTenant(
     const body = await setupRes.clone().json().catch(() => null) as
       | { ok?: boolean; data?: { token?: string } } | null;
     const token = body?.ok ? body.data?.token : undefined;
-    if (token) await seedStarterProduct(storeUrl, token, pd.store.currency);
+    if (token) await seedStarterProduct(internalUrl, token, pd.store.currency);
   }
 
   await tenantDB.updateStatus(tenant.id, "active");
@@ -124,6 +125,25 @@ export async function finalizeTenant(
 // value surfaces the specific failure (HTTP status, parse failure, network
 // error) so the recheck endpoint can tell the dashboard what it got back
 // rather than just "not yet healthy".
+/**
+ * Resolve the URL to use for *internal* worker-to-worker calls to the tenant.
+ *
+ * Custom Domain routing on the same zone intermittently returns HTTP 522 for
+ * the first few minutes after binding (Cloudflare's edge hasn't finished
+ * wiring the new host to the target Worker yet). The workers.dev routing
+ * doesn't go through the zone, so it's reachable as soon as the script is
+ * deployed — perfect for our /health + /setup probes.
+ *
+ * Returns null when CF_WORKERS_SUBDOMAIN isn't configured or the tenant
+ * hasn't had a Worker deployed yet; the caller falls back to the Custom
+ * Domain URL in that case.
+ */
+function internalWorkerUrl(env: Bindings, tenant: Tenant): string | null {
+  const sub = (env.CF_WORKERS_SUBDOMAIN ?? "").trim();
+  if (!sub || !tenant.cf_worker_name) return null;
+  return `https://${tenant.cf_worker_name}.${sub}.workers.dev`;
+}
+
 async function probeHealthy(storeUrl: string): Promise<{ healthy: boolean; reason: string }> {
   let ping: Response;
   try {
