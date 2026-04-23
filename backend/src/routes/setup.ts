@@ -22,14 +22,23 @@ const setupSchema = z.object({
     country:     z.string().length(2, "Country must be a 2-letter ISO code"),
     theme:       z.string().optional().default("mono").transform(t => VALID_THEMES.has(t) ? t : "mono"),
   }),
+  // Callers supply EITHER `password` (plaintext — hashed here) OR
+  // `password_hash` (already "salt_hex:hash_hex" in the same PBKDF2-SHA256
+  // format this module produces). The provisioning-service cron doesn't
+  // keep plaintext passwords around, so it forwards the hash it stored at
+  // signup time.
   admin: z.object({
     username: z
       .string()
       .min(3, "Username must be at least 3 characters")
       .max(50)
       .regex(/^[a-zA-Z0-9_]+$/, "Username may only contain letters, numbers, and underscores"),
-    email:    z.string().email().optional().or(z.literal("")).transform(v => v || undefined),
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    email:         z.string().email().optional().or(z.literal("")).transform(v => v || undefined),
+    password:      z.string().min(8, "Password must be at least 8 characters").optional(),
+    password_hash: z.string().regex(/^[0-9a-f]+:[0-9a-f]+$/, "password_hash must be salt_hex:hash_hex").optional(),
+  }).refine(a => !!a.password || !!a.password_hash, {
+    message: "Either `password` or `password_hash` is required",
+    path:    ["password"],
   }),
   // Stripe publishable key is no longer required — the platform manages
   // payments via Stripe Connect. Kept as optional for backwards compat.
@@ -163,8 +172,8 @@ setup.post("/", zValidator("json", setupSchema), async (c) => {
     return c.json(err("Database error during setup. Check your D1 configuration."), 500);
   }
 
-  // ── Hash password ─────────────────────────────────────────────────────────
-  const passwordHash = await hashPassword(admin.password);
+  // ── Hash password (or reuse the pre-hashed one from provisioning) ─────────
+  const passwordHash = admin.password_hash ?? await hashPassword(admin.password!);
   const adminId      = crypto.randomUUID();
 
   // ── Resolve JWT secret ────────────────────────────────────────────────────

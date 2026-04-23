@@ -514,15 +514,14 @@ async function runProvisioning(
   // independent invocations that can't get killed.
   //
   // store_url + admin_url are persisted here so the cron (and auth.ts) know
-  // where to probe; provisioning_data is cleared because there's no /setup
-  // replay anymore — the tenant worker boots its admin + settings on its
-  // own once the bundle is live.
+  // where to probe. provisioning_data stays on the row — the cron replays
+  // it against the tenant worker's /setup endpoint once /health reports
+  // healthy, and clears it only after /setup succeeds.
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://dashboard.${baseDomain}`;
 
   await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
   await tenantDB.updateStatus(tenantId, "finalizing");
-  await tenantDB.clearProvisioningData(tenantId);
 
   console.log(
     `Tenant ${tenantId} (${hostname}) reached finalizing; ` +
