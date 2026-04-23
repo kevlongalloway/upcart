@@ -421,24 +421,71 @@ function provisioningPanelHtml(info) {
     const cls = state === 'pending' ? 'text-secondary' : '';
     return `<li class="d-flex align-items-center gap-2 mb-2 ${cls}">${icon}<span class="small">${escHtml(s.label)}</span></li>`;
   }).join('');
+  const tenantIdAttr = info.tenant_id ? ` data-tenant-id="${escHtml(info.tenant_id)}"` : '';
   return `
     <div class="alert alert-info py-3 mb-4" role="status">
       <p class="fw-semibold mb-1">${storeName} is still being set up</p>
       <p class="small mb-3 text-secondary">
         Cloudflare DNS, SSL, and Workers can take a few minutes to provision.
-        Refresh this page to check progress — you'll be able to sign in once
-        your store is live at <code>${subdomain}.${baseDomain}</code>.
+        Click <em>Refresh status</em> to check now — once your store is live
+        at <code>${subdomain}.${baseDomain}</code> you'll be able to sign in.
       </p>
       <ul class="list-unstyled mb-3">${stepsHtml}</ul>
-      <button type="button" class="btn btn-sm btn-outline-primary" id="refresh-status-btn">
+      <button type="button" class="btn btn-sm btn-outline-primary" id="refresh-status-btn"${tenantIdAttr}>
         <i class="bi bi-arrow-clockwise me-1"></i>Refresh status
       </button>
     </div>`;
 }
 
+// The button POSTs to /provision/:id/recheck so the provisioning service
+// runs the same probe-health → /setup → seed → flip-active routine the
+// cron runs, but on-demand — merchants don't have to wait for the next
+// cron tick (up to 15 min in dev).
+//
+// On "active" or "failed", reload so WelcomeView re-renders into the
+// login form or failure screen. On "still_finalizing", surface the reason
+// inline and re-enable the button.
 function wireRefreshStatusButton() {
   const btn = document.getElementById('refresh-status-btn');
-  if (btn) btn.addEventListener('click', () => location.reload());
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const tenantId = btn.dataset.tenantId;
+    if (!tenantId) { location.reload(); return; }
+
+    const originalLabel = btn.innerHTML;
+    btn.disabled  = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Checking…';
+
+    try {
+      const res  = await fetch(
+        `${Config.provisionUrl}/provision/${encodeURIComponent(tenantId)}/recheck`,
+        { method: 'POST' }
+      );
+      const body   = await res.json().catch(() => null);
+      const status = body && body.ok ? body.data.status : null;
+
+      if (status === 'active' || status === 'failed') {
+        location.reload();
+        return;
+      }
+
+      const reason = body && body.ok ? body.data.reason : null;
+      const old    = document.getElementById('refresh-status-hint');
+      if (old) old.remove();
+      if (reason) {
+        const hint = document.createElement('p');
+        hint.id        = 'refresh-status-hint';
+        hint.className = 'small text-secondary mb-0 mt-2';
+        hint.textContent = `Not ready yet: ${reason}`;
+        btn.insertAdjacentElement('afterend', hint);
+      }
+    } catch (e) {
+      console.warn('recheck failed:', e);
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = originalLabel;
+    }
+  });
 }
 
 const LoginView = {
@@ -582,6 +629,7 @@ const WelcomeView = {
     // Still provisioning (or status unknown) — render the status panel
     // alongside a disabled login form so users know what's happening.
     const provisioningInfo = {
+      tenant_id:  tenantId,
       status:     status || 'creating_database',
       subdomain:  subdomain || info?.subdomain,
       store_name: info?.store_name,
