@@ -6,6 +6,7 @@ import type { Bindings } from "./types.js";
 import { provisionRouter } from "./routes/provision.js";
 import { statusRouter } from "./routes/status.js";
 import { authRouter } from "./routes/auth.js";
+import { debugRouter } from "./routes/debug.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -51,6 +52,12 @@ app.route("/provision", statusRouter);
 // POST /auth/login          — central dashboard login (proxies to tenant worker)
 // GET  /auth/context         — public tenant metadata for dashboard UI
 app.route("/auth", authRouter);
+
+// GET /debug                 — system health: secrets, D1, R2 bundle
+// GET /debug/bundle          — verify worker bundle is in R2
+// GET /debug/tenants         — list all tenants with status
+// GET /debug/tenant?email=   — deep-diagnose why a tenant can't log in
+app.route("/debug", debugRouter);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

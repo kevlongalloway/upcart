@@ -66,28 +66,55 @@ authRouter.post("/login", zValidator("json", loginSchema), async (c) => {
 
   // ── Active login path ──────────────────────────────────────────────────
   if (!tenant.store_url) {
-    console.error(`Tenant ${tenant.id} status=active has no store_url; bug in provisioning.`);
+    console.error(
+      `[auth/login] tenant=${tenant.id} email=${email} ` +
+      `status=active but store_url is null — provisioning bug`
+    );
     return c.json(err("Your store is misconfigured. Please contact support."), 500);
   }
-  if (!tenant.username) return generic();
+  if (!tenant.username) {
+    console.error(
+      `[auth/login] tenant=${tenant.id} email=${email} ` +
+      `status=active but username is null — provisioning bug`
+    );
+    return generic();
+  }
+
+  const loginUrl = `${tenant.store_url}/admin/login`;
+  console.log(
+    `[auth/login] tenant=${tenant.id} subdomain=${tenant.subdomain} ` +
+    `proxying to ${loginUrl}`
+  );
 
   let loginRes: Response;
   try {
-    loginRes = await fetch(`${tenant.store_url}/admin/login`, {
+    loginRes = await fetch(loginUrl, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ username: tenant.username, password }),
     });
   } catch (e) {
-    console.error(`Login proxy fetch failed for tenant ${tenant.id}:`, e);
+    console.error(
+      `[auth/login] tenant=${tenant.id} fetch to ${loginUrl} threw: ` +
+      `${(e as Error).name}: ${(e as Error).message} — ` +
+      `worker may be unreachable (DNS not propagated, Custom Domain not bound, or worker not deployed)`
+    );
     return c.json(err("Your store is temporarily unreachable. Please try again."), 503);
   }
 
-  if (loginRes.status === 401) return generic();
+  if (loginRes.status === 401) {
+    console.log(
+      `[auth/login] tenant=${tenant.id} worker returned 401 — wrong password`
+    );
+    return generic();
+  }
 
   if (!loginRes.ok) {
-    const body = await loginRes.text().catch(() => "");
-    console.error(`Worker /admin/login returned ${loginRes.status} for tenant ${tenant.id}:`, body);
+    const body = await loginRes.text().catch(() => "(unreadable)");
+    console.error(
+      `[auth/login] tenant=${tenant.id} worker returned HTTP ${loginRes.status} from ${loginUrl}: ${body} — ` +
+      `check GET ${tenant.store_url}/debug for misconfiguration details`
+    );
     return c.json(err("Login failed. Please try again."), 502);
   }
 
@@ -96,7 +123,13 @@ authRouter.post("/login", zValidator("json", loginSchema), async (c) => {
     | null;
 
   const token = body?.ok === true ? body.data?.token : undefined;
-  if (!token) return generic();
+  if (!token) {
+    console.error(
+      `[auth/login] tenant=${tenant.id} worker returned 200 but token missing. ` +
+      `Response body: ${JSON.stringify(body)}`
+    );
+    return generic();
+  }
 
   return c.json(ok({
     token,
