@@ -20,6 +20,7 @@ import { setup } from "./routes/setup.js";
 import { connect } from "./routes/connect.js";
 import { publicSettings, adminSettings } from "./routes/settings.js";
 import { storefront } from "./routes/storefront.js";
+import { debug } from "./routes/debug.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -39,6 +40,11 @@ app.use("*", csrfMiddleware());
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
 app.get("/health", (c) => c.json({ ok: true, data: { status: "healthy" } }));
+
+// ─── Debug ────────────────────────────────────────────────────────────────────
+// GET /debug — reports env var / secret / DB / R2 config state.
+// Remove or gate behind auth before going to production.
+app.route("/debug", debug);
 
 // ─── Public Routes ────────────────────────────────────────────────────────────
 
