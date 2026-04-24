@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Bindings } from "../types.js";
+import { CloudflareAPI } from "../cloudflare-api.js";
 
 export const debugRouter = new Hono<{ Bindings: Bindings }>();
 
@@ -17,13 +18,14 @@ debugRouter.get("/", async (c) => {
 
   // ── Vars & secrets ────────────────────────────────────────────────────────
   out.config = {
-    BASE_DOMAIN:          redact(c.env.BASE_DOMAIN, 99),
-    WORKER_SCRIPT_PREFIX: redact(c.env.WORKER_SCRIPT_PREFIX, 99),
-    WORKER_BUNDLE_KEY:    redact(c.env.WORKER_BUNDLE_KEY, 99),
-    CF_ACCOUNT_ID:        redact(c.env.CF_ACCOUNT_ID),
-    CF_API_TOKEN:         redact(c.env.CF_API_TOKEN),
-    CF_ZONE_ID:           redact(c.env.CF_ZONE_ID),
-    STRIPE_SECRET_KEY:    redact(c.env.STRIPE_SECRET_KEY),
+    BASE_DOMAIN:           redact(c.env.BASE_DOMAIN, 99),
+    WORKER_SCRIPT_PREFIX:  redact(c.env.WORKER_SCRIPT_PREFIX, 99),
+    WORKER_BUNDLE_KEY:     redact(c.env.WORKER_BUNDLE_KEY, 99),
+    CF_WORKERS_SUBDOMAIN:  redact(c.env.CF_WORKERS_SUBDOMAIN, 99),
+    CF_ACCOUNT_ID:         redact(c.env.CF_ACCOUNT_ID),
+    CF_API_TOKEN:          redact(c.env.CF_API_TOKEN),
+    CF_ZONE_ID:            redact(c.env.CF_ZONE_ID),
+    STRIPE_SECRET_KEY:     redact(c.env.STRIPE_SECRET_KEY),
     STRIPE_PUBLISHABLE_KEY: redact(c.env.STRIPE_PUBLISHABLE_KEY),
     STRIPE_WEBHOOK_SECRET: redact(c.env.STRIPE_WEBHOOK_SECRET),
   };
@@ -86,7 +88,6 @@ debugRouter.get("/", async (c) => {
 });
 
 // ── GET /debug/bundle ──────────────────────────────────────────────────────────
-// Verify the compiled backend bundle is in R2 and report its metadata.
 debugRouter.get("/bundle", async (c) => {
   const key = c.env.WORKER_BUNDLE_KEY || "store-worker.js";
   try {
@@ -116,14 +117,13 @@ debugRouter.get("/bundle", async (c) => {
 });
 
 // ── GET /debug/tenants ─────────────────────────────────────────────────────────
-// List all tenants (latest 50) with status — quick overview without exposing
-// password hashes.
 debugRouter.get("/tenants", async (c) => {
   try {
     const rows = await c.env.DB
       .prepare(`
         SELECT id, subdomain, store_name, email, username, status,
                store_url, admin_url, cf_worker_name, cf_d1_id,
+               cf_custom_domain_id, cf_route_id,
                error_message, created_at, updated_at
         FROM tenants
         ORDER BY created_at DESC
@@ -134,6 +134,7 @@ debugRouter.get("/tenants", async (c) => {
         email: string; username: string | null; status: string;
         store_url: string | null; admin_url: string | null;
         cf_worker_name: string | null; cf_d1_id: string | null;
+        cf_custom_domain_id: string | null; cf_route_id: string | null;
         error_message: string | null;
         created_at: string; updated_at: string;
       }>();
@@ -153,8 +154,8 @@ debugRouter.get("/tenants", async (c) => {
 });
 
 // ── GET /debug/tenant?email=<email> ───────────────────────────────────────────
-// Deep-diagnose a specific tenant's login path. Shows every check the
-// POST /auth/login code path runs, plus live probes to the tenant worker.
+// Deep-diagnose a specific tenant's login path. Runs every check in order,
+// including live CF API + HTTP probes, and tells you exactly what to fix.
 debugRouter.get("/tenant", async (c) => {
   const email = (c.req.query("email") ?? "").toLowerCase().trim();
   if (!email) {
@@ -187,15 +188,13 @@ debugRouter.get("/tenant", async (c) => {
       ok: false,
       step: "db_lookup",
       error: `No tenant found with email "${email}"`,
-      hint: "Check the email is correct. If signup just ran, it may still be provisioning — check GET /debug/tenants",
+      hint: "Check the email is correct. Check GET /debug/tenants for all registered accounts.",
     }, 404);
   }
 
-  // Safe copy — never expose password_hash
   const safe: Record<string, unknown> = { ...row };
   delete safe["password_hash"];
   delete safe["provisioning_data"];
-
   steps.push({ step: "db_lookup", ok: true, detail: safe });
 
   // ── Step 2: Status check ───────────────────────────────────────────────────
@@ -205,9 +204,9 @@ debugRouter.get("/tenant", async (c) => {
     provisioning:       "BLOCKED — still in initial provisioning state",
     creating_database:  "BLOCKED — stuck creating D1 database (Cloudflare API may have timed out)",
     creating_storage:   "BLOCKED — stuck creating R2 bucket",
-    deploying_worker:   "BLOCKED — stuck deploying worker (bundle missing from R2, or Cloudflare API error)",
-    configuring_domain: "BLOCKED — stuck binding worker to subdomain (DNS/Custom Domain API error)",
-    finalizing:         "BLOCKED — stuck in finalizing (old status; no longer used by current code)",
+    deploying_worker:   "BLOCKED — stuck deploying worker (bundle missing from R2, or CF API error)",
+    configuring_domain: "BLOCKED — stuck binding worker to subdomain",
+    finalizing:         "BLOCKED — stuck in finalizing",
     failed:             `BLOCKED — provisioning failed: ${row["error_message"] ?? "no error_message stored"}`,
     suspended:          "BLOCKED — account is suspended",
     cancelled:          "BLOCKED — account is cancelled",
@@ -224,103 +223,148 @@ debugRouter.get("/tenant", async (c) => {
     },
   });
 
-  if (!statusOk) {
-    return c.json({ ok: false, steps }, 200);
-  }
+  if (!statusOk) return c.json({ ok: false, steps });
 
-  // ── Step 3: store_url + username ───────────────────────────────────────────
-  const storeUrl = String(row["store_url"] ?? "").trim();
-  const username  = String(row["username"]  ?? "").trim();
+  // ── Step 3: Required fields ────────────────────────────────────────────────
+  const storeUrl   = String(row["store_url"]      ?? "").trim();
+  const username   = String(row["username"]        ?? "").trim();
+  const workerName = String(row["cf_worker_name"]  ?? "").trim();
 
   steps.push({
     step: "fields_check",
-    ok: !!storeUrl && !!username,
+    ok: !!storeUrl && !!username && !!workerName,
     detail: {
-      store_url: storeUrl || "(null — provisioning bug)",
-      username:  username  || "(null — provisioning bug)",
-      has_store_url: !!storeUrl,
-      has_username:  !!username,
+      store_url:   storeUrl   || "(null — provisioning bug)",
+      username:    username   || "(null — provisioning bug)",
+      worker_name: workerName || "(null — provisioning bug)",
+      routing: row["cf_custom_domain_id"]
+        ? `Custom Domain (id: ${row["cf_custom_domain_id"]})`
+        : row["cf_route_id"]
+          ? `Worker Route fallback (id: ${row["cf_route_id"]}) — Custom Domain binding failed during provisioning`
+          : "No routing binding found — neither Custom Domain nor Worker Route was recorded",
     },
   });
 
-  if (!storeUrl || !username) {
-    return c.json({
+  if (!storeUrl || !username || !workerName) {
+    return c.json({ ok: false, steps });
+  }
+
+  // ── Step 4: Verify Worker script exists in Cloudflare ─────────────────────
+  // This distinguishes "routing broken" from "worker never deployed / deleted".
+  const cf = new CloudflareAPI(c.env.CF_ACCOUNT_ID, c.env.CF_API_TOKEN);
+  try {
+    const exists = await cf.workerScriptExists(workerName);
+    steps.push({
+      step: "cf_worker_exists",
+      ok: exists,
+      detail: {
+        worker_name: workerName,
+        exists,
+        ...(!exists && {
+          hint: "The Worker script does not exist in Cloudflare — it was never deployed or was deleted. Run POST /debug/tenant/redeploy?email= to re-deploy it.",
+        }),
+      },
+    });
+    if (!exists) return c.json({ ok: false, steps });
+  } catch (e) {
+    steps.push({
+      step: "cf_worker_exists",
       ok: false,
-      steps,
-      hint: "store_url or username is missing even though status=active. This is a provisioning bug — the worker may have been deployed but the DB update failed.",
+      detail: {
+        error: (e as Error).message,
+        hint: "CF API check failed — CF_ACCOUNT_ID or CF_API_TOKEN may be wrong",
+      },
     });
   }
 
-  // ── Step 4: /health probe ──────────────────────────────────────────────────
+  // ── Step 5: workers.dev probe (if subdomain is known) ─────────────────────
+  if (c.env.CF_WORKERS_SUBDOMAIN) {
+    const workersDevUrl = `https://${workerName}.${c.env.CF_WORKERS_SUBDOMAIN}.workers.dev`;
+    try {
+      const t0 = Date.now();
+      const res = await fetch(`${workersDevUrl}/health`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      const ms   = Date.now() - t0;
+      const body = await res.json().catch(() => null);
+      steps.push({
+        step: "workers_dev_probe",
+        ok: res.ok,
+        detail: {
+          url:    `${workersDevUrl}/health`,
+          status: res.status,
+          ms,
+          body,
+          note: res.ok
+            ? "Worker is alive via workers.dev — the problem is the Custom Domain / Worker Route binding, not the worker itself. Run POST /debug/tenant/redeploy?email= to re-bind."
+            : res.status === 522 || res.status === 523 || res.status === 525
+              ? "522/523/525 via workers.dev means the worker script may be failing to initialize. Run POST /debug/tenant/redeploy?email= to re-deploy with the current bundle."
+              : `Unexpected status ${res.status}`,
+        },
+      });
+    } catch (e) {
+      steps.push({
+        step: "workers_dev_probe",
+        ok: false,
+        detail: {
+          url:   `${workersDevUrl}/health`,
+          error: (e as Error).message,
+          hint:  "workers.dev subdomain may not be enabled for this worker. Run POST /debug/tenant/redeploy?email= — it enables it.",
+        },
+      });
+    }
+  } else {
+    steps.push({
+      step: "workers_dev_probe",
+      ok: false,
+      detail: { hint: "CF_WORKERS_SUBDOMAIN not set — cannot probe workers.dev URL" },
+    });
+  }
+
+  // ── Step 6: /health probe via store URL ────────────────────────────────────
   try {
     const t0 = Date.now();
     const healthRes = await fetch(`${storeUrl}/health`, {
       signal: AbortSignal.timeout(10_000),
     });
-    const ms = Date.now() - t0;
-    const healthBody = await healthRes.json().catch(() => null);
+    const ms   = Date.now() - t0;
+    const body = await healthRes.json().catch(() => null);
     steps.push({
-      step: "worker_health",
+      step: "store_health",
       ok: healthRes.ok,
       detail: {
-        url:    `${storeUrl}/health`,
+        url: `${storeUrl}/health`,
         status: healthRes.status,
         ms,
-        body:   healthBody,
-        ...(!healthRes.ok && {
-          hint: "Worker responded with an error. Check Cloudflare Workers logs for the tenant worker.",
+        body,
+        ...(!healthRes.ok && healthRes.status === 522 && {
+          hint: row["cf_route_id"] && !row["cf_custom_domain_id"]
+            ? "522 via Worker Route — this routing method is unreliable. Run POST /debug/tenant/redeploy?email= to re-deploy and re-bind via Custom Domain."
+            : "522 — the Worker exists but CF cannot route to it. Run POST /debug/tenant/redeploy?email=",
         }),
       },
     });
   } catch (e) {
     steps.push({
-      step: "worker_health",
+      step: "store_health",
       ok: false,
-      detail: {
-        url:   `${storeUrl}/health`,
-        error: (e as Error).message,
-        hint:  "Worker is unreachable. Possible causes: DNS not propagated yet, Custom Domain binding failed, or the worker script was never deployed. Check Cloudflare dashboard for worker named: " + (row["cf_worker_name"] ?? "(unknown)"),
-      },
+      detail: { url: `${storeUrl}/health`, error: (e as Error).message },
     });
   }
 
-  // ── Step 5: /debug probe on tenant worker ──────────────────────────────────
-  try {
-    const debugRes = await fetch(`${storeUrl}/debug`, {
-      signal: AbortSignal.timeout(10_000),
-    });
-    const debugBody = await debugRes.json().catch(() => null);
-    steps.push({
-      step: "worker_debug",
-      ok: debugRes.ok,
-      detail: { url: `${storeUrl}/debug`, status: debugRes.status, body: debugBody },
-    });
-  } catch (e) {
-    steps.push({
-      step: "worker_debug",
-      ok: false,
-      detail: {
-        url:   `${storeUrl}/debug`,
-        error: (e as Error).message,
-        hint:  "Worker /debug unreachable — backend may not have the debug route deployed yet",
-      },
-    });
-  }
-
-  // ── Step 6: /admin/login probe (wrong password on purpose) ────────────────
-  // A 401 = endpoint works, credentials are evaluated. 5xx = misconfiguration.
+  // ── Step 7: /admin/login probe (intentional wrong password) ───────────────
   try {
     const t0 = Date.now();
     const loginRes = await fetch(`${storeUrl}/admin/login`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ username, password: "__debug_probe_bad_password__" }),
+      body:    JSON.stringify({ username, password: "__debug_probe__" }),
       signal:  AbortSignal.timeout(10_000),
     });
-    const ms = Date.now() - t0;
-    const loginBody = await loginRes.json().catch(() => null);
+    const ms   = Date.now() - t0;
+    const body = await loginRes.json().catch(() => null);
+    const loginOk = loginRes.status === 401;
 
-    const loginOk = loginRes.status === 401; // 401 = endpoint works; just wrong pw
     steps.push({
       step: "admin_login_probe",
       ok: loginOk,
@@ -328,28 +372,264 @@ debugRouter.get("/tenant", async (c) => {
         url:    `${storeUrl}/admin/login`,
         status: loginRes.status,
         ms,
-        body:   loginBody,
-        note:   loginOk
-          ? "Got 401 as expected (intentionally wrong password) — endpoint is working. Real login should succeed with correct password."
+        body,
+        note: loginOk
+          ? "Got 401 as expected (bad password, but endpoint is working). The worker is live — login should work with the correct password."
           : loginRes.status >= 500
-            ? "Got 5xx — worker is misconfigured. Check /debug on the tenant worker for details."
-            : loginRes.status === 200
-              ? "Got 200 with wrong password — something is seriously wrong with auth logic."
-              : `Unexpected status ${loginRes.status}`,
+            ? `Got ${loginRes.status} — worker is misconfigured. Check ${storeUrl}/debug for details.`
+            : `Unexpected status ${loginRes.status}`,
       },
     });
   } catch (e) {
     steps.push({
       step: "admin_login_probe",
       ok: false,
-      detail: {
-        url:   `${storeUrl}/admin/login`,
-        error: (e as Error).message,
-        hint:  "Could not reach /admin/login",
-      },
+      detail: { url: `${storeUrl}/admin/login`, error: (e as Error).message },
     });
   }
 
   const allOk = steps.every(s => s.ok);
   return c.json({ ok: allOk, steps });
+});
+
+// ── POST /debug/tenant/redeploy?email=<email> ──────────────────────────────────
+// Re-deploys a tenant's worker with the current R2 bundle, preserving all
+// existing bindings (plain_text vars + D1 + R2) fetched from the CF API.
+// Also re-enables the workers.dev subdomain and re-attempts Custom Domain binding
+// so the tenant moves off the unreliable Worker Route fallback.
+//
+// Use this when:
+//   - The tenant worker is returning 522 (routing or bundle issue)
+//   - You uploaded a new bundle and want existing tenants to pick it up
+//   - Custom Domain binding failed during provisioning
+debugRouter.post("/tenant/redeploy", async (c) => {
+  const email = (c.req.query("email") ?? "").toLowerCase().trim();
+  if (!email) {
+    return c.json({ ok: false, error: "Missing required query param: ?email=merchant@example.com" }, 400);
+  }
+
+  const steps: Array<{ step: string; ok: boolean; detail: unknown }> = [];
+
+  // ── Look up tenant ─────────────────────────────────────────────────────────
+  const row = await c.env.DB
+    .prepare("SELECT * FROM tenants WHERE lower(email) = ?1 LIMIT 1")
+    .bind(email)
+    .first<Record<string, unknown>>();
+
+  if (!row) {
+    return c.json({
+      ok: false,
+      error: `No tenant found with email "${email}"`,
+    }, 404);
+  }
+
+  const tenantId   = String(row["id"]             ?? "");
+  const subdomain  = String(row["subdomain"]       ?? "");
+  const workerName = String(row["cf_worker_name"]  ?? "");
+  const d1IdFallback  = String(row["cf_d1_id"]    ?? "");
+  const r2Fallback    = String(row["cf_r2_bucket"] ?? "");
+  const oldRouteId    = String(row["cf_route_id"]  ?? "");
+  const hostname   = `${subdomain}.${c.env.BASE_DOMAIN}`;
+
+  if (!workerName) {
+    return c.json({ ok: false, error: "cf_worker_name is null — worker was never deployed. Re-provision this tenant." }, 400);
+  }
+
+  const cf = new CloudflareAPI(c.env.CF_ACCOUNT_ID, c.env.CF_API_TOKEN);
+
+  // ── Step 1: Fetch existing Worker bindings from CF API ─────────────────────
+  // This lets us re-deploy with the same vars (ADMIN_USERNAME, ADMIN_PASSWORD_HASH,
+  // STORE_NAME, etc.) without needing them stored in the provisioning DB.
+  let existingBindings: Array<Record<string, unknown>> = [];
+  try {
+    existingBindings = await cf.getWorkerBindings(workerName);
+    steps.push({
+      step: "get_existing_bindings",
+      ok: true,
+      detail: {
+        count: existingBindings.length,
+        types: existingBindings.map(b => `${b["type"]}:${b["name"]}`),
+        note: "plain_text values preserved; secret_text values not exposed (secrets auto-preserved on redeploy)",
+      },
+    });
+  } catch (e) {
+    // Worker might not exist at all — proceed with DB fallback values
+    steps.push({
+      step: "get_existing_bindings",
+      ok: false,
+      detail: {
+        error: (e as Error).message,
+        note: "Could not fetch existing bindings — will reconstruct from provisioning DB values",
+      },
+    });
+  }
+
+  // Extract d1Id, r2Bucket, and vars from existing bindings (fall back to DB values)
+  let d1Id    = d1IdFallback;
+  let r2Bucket = r2Fallback;
+  const vars: Record<string, string> = {};
+
+  for (const b of existingBindings) {
+    if (b["type"] === "d1"        && b["name"] === "DB")     d1Id     = String(b["id"]          ?? d1IdFallback);
+    if (b["type"] === "r2_bucket" && b["name"] === "IMAGES") r2Bucket = String(b["bucket_name"] ?? r2Fallback);
+    if (b["type"] === "plain_text") vars[String(b["name"])]  = String(b["text"] ?? "");
+  }
+
+  if (!d1Id || !r2Bucket) {
+    return c.json({
+      ok: false,
+      steps,
+      error: "Cannot re-deploy: D1 database ID or R2 bucket name is missing from both CF API bindings and the provisioning DB.",
+    }, 400);
+  }
+
+  // ── Step 2: Fetch bundle from R2 ──────────────────────────────────────────
+  let bundle: ArrayBuffer;
+  try {
+    const obj = await c.env.WORKER_BUNDLES.get(c.env.WORKER_BUNDLE_KEY);
+    if (!obj) throw new Error(`Bundle key "${c.env.WORKER_BUNDLE_KEY}" not found in R2`);
+    bundle = await obj.arrayBuffer();
+    steps.push({
+      step: "fetch_bundle",
+      ok: true,
+      detail: {
+        key: c.env.WORKER_BUNDLE_KEY,
+        size_bytes: obj.size,
+        uploaded: obj.uploaded?.toISOString() ?? null,
+      },
+    });
+  } catch (e) {
+    steps.push({ step: "fetch_bundle", ok: false, detail: { error: (e as Error).message } });
+    return c.json({ ok: false, steps });
+  }
+
+  // ── Step 3: Re-deploy Worker ───────────────────────────────────────────────
+  try {
+    await cf.deployWorker(workerName, bundle, d1Id, r2Bucket, vars);
+    steps.push({
+      step: "deploy_worker",
+      ok: true,
+      detail: {
+        worker_name: workerName,
+        d1_id: d1Id,
+        r2_bucket: r2Bucket,
+        vars_set: Object.keys(vars),
+        note: "Secrets (JWT_SECRET, STRIPE_SECRET_KEY, etc.) are preserved automatically",
+      },
+    });
+  } catch (e) {
+    steps.push({ step: "deploy_worker", ok: false, detail: { error: (e as Error).message } });
+    return c.json({ ok: false, steps });
+  }
+
+  // ── Step 4: Enable workers.dev subdomain ───────────────────────────────────
+  try {
+    await cf.enableWorkerSubdomain(workerName);
+    const workersDevUrl = c.env.CF_WORKERS_SUBDOMAIN
+      ? `https://${workerName}.${c.env.CF_WORKERS_SUBDOMAIN}.workers.dev`
+      : "(CF_WORKERS_SUBDOMAIN not set)";
+    steps.push({
+      step: "enable_workers_dev",
+      ok: true,
+      detail: { url: workersDevUrl },
+    });
+  } catch (e) {
+    steps.push({
+      step: "enable_workers_dev",
+      ok: false,
+      detail: {
+        error: (e as Error).message,
+        note: "Non-fatal — Custom Domain / Route binding will still work",
+      },
+    });
+  }
+
+  // ── Step 5: Delete old Worker Route (if present) ──────────────────────────
+  if (oldRouteId) {
+    try {
+      await cf.deleteWorkerRoute(c.env.CF_ZONE_ID, oldRouteId);
+      await c.env.DB
+        .prepare("UPDATE tenants SET cf_route_id = NULL, updated_at = ?1 WHERE id = ?2")
+        .bind(new Date().toISOString(), tenantId)
+        .run();
+      steps.push({
+        step: "delete_old_route",
+        ok: true,
+        detail: { route_id: oldRouteId, note: "Removed Worker Route fallback — will now bind via Custom Domain" },
+      });
+    } catch (e) {
+      steps.push({
+        step: "delete_old_route",
+        ok: false,
+        detail: {
+          error: (e as Error).message,
+          note: "Non-fatal — will attempt Custom Domain binding anyway",
+        },
+      });
+    }
+  }
+
+  // ── Step 6: Bind via Custom Domain ────────────────────────────────────────
+  // Custom Domain is the reliable path. Worker Routes + proxied DNS can result
+  // in 522s because Cloudflare sometimes tries to reach an origin instead of
+  // the Worker when the script has startup issues. Custom Domain binds the
+  // hostname directly to the Worker at the edge.
+  try {
+    const customDomain = await cf.addWorkerCustomDomain(workerName, hostname, c.env.CF_ZONE_ID);
+    await c.env.DB
+      .prepare("UPDATE tenants SET cf_custom_domain_id = ?1, updated_at = ?2 WHERE id = ?3")
+      .bind(customDomain.id, new Date().toISOString(), tenantId)
+      .run();
+    steps.push({
+      step: "bind_custom_domain",
+      ok: true,
+      detail: {
+        hostname,
+        custom_domain_id: customDomain.id,
+        note: "Custom Domain bound — requests to " + hostname + " now route directly to the Worker",
+      },
+    });
+  } catch (e) {
+    // Custom Domain failed — fall back to Worker Route
+    steps.push({
+      step: "bind_custom_domain",
+      ok: false,
+      detail: {
+        error: (e as Error).message,
+        note: "Custom Domain failed — falling back to Worker Route. If this keeps failing, check CF API token has 'Workers Custom Domains: Edit' permission.",
+      },
+    });
+
+    // Re-add Worker Route as fallback
+    try {
+      const route = await cf.addWorkerRoute(c.env.CF_ZONE_ID, `${hostname}/*`, workerName);
+      await c.env.DB
+        .prepare("UPDATE tenants SET cf_route_id = ?1, updated_at = ?2 WHERE id = ?3")
+        .bind(route.id, new Date().toISOString(), tenantId)
+        .run();
+      steps.push({
+        step: "bind_worker_route_fallback",
+        ok: true,
+        detail: {
+          route_id: route.id,
+          pattern: `${hostname}/*`,
+        },
+      });
+    } catch (e2) {
+      steps.push({
+        step: "bind_worker_route_fallback",
+        ok: false,
+        detail: { error: (e2 as Error).message },
+      });
+    }
+  }
+
+  const allOk = steps.every(s => s.ok);
+  return c.json({
+    ok: allOk,
+    steps,
+    next: allOk
+      ? `Redeploy complete. Now verify: GET /debug/tenant?email=${email}`
+      : `Some steps failed. Check individual step errors above, then retry.`,
+  });
 });

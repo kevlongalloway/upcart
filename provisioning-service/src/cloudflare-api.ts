@@ -375,4 +375,50 @@ export class CloudflareAPI {
       `/zones/${zoneId}/workers/routes/${routeId}`
     );
   }
+
+  // ── Worker introspection ──────────────────────────────────────────────────────
+
+  /**
+   * Returns true if a Worker script with the given name exists on the account.
+   * Safe to call speculatively — swallows the 404 and returns false.
+   */
+  async workerScriptExists(scriptName: string): Promise<boolean> {
+    try {
+      await this.request("GET", `/accounts/${this.accountId}/workers/scripts/${scriptName}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Fetch the current bindings for a deployed Worker script.
+   *
+   * Returns an array of binding objects. For `plain_text` bindings the `text`
+   * value is included. For `secret_text` bindings only the name is returned
+   * (secrets are never exposed by the API). For `d1` bindings `id` is
+   * included. For `r2_bucket` bindings `bucket_name` is included.
+   *
+   * Used by the redeploy flow to preserve existing configuration when
+   * replacing only the script bundle.
+   */
+  async getWorkerBindings(scriptName: string): Promise<Array<Record<string, unknown>>> {
+    const res = await this.request<{ bindings?: Array<Record<string, unknown>> }>(
+      "GET",
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}/settings`
+    );
+    return res.result?.bindings ?? [];
+  }
+
+  /**
+   * Enable (or disable) the `workers.dev` subdomain for a script.
+   * Alias kept for symmetry — provision.ts already calls enableWorkerSubdomain.
+   */
+  async setWorkerSubdomain(scriptName: string, enabled: boolean): Promise<void> {
+    await this.request(
+      "POST",
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}/subdomain`,
+      { enabled, previews_enabled: false }
+    );
+  }
 }

@@ -422,56 +422,25 @@ async function runProvisioning(
     );
   }
 
-  // ── Step 4: Provision subdomain DNS + Worker binding ─────────────────────
+  // ── Step 4: Bind Worker to the subdomain ─────────────────────────────────
   //
-  // We use a two-phase approach so the subdomain is fully reachable:
+  // Strategy: Custom Domains first, Worker Route as fallback.
   //
-  //   Phase A — DNS record
-  //     Create a proxied AAAA record for <subdomain>.upcart.online → 100::
-  //     (100:: is an unroutable IPv6 address; Cloudflare intercepts all
-  //     traffic at the proxy before it ever reaches the address.)
-  //     This makes the hostname resolvable and TLS-terminated by Cloudflare
-  //     before any Worker binding exists.
+  // Custom Domains (preferred):
+  //   A single PUT call binds the Worker to the hostname. Cloudflare manages
+  //   the DNS record and SSL certificate automatically. We do NOT pre-create
+  //   a DNS record — doing so before the Custom Domain call caused the API to
+  //   return a conflict error, which silently forced every tenant onto the
+  //   less-reliable Route fallback.
   //
-  //   Phase B — Worker binding (Custom Domain preferred, Route as fallback)
-  //     Custom Domains: one API call; CF manages DNS+SSL automatically.
-  //       We still create the DNS record explicitly in Phase A so we have
-  //       the record ID for clean deprovisioning.
-  //     Route fallback: used when Custom Domains returns an error.
-  //       Requires the DNS record (Phase A) to already exist.
+  // Worker Route (fallback):
+  //   If Custom Domains fails (permissions, plan limit, etc.) we create a
+  //   proxied AAAA DNS record manually (100:: placeholder) and add a Route
+  //   that maps the pattern to the Worker script. After binding succeeds we
+  //   list DNS records to capture the record ID for clean deprovisioning.
   //
   await tenantDB.updateStatus(tenantId, "configuring_domain");
 
-  // ── Phase A: DNS record ───────────────────────────────────────────────────
-  // Check for an existing record first — a previous failed provisioning
-  // attempt may have left one behind.
-  let dnsRecordId: string;
-
-  const existingRecords = await cf.listDnsRecords(env.CF_ZONE_ID, hostname);
-  const existingRecord  = existingRecords.find(
-    r => r.name === hostname && r.proxied
-  );
-
-  if (existingRecord) {
-    // Re-use the existing proxied record rather than creating a duplicate.
-    // We don't track it on `created` because we didn't make it — a previous
-    // failed run did, and its own rollback should have cleaned it up. Leaving
-    // it out here avoids deleting a record that might belong to a *successful*
-    // earlier provisioning that somehow ended up with a duplicate tenant row.
-    dnsRecordId = existingRecord.id;
-    console.log(`Re-using existing DNS record ${dnsRecordId} for ${hostname}`);
-  } else {
-    const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
-    dnsRecordId     = dnsRecord.id;
-    created.dnsRecordId = dnsRecordId;
-    console.log(`Created DNS record ${dnsRecordId}: ${hostname} AAAA 100:: (proxied)`);
-  }
-
-  await tenantDB.updateResources(tenantId, { cf_dns_record_id: dnsRecordId });
-
-  // ── Phase B: Bind Worker to the subdomain ─────────────────────────────────
-  // Try the Custom Domains API first.  Fall back to a Worker Route if the
-  // account/plan doesn't support Custom Domains or if the API returns an error.
   try {
     const customDomain = await cf.addWorkerCustomDomain(
       workerName,
@@ -483,12 +452,41 @@ async function runProvisioning(
     console.log(
       `Bound ${hostname} to worker "${workerName}" via Custom Domains (id: ${customDomain.id})`
     );
+
+    // Retrieve the DNS record ID that Custom Domains created so we can clean
+    // it up during deprovisioning.
+    try {
+      const records = await cf.listDnsRecords(env.CF_ZONE_ID, hostname);
+      const rec     = records.find(r => r.name === hostname && r.proxied);
+      if (rec) {
+        created.dnsRecordId = rec.id;
+        await tenantDB.updateResources(tenantId, { cf_dns_record_id: rec.id });
+        console.log(`Recorded DNS record ${rec.id} created by Custom Domains for ${hostname}`);
+      }
+    } catch {
+      // Non-fatal — only affects deprovisioning cleanup.
+    }
   } catch (customDomainErr) {
-    // Custom Domains failed — log and fall back to Worker Routes.
     console.warn(
-      `Custom Domains failed for ${hostname}, falling back to Worker Route:`,
+      `[provision] Custom Domains failed for ${hostname} — falling back to Worker Route: ` +
       (customDomainErr as Error).message
     );
+
+    // Worker Route requires a proxied DNS record to be in place first.
+    const existingRecords = await cf.listDnsRecords(env.CF_ZONE_ID, hostname);
+    const existingRecord  = existingRecords.find(r => r.name === hostname && r.proxied);
+
+    let dnsRecordId: string;
+    if (existingRecord) {
+      dnsRecordId = existingRecord.id;
+      console.log(`Re-using existing DNS record ${dnsRecordId} for ${hostname}`);
+    } else {
+      const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
+      dnsRecordId     = dnsRecord.id;
+      created.dnsRecordId = dnsRecordId;
+      console.log(`Created DNS record ${dnsRecordId}: ${hostname} AAAA 100:: (proxied)`);
+    }
+    await tenantDB.updateResources(tenantId, { cf_dns_record_id: dnsRecordId });
 
     const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
     created.routeId = route.id;
