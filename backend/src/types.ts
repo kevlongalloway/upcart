@@ -11,6 +11,12 @@ export type Bindings = {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   ADMIN_USERNAME: string;
+  // PBKDF2-SHA256 hash in "salt_hex:hash_hex" format. Provisioning writes
+  // this as a plain_text env var at deploy time so the tenant worker can
+  // validate logins without ever needing a /setup call to seed an
+  // admin_accounts row. Plaintext ADMIN_PASSWORD is still supported for
+  // manual / legacy deploys but is no longer used by provisioning.
+  ADMIN_PASSWORD_HASH: string;
   ADMIN_PASSWORD: string;
   JWT_SECRET: string;
   MONGODB_URI: string;       // only required when DB_ADAPTER = "mongodb"

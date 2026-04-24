@@ -5,6 +5,7 @@ import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
+import { hashPassword } from "../password.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -282,13 +283,6 @@ async function runProvisioning(
   },
   tenantDB: TenantDB
 ): Promise<void> {
-  if (!env.CF_WORKERS_SUBDOMAIN || !env.CF_WORKERS_SUBDOMAIN.trim()) {
-    throw new Error(
-      "CF_WORKERS_SUBDOMAIN is not set on the provisioning worker — cannot " +
-      "reach newly provisioned tenant workers to run /setup. Set it in " +
-      "wrangler.toml (e.g. \"acmecorp\" for acmecorp.workers.dev) and redeploy."
-    );
-  }
 
   const cf         = new CloudflareAPI(env.CF_ACCOUNT_ID, env.CF_API_TOKEN);
   const subdomain  = input.store.subdomain.toLowerCase();
@@ -350,6 +344,13 @@ async function runProvisioning(
   // their own Stripe keys — they connect via Stripe Connect).
   const publishableKey = env.STRIPE_PUBLISHABLE_KEY || "";
 
+  // Hash the admin password here so we can ship it as a plain_text env var
+  // on the tenant worker. adminLogin.ts's env-var auth path reads
+  // ADMIN_PASSWORD_HASH with verifyPassword, so the tenant worker can
+  // authenticate the merchant without ever needing /setup to populate an
+  // admin_accounts row.
+  const adminPasswordHash = await hashPassword(input.admin.password);
+
   const vars: Record<string, string> = {
     DB_ADAPTER:            "d1",
     CORS_ORIGINS:          corsOrigins,
@@ -368,6 +369,8 @@ async function runProvisioning(
     STORE_STATE:           "",
     STORE_POSTAL_CODE:     "",
     STORE_PHONE:           "",
+    ADMIN_USERNAME:        input.admin.username,
+    ADMIN_PASSWORD_HASH:   adminPasswordHash,
   };
 
   await cf.deployWorker(workerName, bundle, d1.uuid, r2BucketName, vars);
@@ -495,101 +498,15 @@ async function runProvisioning(
     );
   }
 
-  // ── Step 5: Run /setup on the fresh tenant worker ────────────────────────
-  // We reach the tenant worker via its workers.dev URL, not its Custom
-  // Domain. Same-zone worker-to-worker routing can return HTTP 522 for the
-  // first few minutes after a Custom Domain binding; workers.dev lives
-  // outside the zone, so it's routable the instant deployWorker returns.
-  //
-  // A short retry loop (3 × 2s) absorbs any transient hiccups before the
-  // workers.dev routing is fully propagated across edges.
-  await tenantDB.updateStatus(tenantId, "finalizing");
-
-  const internalUrl = `https://${workerName}.${env.CF_WORKERS_SUBDOMAIN}.workers.dev`;
-
-  const setupBody = JSON.stringify({
-    store: {
-      name:        input.store.name,
-      description: input.store.description ?? "",
-      currency:    input.store.currency,
-      country:     input.store.country,
-      theme:       input.store.theme ?? "mono",
-    },
-    admin: {
-      username: input.admin.username,
-      email:    input.admin.email,
-      password: input.admin.password,
-    },
-    stripe_publishable_key: input.stripe_publishable_key,
-  });
-
-  let setupRes: Response | undefined;
-  let lastErr: string | undefined;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      setupRes = await fetch(`${internalUrl}/setup`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    setupBody,
-      });
-      // 2xx or 4xx (non-retryable, e.g. 409 "already configured") → stop.
-      if (setupRes.status < 500) break;
-      lastErr = `HTTP ${setupRes.status}`;
-    } catch (e) {
-      lastErr = (e as Error).message;
-    }
-    if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
-  }
-
-  if (!setupRes) {
-    throw new Error(`Could not reach tenant worker at ${internalUrl}/setup: ${lastErr}`);
-  }
-  if (!setupRes.ok && setupRes.status !== 409) {
-    const body = await setupRes.text().catch(() => "");
-    throw new Error(`Tenant /setup returned ${setupRes.status}: ${body.slice(0, 200)}`);
-  }
-
-  // ── Step 6: Best-effort seed a starter product ────────────────────────────
-  // /setup returns a short-lived admin JWT. Use it to drop a placeholder
-  // product so the storefront isn't empty. Any error here is logged but
-  // does not fail provisioning — the merchant can delete and add their own.
-  try {
-    const parsed = await setupRes.clone().json().catch(() => null) as
-      | { ok?: boolean; data?: { token?: string } } | null;
-    const token = parsed?.ok ? parsed.data?.token : undefined;
-    if (token) {
-      const seedRes = await fetch(`${internalUrl}/admin/products`, {
-        method:  "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name:        "Welcome to your store",
-          description:
-            "This is a placeholder product so your store isn't empty when " +
-            "you first share the link. Edit or delete it from your " +
-            "dashboard — then add your real products.",
-          price:    1999,
-          currency: input.store.currency,
-          stock:    -1,
-          active:   true,
-          images:   [],
-          metadata: { seeded: true },
-        }),
-      });
-      if (!seedRes.ok) {
-        const body = await seedRes.text().catch(() => "");
-        console.warn(`Starter product seed failed (${seedRes.status}): ${body.slice(0, 200)}`);
-      }
-    }
-  } catch (e) {
-    console.warn(`Starter product seed threw; ignoring:`, (e as Error).message);
-  }
-
-  // ── Step 7: Persist public URLs and mark active ──────────────────────────
-  // store_url is the merchant-facing Custom Domain URL, NOT the workers.dev
-  // one we used internally. Used by the dashboard for admin API calls.
+  // ── Step 5: Mark active ──────────────────────────────────────────────────
+  // Nothing left to do. The tenant worker boots itself from env vars:
+  //   - ADMIN_USERNAME + ADMIN_PASSWORD_HASH let /admin/login authenticate
+  //     the merchant against backend/src/routes/adminLogin.ts's env-var
+  //     code path without a /setup handoff.
+  //   - STORE_NAME / DEFAULT_CURRENCY / STORE_COUNTRY drive the storefront.
+  // Custom Domain propagation catches up within seconds, so we don't
+  // probe /health — signups are usually live by the time the merchant
+  // finishes the landing page's step animation.
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://dashboard.${baseDomain}`;
 

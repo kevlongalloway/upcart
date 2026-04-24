@@ -23,8 +23,10 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
   let jwtSecret     = c.env.JWT_SECRET;
 
   try {
-    // ── DB-based auth (setup wizard completed) ────────────────────────────
-    // Look up the admin account by username in the admin_accounts table.
+    // ── DB-based auth (legacy /setup flow) ────────────────────────────────
+    // Kept for backwards-compat with tenants that were seeded via a /setup
+    // wizard. New tenants skip /setup entirely and rely on the env-var
+    // path below.
     const dbAdmin = await c.env.DB.prepare(
       "SELECT username, password_hash FROM admin_accounts WHERE username = ? LIMIT 1"
     ).first<{ username: string; password_hash: string }>(username);
@@ -33,7 +35,6 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
       validUsername = timingSafeEqual(username, dbAdmin.username);
       validPassword = await verifyPassword(password, dbAdmin.password_hash);
 
-      // Prefer env var JWT_SECRET; fall back to the one stored during setup.
       if (!jwtSecret) {
         const row = await c.env.DB.prepare(
           "SELECT value FROM store_settings WHERE key = 'db_jwt_secret'"
@@ -41,23 +42,31 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
         if (row) jwtSecret = row.value;
       }
     } else {
-      // ── Env var auth (pre-setup or wrangler-secrets-only deployment) ──────
-      if (!c.env.ADMIN_USERNAME || !c.env.ADMIN_PASSWORD) {
+      // ── Env-var auth (default for provisioned tenants) ────────────────────
+      // Provisioning writes ADMIN_USERNAME + ADMIN_PASSWORD_HASH as
+      // plain_text vars at deploy time, so this path is the primary one.
+      // ADMIN_PASSWORD (plaintext) is still honored as a fallback for
+      // manual deploys.
+      if (!c.env.ADMIN_USERNAME || (!c.env.ADMIN_PASSWORD_HASH && !c.env.ADMIN_PASSWORD)) {
         return c.json(
           err("Store not yet configured. Complete setup at /onboarding.html"),
           503
         );
       }
       validUsername = timingSafeEqual(username, c.env.ADMIN_USERNAME);
-      validPassword = timingSafeEqual(password, c.env.ADMIN_PASSWORD);
+      validPassword = c.env.ADMIN_PASSWORD_HASH
+        ? await verifyPassword(password, c.env.ADMIN_PASSWORD_HASH)
+        : timingSafeEqual(password, c.env.ADMIN_PASSWORD);
     }
   } catch {
     // DB unavailable — fall back to env vars.
-    if (!c.env.ADMIN_USERNAME || !c.env.ADMIN_PASSWORD || !c.env.JWT_SECRET) {
+    if (!c.env.ADMIN_USERNAME || (!c.env.ADMIN_PASSWORD_HASH && !c.env.ADMIN_PASSWORD) || !c.env.JWT_SECRET) {
       return c.json(err("Server misconfiguration: admin credentials not set"), 500);
     }
     validUsername = timingSafeEqual(username, c.env.ADMIN_USERNAME);
-    validPassword = timingSafeEqual(password, c.env.ADMIN_PASSWORD);
+    validPassword = c.env.ADMIN_PASSWORD_HASH
+      ? await verifyPassword(password, c.env.ADMIN_PASSWORD_HASH)
+      : timingSafeEqual(password, c.env.ADMIN_PASSWORD);
   }
 
   if (!validUsername || !validPassword) {
