@@ -1,6 +1,3 @@
-// TODO PRODUCTION: tighten the cron cadence in wrangler.toml from "*/15 * * * *"
-// to "*/3 * * * *" so tenants flip from "finalizing" to "active" within a few
-// minutes of signup instead of up to 15.
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
@@ -9,7 +6,6 @@ import type { Bindings } from "./types.js";
 import { provisionRouter } from "./routes/provision.js";
 import { statusRouter } from "./routes/status.js";
 import { authRouter } from "./routes/auth.js";
-import { finalizePendingTenants } from "./finalize.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -67,18 +63,4 @@ app.onError((e, c) => {
   return c.json({ ok: false, error: "Internal server error" }, 500);
 });
 
-// ─── Cron finalizer ──────────────────────────────────────────────────────────
-//
-// The actual finalization logic lives in ./finalize.ts so the dashboard's
-// manual "Refresh status" endpoint (POST /provision/:id/recheck, in
-// routes/status.ts) can reuse it.
-export default {
-  fetch: app.fetch,
-  async scheduled(
-    _controller: ScheduledController,
-    env: Bindings,
-    ctx: ExecutionContext,
-  ): Promise<void> {
-    ctx.waitUntil(finalizePendingTenants(env));
-  },
-} satisfies ExportedHandler<Bindings>;
+export default app;

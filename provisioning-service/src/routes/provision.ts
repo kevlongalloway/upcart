@@ -5,7 +5,6 @@ import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
-import { hashPassword } from "../password.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -192,48 +191,17 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
   }
 
   // ── Create tenant record ──────────────────────────────────────────────────
-  const passwordHash = await hashPassword(admin.password);
-
-  // Stash the full signup payload so we can replay it against the tenant
-  // worker's /setup endpoint at first login (see auth.ts). The plaintext
-  // password is intentionally NOT stored — it'll be re-supplied by the
-  // merchant when they sign in, validated against password_hash, and only
-  // then forwarded to the tenant worker.
-  const provisioningData = JSON.stringify({
-    store: {
-      name:        store.name,
-      description: store.description ?? "",
-      currency:    store.currency,
-      country:     store.country,
-      theme:       store.theme ?? "mono",
-    },
-    admin: {
-      username: admin.username,
-      email:    admin.email,
-    },
-    stripe_publishable_key: stripe_publishable_key ?? "",
-  });
-
   const tenant = await tenantDB.createTenant({
     subdomain,
     store_name: store.name,
     email:      admin.email,
     username:   admin.username,
-    password_hash: passwordHash,
-    provisioning_data: provisioningData,
   });
-
-  // Admin credentials + Stripe publishable key are no longer forwarded to
-  // the tenant worker at provisioning time — the tenant worker boots itself
-  // from its env vars, and the cron finalizer (see index.ts) only checks
-  // /health to flip the tenant to "active".
-  void admin;
-  void stripe_publishable_key;
 
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
   c.executionCtx.waitUntil(
-    runProvisioning(c.env, tenant.id, { store }, tenantDB)
+    runProvisioning(c.env, tenant.id, { store, admin, stripe_publishable_key: stripe_publishable_key ?? "" }, tenantDB)
       .catch(async (e) => {
         console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
         await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
@@ -309,9 +277,19 @@ async function runProvisioning(
   tenantId: string,
   input: {
     store: z.infer<typeof provisionSchema>["store"];
+    admin: z.infer<typeof provisionSchema>["admin"];
+    stripe_publishable_key: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
+  if (!env.CF_WORKERS_SUBDOMAIN || !env.CF_WORKERS_SUBDOMAIN.trim()) {
+    throw new Error(
+      "CF_WORKERS_SUBDOMAIN is not set on the provisioning worker — cannot " +
+      "reach newly provisioned tenant workers to run /setup. Set it in " +
+      "wrangler.toml (e.g. \"acmecorp\" for acmecorp.workers.dev) and redeploy."
+    );
+  }
+
   const cf         = new CloudflareAPI(env.CF_ACCOUNT_ID, env.CF_API_TOKEN);
   const subdomain  = input.store.subdomain.toLowerCase();
   const workerName = `${env.WORKER_SCRIPT_PREFIX}-${tenantId}`;
@@ -517,30 +495,108 @@ async function runProvisioning(
     );
   }
 
-  // ── Step 5: Mark finalizing; cron finishes activation ────────────────────
-  // The previous inline health-poll + /setup + seed flow ran to completion
-  // inside ctx.waitUntil but routinely got killed mid-flow when Custom Domain
-  // SSL took longer than the Worker's invocation budget, leaving tenants
-  // stuck in "finalizing" with no reliable recovery path.
+  // ── Step 5: Run /setup on the fresh tenant worker ────────────────────────
+  // We reach the tenant worker via its workers.dev URL, not its Custom
+  // Domain. Same-zone worker-to-worker routing can return HTTP 522 for the
+  // first few minutes after a Custom Domain binding; workers.dev lives
+  // outside the zone, so it's routable the instant deployWorker returns.
   //
-  // Now we hand off to the cron handler in index.ts — it polls /health on a
-  // schedule and flips healthy finalizing tenants to "active" in short,
-  // independent invocations that can't get killed.
-  //
-  // store_url + admin_url are persisted here so the cron (and auth.ts) know
-  // where to probe. provisioning_data stays on the row — the cron replays
-  // it against the tenant worker's /setup endpoint once /health reports
-  // healthy, and clears it only after /setup succeeds.
+  // A short retry loop (3 × 2s) absorbs any transient hiccups before the
+  // workers.dev routing is fully propagated across edges.
+  await tenantDB.updateStatus(tenantId, "finalizing");
+
+  const internalUrl = `https://${workerName}.${env.CF_WORKERS_SUBDOMAIN}.workers.dev`;
+
+  const setupBody = JSON.stringify({
+    store: {
+      name:        input.store.name,
+      description: input.store.description ?? "",
+      currency:    input.store.currency,
+      country:     input.store.country,
+      theme:       input.store.theme ?? "mono",
+    },
+    admin: {
+      username: input.admin.username,
+      email:    input.admin.email,
+      password: input.admin.password,
+    },
+    stripe_publishable_key: input.stripe_publishable_key,
+  });
+
+  let setupRes: Response | undefined;
+  let lastErr: string | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      setupRes = await fetch(`${internalUrl}/setup`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    setupBody,
+      });
+      // 2xx or 4xx (non-retryable, e.g. 409 "already configured") → stop.
+      if (setupRes.status < 500) break;
+      lastErr = `HTTP ${setupRes.status}`;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
+  }
+
+  if (!setupRes) {
+    throw new Error(`Could not reach tenant worker at ${internalUrl}/setup: ${lastErr}`);
+  }
+  if (!setupRes.ok && setupRes.status !== 409) {
+    const body = await setupRes.text().catch(() => "");
+    throw new Error(`Tenant /setup returned ${setupRes.status}: ${body.slice(0, 200)}`);
+  }
+
+  // ── Step 6: Best-effort seed a starter product ────────────────────────────
+  // /setup returns a short-lived admin JWT. Use it to drop a placeholder
+  // product so the storefront isn't empty. Any error here is logged but
+  // does not fail provisioning — the merchant can delete and add their own.
+  try {
+    const parsed = await setupRes.clone().json().catch(() => null) as
+      | { ok?: boolean; data?: { token?: string } } | null;
+    const token = parsed?.ok ? parsed.data?.token : undefined;
+    if (token) {
+      const seedRes = await fetch(`${internalUrl}/admin/products`, {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name:        "Welcome to your store",
+          description:
+            "This is a placeholder product so your store isn't empty when " +
+            "you first share the link. Edit or delete it from your " +
+            "dashboard — then add your real products.",
+          price:    1999,
+          currency: input.store.currency,
+          stock:    -1,
+          active:   true,
+          images:   [],
+          metadata: { seeded: true },
+        }),
+      });
+      if (!seedRes.ok) {
+        const body = await seedRes.text().catch(() => "");
+        console.warn(`Starter product seed failed (${seedRes.status}): ${body.slice(0, 200)}`);
+      }
+    }
+  } catch (e) {
+    console.warn(`Starter product seed threw; ignoring:`, (e as Error).message);
+  }
+
+  // ── Step 7: Persist public URLs and mark active ──────────────────────────
+  // store_url is the merchant-facing Custom Domain URL, NOT the workers.dev
+  // one we used internally. Used by the dashboard for admin API calls.
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://dashboard.${baseDomain}`;
 
   await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
-  await tenantDB.updateStatus(tenantId, "finalizing");
+  await tenantDB.updateStatus(tenantId, "active");
 
-  console.log(
-    `Tenant ${tenantId} (${hostname}) reached finalizing; ` +
-    `cron will flip to active once /health reports healthy.`
-  );
+  console.log(`Tenant ${tenantId} (${hostname}) provisioned successfully.`);
   } catch (e) {
     // A step failed. Best-effort cleanup of anything we already created, then
     // re-throw so the outer waitUntil handler marks the tenant as "failed".

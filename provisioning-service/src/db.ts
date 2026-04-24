@@ -22,7 +22,6 @@ type TenantRow = {
   stripe_connect_onboarding_complete: number;
   store_url: string | null;
   admin_url: string | null;
-  provisioning_data: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -47,18 +46,22 @@ export class TenantDB {
     store_name: string;
     email: string;
     username: string;
-    password_hash: string;
-    provisioning_data: string;
     plan?: TenantPlan;
   }): Promise<Tenant> {
     const id  = randomUUID();
     const now = new Date().toISOString();
 
+    // password_hash and provisioning_data are legacy columns — the
+    // provisioning DB no longer tracks passwords (auth proxies to the
+    // tenant worker's admin_accounts) or stashes signup payloads (we
+    // run /setup inline during provisioning now). Write empty/NULL so
+    // the NOT NULL constraint on password_hash is satisfied without
+    // needing a schema migration.
     await this.db
       .prepare(
         `INSERT INTO tenants
            (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'provisioning', ?9, ?9)`
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', NULL, 'provisioning', ?7, ?7)`
       )
       .bind(
         id,
@@ -67,25 +70,11 @@ export class TenantDB {
         input.plan ?? "starter",
         input.email.toLowerCase().trim(),
         input.username,
-        input.password_hash,
-        input.provisioning_data,
         now
       )
       .run();
 
     return (await this.getTenant(id))!;
-  }
-
-  /**
-   * Clear the cached signup payload once /setup has succeeded on the tenant
-   * worker — we don't want store config (or worse, anything that ever ends
-   * up in there) sitting in the registry after it's no longer useful.
-   */
-  async clearProvisioningData(id: string): Promise<void> {
-    await this.db
-      .prepare("UPDATE tenants SET provisioning_data = NULL, updated_at = ?1 WHERE id = ?2")
-      .bind(new Date().toISOString(), id)
-      .run();
   }
 
   async getTenant(id: string): Promise<Tenant | null> {
@@ -122,18 +111,6 @@ export class TenantDB {
       .bind(subdomain.toLowerCase())
       .first<{ id: string }>();
     return row === null;
-  }
-
-  /**
-   * All tenants currently sitting in the "finalizing" state. Used by the
-   * scheduled cron handler (see index.ts) to probe each one's /health and
-   * flip healthy ones to "active".
-   */
-  async getFinalizingTenants(): Promise<Tenant[]> {
-    const rows = await this.db
-      .prepare("SELECT * FROM tenants WHERE status = 'finalizing'")
-      .all<TenantRow>();
-    return rows.results ? rows.results.map(rowToTenant) : [];
   }
 
   async updateStatus(

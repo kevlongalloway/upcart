@@ -39,14 +39,16 @@ WORKER_BUNDLE_KEY = "store-worker.js"
 # Add extra origins for local dev: "http://localhost:3000,http://localhost:8080".
 CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboard.upcart.online"
 
-# The account-level workers.dev subdomain. finalize.ts uses this to probe
-# newly provisioned tenant workers via `<worker-name>.<sub>.workers.dev`,
-# bypassing same-zone Custom Domain routing that returns HTTP 522 for the
-# first few minutes after binding.
+# REQUIRED. The account-level workers.dev subdomain. provision.ts uses it
+# to reach a newly-provisioned tenant worker at
+#   https://<worker-name>.<sub>.workers.dev
+# for the inline /setup call. Same-zone Custom Domain routing returns HTTP
+# 522 for several minutes after binding, but workers.dev lives outside the
+# zone so it's routable immediately after deployWorker returns.
 #
 # Find yours at: Cloudflare dashboard → Workers & Pages → right sidebar,
 # under "Subdomain". If it shows "acmecorp.workers.dev", set this to
-# "acmecorp". Leave empty to fall back to the Custom Domain URL.
+# "acmecorp". Provisioning will throw if this is empty.
 CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
 
 # ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
@@ -77,12 +79,3 @@ CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
 #   Zone scope (upcart.online):
 #     - DNS: Edit               (create/delete AAAA subdomain records)
 #     - Workers Routes: Edit    (fallback route creation)
-
-# ─── Cron Triggers ────────────────────────────────────────────────────────────
-# The scheduled handler in src/index.ts walks every tenant stuck in
-# "finalizing" and flips it to "active" once its /health reports healthy.
-#
-# TODO PRODUCTION: switch to "*/3 * * * *" so new signups flip to active
-# within ~3 minutes instead of up to 15.
-[triggers]
-crons = ["*/15 * * * *"]

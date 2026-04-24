@@ -38,15 +38,16 @@ export type Bindings = {
   WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
   CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
 
-  // The account-level workers.dev subdomain. Used by finalize.ts to probe
-  // newly provisioned tenant workers at `<worker>.<sub>.workers.dev`,
-  // bypassing same-zone Custom Domain routing (which returns HTTP 522
-  // for several minutes after binding). Find it at:
-  //   Cloudflare dashboard → Workers & Pages → right sidebar "Subdomain"
-  // Example: if your dashboard shows "acmecorp.workers.dev", set this
-  // to "acmecorp". Leave empty to skip the internal URL shortcut — in
-  // that case finalize.ts falls back to the Custom Domain URL.
-  CF_WORKERS_SUBDOMAIN?: string;
+  // The account-level workers.dev subdomain. Required — provision.ts uses
+  // `<worker>.<sub>.workers.dev` to reach a newly-provisioned tenant
+  // worker for the inline /setup call. Same-zone Custom Domain routing
+  // returns HTTP 522 for several minutes after a new binding, but
+  // workers.dev lives outside the zone and is routable immediately.
+  //
+  // Find it at: Cloudflare dashboard → Workers & Pages → right sidebar
+  // under "Subdomain". If yours shows "acmecorp.workers.dev", set this
+  // to "acmecorp".
+  CF_WORKERS_SUBDOMAIN: string;
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────
@@ -58,7 +59,6 @@ export type TenantStatus =
   | "deploying_worker"
   | "configuring_domain"
   | "finalizing"
-  | "awaiting_setup"
   | "active"
   | "suspended"
   | "cancelled"
@@ -95,12 +95,6 @@ export type Tenant = {
   // Live URLs (set once provisioning completes)
   store_url: string | null;
   admin_url: string | null;
-
-  // JSON blob of the original POST /provision payload — needed because the
-  // tenant worker's /setup call is now deferred until first dashboard login
-  // (see provisioning-service/src/routes/auth.ts). Cleared after /setup
-  // succeeds so we don't keep store config around longer than necessary.
-  provisioning_data: string | null;
 
   // Non-null only when status === "failed"
   error_message: string | null;
