@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Upcart — Your Store, Built to Scale</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -714,71 +716,186 @@ line-height: 1.6;
 margin-bottom: 52px;
 }
 
-.inquiry-form {
-display: flex;
-flex-direction: column;
-gap: 14px;
+/* ── SETUP WIZARD ─────────────────────────────────────────────────────────
+ * Hosted inside #get-started. Wizard tokens are bridged to the landing's
+ * existing palette so the gold-accented wizard reads against --void.
+ */
+.form-section {
+--gold:           #C9A227;
+--gold-glow:      rgba(201,162,39,0.12);
+--gold-border:    rgba(201,162,39,0.45);
+--bg-base:        #0A1517;
+--bg-elev1:       #102024;
+--border-default: #1E2C31;
+--border-strong:  #2A3B41;
+--text-muted:     #A1A1AA;
+--text-dim:       #71717A;
+}
+
+.setup-card {
+width: 100%;
+max-width: 540px;
+margin: 0 auto;
 text-align: left;
 }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-.form-group { display: flex; flex-direction: column; gap: 7px; }
-.form-label {
-font-size: 13px;
-font-weight: 500;
-color: var(--muted);
-letter-spacing: 0.4px;
-text-transform: uppercase;
+.step-indicator {
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 2rem;
 }
-.form-input, .form-select, .form-textarea {
-background: var(--dark-forest);
-color: var(--white);
-border: 1px solid var(--shade-70);
-border-radius: 8px;
-padding: 13px 16px;
-font-size: 16px;
-font-family: ‘Inter’, Helvetica, Arial, sans-serif;
-font-weight: 400;
-transition: border-color 200ms ease;
-width: 100%;
-appearance: none;
--webkit-appearance: none;
+
+.step-dot {
+width: 28px;
+height: 28px;
+border-radius: 50%;
+border: 2px solid var(--border-strong);
+background: var(--bg-base);
+color: var(--text-muted);
+font-size: 0.68rem;
+font-weight: 700;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+transition: border-color 0.2s, background 0.2s, color 0.2s;
 }
-.form-input::placeholder, .form-textarea::placeholder { color: var(--shade-50); }
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-outline: 2px solid var(--neon);
-outline-offset: 0;
-border-color: transparent;
+.step-dot.active { border-color: var(--gold); background: var(--gold-glow); color: var(--gold); }
+.step-dot.done   { border-color: var(--gold); background: var(--gold); color: #000; }
+
+.step-line { height: 2px; width: 48px; background: var(--border-strong); transition: background 0.3s; }
+.step-line.done { background: var(--gold); }
+
+.step-panel { display: none; }
+.step-panel.active { display: block; }
+
+.step-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem; color: #fff; }
+.step-subtitle { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+
+.success-icon {
+width: 56px;
+height: 56px;
+border-radius: 50%;
+background: var(--gold-glow);
+border: 2px solid var(--gold-border);
+color: var(--gold);
+font-size: 1.5rem;
+display: flex;
+align-items: center;
+justify-content: center;
+margin: 0 auto 1rem;
 }
-.form-select { color: var(--white); cursor: pointer; }
-.form-select option { background: var(--dark-forest); }
-.form-textarea {
-resize: vertical;
-min-height: 110px;
-line-height: 1.55;
-}
-.form-submit {
-background: var(--white);
-color: var(--black);
-padding: 15px 34px;
-border-radius: 9999px;
-font-size: 16px;
-font-weight: 500;
-font-family: ‘Inter’, Helvetica, Arial, sans-serif;
-border: 2px solid transparent;
+
+/* Theme picker */
+.theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.theme-card {
+border-radius: 6px;
+overflow: hidden;
+border: 2px solid var(--border-default);
 cursor: pointer;
-width: 100%;
-transition: opacity 200ms ease;
-margin-top: 6px;
+transition: border-color 0.15s, transform 0.15s;
+position: relative;
 }
-.form-submit:hover { opacity: 0.88; }
-.form-submit:focus { outline: 2px solid var(--neon); outline-offset: 2px; }
-.form-note {
-font-size: 13px;
-color: var(--shade-50);
+.theme-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.theme-card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-glow); }
+.theme-card input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+.theme-preview { height: 52px; display: flex; flex-direction: column; padding: 6px; gap: 3px; }
+.theme-preview-bar { height: 5px; border-radius: 2px; opacity: 0.7; }
+.theme-preview-bar.w100 { width: 100%; }
+.theme-preview-bar.w70  { width: 70%; }
+.theme-preview-bar.w50  { width: 50%; }
+.theme-preview-btn { margin-top: auto; height: 10px; border-radius: 2px; width: 60%; }
+.theme-label {
+font-size: 0.6rem;
+font-weight: 600;
+letter-spacing: 0.05em;
+text-transform: uppercase;
 text-align: center;
-margin-top: 14px;
-line-height: 1.5;
+padding: 4px 4px 5px;
+}
+
+/* Subdomain availability feedback */
+.subdomain-status {
+font-size: 0.75rem;
+color: var(--text-muted);
+min-height: 1.1em;
+}
+.subdomain-status.checking    { color: var(--text-muted); }
+.subdomain-status.available   { color: #4ade80; }
+.subdomain-status.unavailable { color: #f87171; }
+
+/* Provisioning progress */
+.provision-progress {
+height: 4px;
+background: var(--border-default);
+border-radius: 999px;
+overflow: hidden;
+margin-top: 0.4rem;
+}
+.provision-progress-bar {
+height: 100%;
+background: linear-gradient(90deg, var(--gold), #e5b945);
+width: 0%;
+transition: width 0.6s ease;
+}
+.provision-step {
+display: flex;
+align-items: center;
+gap: 0.6rem;
+padding: 0.45rem 0;
+font-size: 0.82rem;
+color: var(--text-dim);
+transition: color 0.2s;
+}
+.provision-step .step-icon {
+width: 18px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+color: var(--text-dim);
+}
+.provision-step.active { color: #fff; }
+.provision-step.active .step-icon { color: var(--gold); }
+.provision-step.done   { color: var(--text-muted); }
+.provision-step.done .step-icon { color: var(--gold); }
+.provision-step.failed { color: #f87171; }
+.provision-step.failed .step-icon { color: #f87171; }
+
+/* Success-panel store links */
+.store-link {
+display: flex;
+align-items: center;
+gap: 0.7rem;
+padding: 0.7rem 0.9rem;
+border: 1px solid var(--border-default);
+border-radius: 8px;
+background: var(--bg-elev1);
+color: #fff;
+text-decoration: none;
+font-size: 0.85rem;
+transition: border-color 0.15s, background 0.15s;
+}
+.store-link:hover { border-color: var(--gold-border); background: var(--gold-glow); color: #fff; }
+.store-link .link-label {
+display: block;
+font-size: 0.7rem;
+text-transform: uppercase;
+letter-spacing: 0.08em;
+color: var(--text-muted);
+margin-bottom: 0.1rem;
+}
+.store-link span:not(.link-label) { font-size: 0.82rem; color: #fff; }
+
+/* Bootstrap card surfaces inside the wizard */
+.form-section .card {
+background: var(--bg-elev1);
+border: 1px solid var(--border-default);
+}
+
+@media (max-width: 480px) {
+.theme-grid { grid-template-columns: repeat(3, 1fr); }
+.step-line  { width: 28px; }
 }
 
 /* ── TESTIMONIALS ── */
@@ -1851,8 +1968,331 @@ nav { padding: 0 20px; }
     });
   });
 
-  // (Inquiry-form handler removed — get-started now hosts the setup wizard.
-  //  Wizard JS lands in a follow-up step.)
+  // ── Setup wizard ───────────────────────────────────────────────────────
+  const PROVISION_URL = (
+    document.querySelector('meta[name="upcart-provision-url"]')?.content
+    || 'https://provision.upcart.online'
+  ).replace(/\/$/, '');
+  const DASHBOARD_URL = (
+    document.querySelector('meta[name="upcart-dashboard-url"]')?.content
+    || 'https://dashboard.upcart.online'
+  ).replace(/\/$/, '');
+
+  (function wireSignInLink() {
+    const el = document.getElementById('sign-in-link');
+    if (el) el.href = DASHBOARD_URL;
+  })();
+
+  const SUBDOMAIN_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$|^[a-z]{2,40}$/;
+  const RESERVED = new Set([
+    'www', 'api', 'app', 'admin', 'mail', 'smtp', 'demo',
+    'provision', 'static', 'cdn', 'media', 'assets',
+  ]);
+
+  const wizardState = {
+    store: {},
+    admin: {},
+    stripe_publishable_key: '',
+    subdomain: '',
+    subdomainAvailable: false,
+    theme: 'mono',
+  };
+
+  document.getElementById('theme-grid').addEventListener('click', e => {
+    const card = e.target.closest('.theme-card');
+    if (!card) return;
+    document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    card.querySelector('input[type="radio"]').checked = true;
+    wizardState.theme = card.dataset.theme;
+  });
+
+  function showError(msg) {
+    const el = document.getElementById('setup-error');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function hideError() {
+    document.getElementById('setup-error').classList.add('d-none');
+  }
+
+  function goToStep(step) {
+    hideError();
+    document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+
+    if (step === 'provisioning') {
+      document.getElementById('panel-provisioning').classList.add('active');
+      document.getElementById('step-indicator').style.display = 'none';
+      return;
+    }
+    if (step === 'success') {
+      document.getElementById('panel-success').classList.add('active');
+      document.getElementById('step-indicator').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('step-indicator').style.display = '';
+    document.getElementById(`panel-${step}`).classList.add('active');
+
+    for (let i = 1; i <= 3; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      dot.classList.remove('active', 'done');
+      if (i < step) {
+        dot.classList.add('done');
+        dot.innerHTML = '<i class="bi bi-check-lg" style="font-size:0.6rem"></i>';
+      } else if (i === step) {
+        dot.classList.add('active');
+        dot.textContent = i;
+      } else {
+        dot.textContent = i;
+      }
+    }
+
+    document.getElementById('line-1-2').classList.toggle('done', step > 1);
+    document.getElementById('line-2-3').classList.toggle('done', step > 2);
+  }
+
+  let subdomainTimer = null;
+  document.getElementById('store-subdomain').addEventListener('input', e => {
+    const raw = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    e.target.value = raw;
+    const fb = document.getElementById('subdomain-feedback');
+
+    if (!raw) { fb.textContent = ''; fb.className = 'subdomain-status mt-1'; return; }
+
+    if (!SUBDOMAIN_RE.test(raw) || RESERVED.has(raw)) {
+      fb.textContent = 'This name is not available.';
+      fb.className   = 'subdomain-status unavailable mt-1';
+      wizardState.subdomainAvailable = false;
+      return;
+    }
+
+    fb.textContent = 'Checking availability…';
+    fb.className   = 'subdomain-status checking mt-1';
+    wizardState.subdomainAvailable = false;
+
+    clearTimeout(subdomainTimer);
+    subdomainTimer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`${PROVISION_URL}/provision/check-subdomain?name=${encodeURIComponent(raw)}`);
+        const body = await res.json();
+        const available = body?.data?.available ?? false;
+        if (available) {
+          fb.textContent = `✓ ${raw}.upcart.online is available`;
+          fb.className   = 'subdomain-status available mt-1';
+          wizardState.subdomainAvailable = true;
+        } else {
+          fb.textContent = `✗ ${raw}.upcart.online is already taken`;
+          fb.className   = 'subdomain-status unavailable mt-1';
+          wizardState.subdomainAvailable = false;
+        }
+      } catch {
+        fb.textContent = `${raw}.upcart.online`;
+        fb.className   = 'subdomain-status mt-1';
+        wizardState.subdomainAvailable = true;
+      }
+    }, 1500);
+  });
+
+  document.getElementById('store-name').addEventListener('input', e => {
+    const sub = document.getElementById('store-subdomain');
+    if (sub.value) return;
+    const suggested = e.target.value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40);
+    if (suggested.length >= 2) {
+      sub.value = suggested;
+      sub.dispatchEvent(new Event('input'));
+    }
+  });
+
+  document.getElementById('form-1').addEventListener('submit', e => {
+    e.preventDefault();
+    const nameEl    = document.getElementById('store-name');
+    const subEl     = document.getElementById('store-subdomain');
+    const subInv    = document.getElementById('subdomain-invalid');
+    const name      = nameEl.value.trim();
+    const subdomain = subEl.value.trim().toLowerCase();
+
+    let valid = true;
+
+    if (!name) { nameEl.classList.add('is-invalid'); valid = false; }
+    else { nameEl.classList.remove('is-invalid'); }
+
+    if (!subdomain || !SUBDOMAIN_RE.test(subdomain) || RESERVED.has(subdomain)) {
+      subEl.classList.add('is-invalid'); valid = false;
+    } else if (!wizardState.subdomainAvailable) {
+      subEl.classList.add('is-invalid');
+      subInv.textContent = 'Please wait for availability check or choose a different name.';
+      valid = false;
+    } else {
+      subEl.classList.remove('is-invalid');
+    }
+
+    if (!valid) return;
+
+    wizardState.store = {
+      name,
+      subdomain,
+      description: document.getElementById('store-desc').value.trim(),
+      currency:    document.getElementById('store-currency').value,
+      country:     document.getElementById('store-country').value,
+      theme:       wizardState.theme,
+    };
+    wizardState.subdomain = subdomain;
+    goToStep(2);
+  });
+
+  document.getElementById('form-2').addEventListener('submit', e => {
+    e.preventDefault();
+    const emailEl    = document.getElementById('admin-email');
+    const usernameEl = document.getElementById('admin-username');
+    const passwordEl = document.getElementById('admin-password');
+    const confirmEl  = document.getElementById('admin-confirm');
+
+    const email    = emailEl.value.trim();
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+    const confirm  = confirmEl.value;
+
+    let valid = true;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailEl.classList.add('is-invalid'); valid = false;
+    } else { emailEl.classList.remove('is-invalid'); }
+
+    if (!username || !/^[a-zA-Z0-9_]{3,50}$/.test(username)) {
+      usernameEl.classList.add('is-invalid'); valid = false;
+    } else { usernameEl.classList.remove('is-invalid'); }
+
+    if (password.length < 8) {
+      passwordEl.classList.add('is-invalid'); valid = false;
+    } else { passwordEl.classList.remove('is-invalid'); }
+
+    const feedbackEl = document.getElementById('confirm-feedback');
+    if (!confirm) {
+      feedbackEl.textContent = 'Please confirm your password.';
+      confirmEl.classList.add('is-invalid'); valid = false;
+    } else if (password !== confirm) {
+      feedbackEl.textContent = 'Passwords do not match.';
+      confirmEl.classList.add('is-invalid'); valid = false;
+    } else { confirmEl.classList.remove('is-invalid'); }
+
+    if (!valid) return;
+
+    wizardState.admin = { email, username, password };
+    goToStep(3);
+  });
+
+  document.getElementById('form-3').addEventListener('submit', async e => {
+    e.preventDefault();
+    wizardState.stripe_publishable_key = '';
+    await submitProvision();
+  });
+
+  document.getElementById('back-to-1').addEventListener('click', () => goToStep(1));
+  document.getElementById('back-to-2').addEventListener('click', () => goToStep(2));
+
+  const PSTEPS = ['pstep-db', 'pstep-storage', 'pstep-worker', 'pstep-domain', 'pstep-ready'];
+
+  function setProvisionStep(stepId, s) {
+    const el   = document.getElementById(stepId);
+    const icon = el.querySelector('.step-icon');
+    el.className = `provision-step ${s}`;
+    if (s === 'active') {
+      icon.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:0.65rem;height:0.65rem;border-width:2px"></span>';
+    } else if (s === 'done') {
+      icon.innerHTML = '<i class="bi bi-check-lg" style="font-size:0.7rem;color:var(--gold)"></i>';
+    } else if (s === 'failed') {
+      icon.innerHTML = '<i class="bi bi-x-lg" style="font-size:0.7rem"></i>';
+    } else {
+      icon.innerHTML = '<i class="bi bi-circle"></i>';
+    }
+  }
+
+  function updateProvisionProgress(pct) {
+    document.getElementById('provision-progress-bar').style.width = `${pct}%`;
+  }
+
+  function applyStatus(status) {
+    const stepMap = {
+      'creating_database':   { step: 0, pct: 10 },
+      'creating_storage':    { step: 1, pct: 28 },
+      'deploying_worker':    { step: 2, pct: 50 },
+      'configuring_domain':  { step: 3, pct: 72 },
+      'finalizing':          { step: 4, pct: 90 },
+      'active':              { step: 4, pct: 100 },
+      'failed':              { step: -1, pct: null },
+    };
+    const info = stepMap[status];
+    if (!info) return;
+
+    PSTEPS.forEach((id, i) => {
+      if (info.step < 0) {
+        setProvisionStep(id, i === 0 ? 'failed' : '');
+      } else if (i < info.step) {
+        setProvisionStep(id, 'done');
+      } else if (i === info.step) {
+        setProvisionStep(id, status === 'active' ? 'done' : 'active');
+      }
+    });
+    if (info.pct !== null) updateProvisionProgress(info.pct);
+  }
+
+  async function submitProvision() {
+    const btn = document.getElementById('finish-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Launching…';
+    hideError();
+    goToStep('provisioning');
+
+    let tenantId;
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          store:                  wizardState.store,
+          admin:                  wizardState.admin,
+          stripe_publishable_key: wizardState.stripe_publishable_key,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Provisioning failed. Please try again.');
+      tenantId = body.data.tenant_id;
+      applyStatus(body.data.status);
+    } catch (err) {
+      goToStep(3);
+      btn.disabled = false;
+      btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
+      showError(err.message);
+      return;
+    }
+
+    const FAKE_STEPS = [
+      { status: 'creating_database',  delayMs: 1400 },
+      { status: 'creating_storage',   delayMs: 1400 },
+      { status: 'deploying_worker',   delayMs: 1800 },
+      { status: 'configuring_domain', delayMs: 2000 },
+      { status: 'finalizing',         delayMs: 1600 },
+    ];
+    for (const { status, delayMs } of FAKE_STEPS) {
+      applyStatus(status);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+    applyStatus('active');
+    await new Promise(r => setTimeout(r, 600));
+
+    const params = new URLSearchParams({
+      tenant:    tenantId,
+      email:     wizardState.admin.email,
+      subdomain: wizardState.subdomain,
+    });
+    location.href = `${DASHBOARD_URL}/#/welcome?${params.toString()}`;
+  }
 </script>
 
 </body>
