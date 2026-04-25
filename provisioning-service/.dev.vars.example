@@ -1,0 +1,32 @@
+# Copy this file to `.dev.vars` for local development secrets.
+# This file is safe to commit. `.dev.vars` is gitignored.
+#
+# Wrangler automatically loads `.dev.vars` when running `wrangler dev`.
+# For production, push secrets with `wrangler secret put <NAME>`.
+
+# ── Cloudflare account ──────────────────────────────────────────────────────
+# Your Cloudflare account ID. Find it in the Cloudflare dashboard → right sidebar.
+CF_ACCOUNT_ID=your-cloudflare-account-id
+
+# Cloudflare API token with the following scopes:
+#   Account: Workers Scripts:Edit, D1:Edit, R2 Storage:Edit, Workers Custom Domains:Edit
+#   Zone:    DNS:Edit, Workers Routes:Edit  (for your BASE_DOMAIN zone)
+# Create at: https://dash.cloudflare.com/profile/api-tokens
+CF_API_TOKEN=your-cloudflare-api-token
+
+# Zone ID for the BASE_DOMAIN (set in wrangler.toml [vars]).
+# Find it in the Cloudflare dashboard → <your-domain> → right sidebar.
+CF_ZONE_ID=your-zone-id
+
+# ── Platform Stripe credentials ─────────────────────────────────────────────
+# The platform runs one Stripe account; every tenant worker inherits these
+# at provisioning time. Merchants connect via Stripe Connect and never see
+# the platform keys.
+#
+# Generate test keys at https://dashboard.stripe.com/test/apikeys
+# Create a webhook endpoint at https://dashboard.stripe.com/test/webhooks
+# pointing at https://<provisioning-worker>/webhooks/stripe (or a
+# per-tenant URL; see DEPLOY.md) to obtain the signing secret.
+STRIPE_SECRET_KEY=sk_test_YOUR_PLATFORM_TEST_KEY
+STRIPE_WEBHOOK_SECRET=whsec_YOUR_PLATFORM_WEBHOOK_SECRET
+STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_PLATFORM_TEST_KEY

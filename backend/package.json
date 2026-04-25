@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:migrate": "wrangler d1 migrations apply blackstardb",
-    "db:migrate:local": "wrangler d1 migrations apply blackstardb --local",
-    "db:studio": "wrangler d1 studio blackstardb",
+    "build": "node build.mjs && wrangler deploy --dry-run --outdir dist",
+    "db:migrate": "wrangler d1 migrations apply upcart-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply upcart-db --local",
+    "db:studio": "wrangler d1 studio upcart-db",
     "setup": "node setup.mjs",
     "type-check": "tsc --noEmit"
   },

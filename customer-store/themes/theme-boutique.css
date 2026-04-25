@@ -1,0 +1,29 @@
+/*
+ * Theme: Boutique
+ * Cream / ivory background, Playfair Display serifs, warm earth tones.
+ * Luxury fashion, jewellery, beauty, artisanal goods.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@400;700&display=swap');
+
+:root {
+  --font-body:    "Lato", sans-serif;
+  --font-display: "Playfair Display", serif;
+  --font-hero:    "Playfair Display", serif;
+
+  --color-bg:             #faf7f2;
+  --color-text:           #2c1810;
+  --color-surface:        #f0ebe2;
+  --color-surface-border: #e2d9cc;
+  --color-border:         rgba(44, 24, 16, 0.08);
+  --color-border-mid:     rgba(44, 24, 16, 0.15);
+
+  --color-ticker-bg:   #e8e0d5;
+  --color-ticker-text: #2c1810;
+
+  --color-footer-bg:     #2c1810;
+  --color-footer-text:   #faf7f2;
+  --color-footer-border: rgba(250, 247, 242, 0.1);
+
+  --color-btn-bg:   #2c1810;
+  --color-btn-text: #faf7f2;
+}

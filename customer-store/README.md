@@ -1,121 +1,145 @@
-# BLACKSTAR - Product Scraper Setup
+# Customer Store
 
-This project includes an automated Shopify product scraper that fetches products from the BLACKSTAR Shopify store and displays them on the website.
+The shopper-facing storefront for an Upcart store. A zero-framework static
+site — plain HTML, CSS, and JS — that talks directly to the backend Worker for
+products, discounts, and Stripe checkout.
 
-## Files
+---
 
-- **index.html** - Main website with dynamically loaded products
-- **scraper.js** - Node.js script to scrape Shopify products
-- **products.json** - JSON file containing scraped products (auto-generated)
-- **package.json** - Node.js project configuration
+## Pages
 
-## Quick Start
+| Page | Purpose |
+|------|---------|
+| `index.html` | Landing page with featured products (first 6). |
+| `products.html` | Full catalog with pagination. |
+| `product.html` | Product detail + add to cart. |
+| `cart.html` | Cart view + Stripe checkout (hosted, Payment Request Button). |
+| `success.html` | Post-purchase confirmation (currently minimal). |
 
-### 1. Install Dependencies (if needed)
+## Shared scripts
+
+| File | Purpose |
+|------|---------|
+| `config.js` | Sets `window.BST_API_BASE` (backend URL) and `window.STORE_THEME`. Generated at build time by `build.sh`. |
+| `cart.js` | `localStorage`-backed cart (`bst_cart` key), quantity helpers, price formatting, nav-count updater. |
+| `theme.js` | Applies CSS variables based on `window.STORE_THEME`. Five presets: `mono`, `minimal`, `boutique`, `bold`, `studio`. |
+| `themes/` | Static theme assets (fonts, accent styles). |
+| `build.sh` | Reads `API_BASE_URL` from the environment and writes `config.js`. |
+| `render.yaml` | Render static-site configuration. |
+
+Every HTML page loads `config.js` → `theme.js` → `cart.js` → inline page logic,
+so `API_BASE` is always defined by the time fetches run.
+
+---
+
+## Quick start (local)
+
 ```bash
-npm install
+cd customer-store
+cp .env.example .env
+# edit .env and set API_BASE_URL
+
+API_BASE_URL=https://<your-worker>.workers.dev sh build.sh
+python3 -m http.server 8080
+# open http://localhost:8080
 ```
 
-### 2. Scrape Products from Shopify
-```bash
-npm run scrape
-# or
-node scraper.js
+Or, for a no-build workflow during development, edit `config.js` directly:
+
+```js
+window.BST_API_BASE = 'https://<your-worker>.workers.dev';
+window.STORE_THEME  = 'mono';
 ```
 
-This will:
-- Connect to https://blackstarthebrand.myshopify.com/products.json
-- Fetch all product data (up to 250 products)
-- Extract: title, price, images, product URLs
-- Save to `products.json`
+`build.sh` will overwrite this file on the next build.
 
-### 3. View the Website
-Open `index.html` in your browser. Products will load automatically from `products.json`.
+---
 
-## How It Works
+## Configuration
 
-### Scraper Flow
-1. Fetches product data from Shopify's public JSON API
-2. Formats data into a clean structure
-3. Saves to `products.json`
+| Var | Required | Description |
+|-----|----------|-------------|
+| `API_BASE_URL` | **yes** | Full URL of the backend Worker, no trailing slash. Written into `config.js` at build time. |
 
-### Website Flow
-1. `index.html` loads
-2. JavaScript reads `products.json`
-3. Products render dynamically in the grid
-4. Each product links to its Shopify page
+The storefront fetches everything it needs from this one origin — products,
+discount validation, checkout session creation, order lookups after redirect
+from Stripe. Make sure the backend's `CORS_ORIGINS` contains this site's
+origin before deploying to production.
 
-## Product Structure
+---
 
-Each product in `products.json` includes:
-```json
-{
-  "id": 12345,
-  "title": "Product Name",
-  "price": "99.99",
-  "currency": "USD",
-  "image": "https://...",
-  "alt": "Product image",
-  "url": "/products/product-handle",
-  "handle": "product-handle",
-  "description": "Product HTML description"
-}
+## Deployment
+
+### Render (static site)
+
+`render.yaml` is already configured:
+
+```yaml
+services:
+  - type: web
+    staticSite: true
+    buildCommand: sh build.sh
+    envVars:
+      - key: API_BASE_URL
+        sync: false       # set this value in the Render dashboard
 ```
 
-## Troubleshooting
+1. Push the repo to GitHub.
+2. Create a new **Static Site** on Render; it will auto-detect `render.yaml`.
+3. In **Environment**, set `API_BASE_URL` to your backend Worker's URL.
+4. Deploy.
 
-### Scraper fails to connect
-- Check internet connection
-- Verify the store URL is correct
-- Check if Shopify has disabled the `/products.json` endpoint
+### Cloudflare Pages
 
-### Products not showing on website
-- Ensure `products.json` exists in the same directory as `index.html`
-- Check browser console (F12) for JavaScript errors
-- Verify the JSON file is valid
+1. **Build command:** `sh build.sh`
+2. **Build output directory:** `customer-store`
+3. **Environment variables:** `API_BASE_URL=https://<your-worker>.workers.dev`
 
-### Empty products.json
-- Run the scraper: `npm run scrape`
-- Check that it completes successfully
+---
 
-## Deployment on Render
+## Backend API it depends on
 
-### Setup
+All calls are unauthenticated (the storefront is public):
 
-1. **Connect repo to Render**
-   - Push your code to GitHub
-   - Create a new Static Site on Render
-   - Connect your GitHub repo
-   - Render will detect `render.yaml` and deploy
+| Method | Path | Used on |
+|--------|------|---------|
+| `GET` | `/products?limit&offset` | `index.html`, `products.html` |
+| `GET` | `/products/:id` | `product.html`, stock guard on `cart.html` |
+| `POST` | `/discounts/validate` | cart discount input |
+| `POST` | `/checkout/intent` | Apple Pay / Google Pay button |
+| `POST` | `/checkout/session` | "Checkout" button (hosted Stripe redirect) |
 
-2. **Automatic Product Updates via GitHub Actions**
-   - GitHub Actions runs the scraper daily at 2 AM UTC
-   - Commits updated `products.json` to your repo
-   - Render automatically redeploys with new products
-   - Site stays fully static—no server-side processing
+See [`../backend/API.md`](../backend/API.md) for full request/response shapes.
 
-### How It Works
+---
 
-```
-GitHub Actions (Daily) → Scrapes Shopify → Commits products.json → Render redeploys with new data
-```
+## Themes
 
-The site is 100% static HTML/CSS/JS served by Render, with products data automatically updated daily.
+Pick one via `window.STORE_THEME` (or, when provisioned via
+[`../provisioning-service`](../provisioning-service), set it per-tenant in
+`store_settings`):
 
-## Local Automation
+| Theme | Vibe |
+|-------|------|
+| `mono` | Editorial monochrome — Space Mono + Bebas Neue. |
+| `minimal` | Clean, lots of whitespace. |
+| `boutique` | Warm, serif-forward. |
+| `bold` | High-contrast, loud type. |
+| `studio` | Neutral, photography-first. |
 
-To test the scraper locally:
-- Use a cron job on Linux/Mac:
-  ```bash
-  0 2 * * * cd /path/to/Blackstar && npm run scrape
-  ```
-- Use Windows Task Scheduler for Windows machines
+`theme.js` injects CSS custom properties before first paint, so there's no flash.
 
-## API Reference
+---
 
-The scraper uses Shopify's public JSON API:
-```
-https://{store}.myshopify.com/products.json
-```
+## Open work
 
-This endpoint returns up to 250 products per request.
+See [`TODO.md`](./TODO.md) for a punch list. The biggest open items:
+
+- **Order confirmation page** — `success.html` needs to hit
+  `GET /orders/session/:id` and render the actual order summary.
+- **Embedded checkout** (Payment Element) — only hosted redirect + Payment
+  Request Button are implemented today.
+- **Product image gallery** — `product.html` only shows `images[0]`.
+- **Out-of-stock UI** — sold-out badges on the grid, hard block on the cart button.
+- **Legacy cleanup** — `scraper.js` and `products.json` from the original
+  Shopify-scraper version are no longer referenced anywhere and can be deleted.

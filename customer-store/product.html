@@ -4,14 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product — Demo Store</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
+  <script src="config.js"></script>
+  <script src="theme.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #f5f5f5;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
       min-height: 100vh;
     }
 
@@ -28,17 +30,17 @@
     @media (min-width: 640px) { nav { padding: 28px 40px; } }
 
     .nav-mark {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.1em;
       text-decoration: none;
-      color: #1a1a1a;
+      color: var(--color-text);
     }
     .nav-links { display: flex; gap: 32px; }
     .nav-links a {
       font-size: 10px;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -64,19 +66,21 @@
     }
 
     /* Image */
+    .product-gallery { margin-bottom: 32px; }
+    @media (min-width: 768px) { .product-gallery { margin-bottom: 0; } }
+
     .product-image {
       aspect-ratio: 3/4;
-      background: #e8e8e8;
+      background: var(--color-surface);
       overflow: hidden;
       width: 100%;
-      margin-bottom: 32px;
-      border: 1px solid #ddd;
+      border: 1px solid var(--color-surface-border);
     }
-    @media (min-width: 768px) { .product-image { margin-bottom: 0; } }
     .product-image img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: opacity 0.2s;
     }
     .product-image-placeholder {
       width: 100%;
@@ -85,11 +89,32 @@
       align-items: center;
       justify-content: center;
       opacity: 0.2;
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-body);
       font-size: 36px;
       font-weight: 700;
       letter-spacing: 0.1em;
     }
+
+    /* Thumbnail strip */
+    .product-thumbs {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .product-thumb {
+      width: 60px;
+      aspect-ratio: 3/4;
+      background: var(--color-surface);
+      overflow: hidden;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .product-thumb.active { border-color: var(--color-text); }
+    .product-thumb:hover { border-color: var(--color-border-mid); }
 
     /* Info */
     .product-info { position: sticky; top: 100px; }
@@ -99,7 +124,7 @@
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #1a1a1a;
+      color: var(--color-text);
       text-decoration: none;
       opacity: 0.6;
       margin-bottom: 32px;
@@ -108,7 +133,7 @@
     .product-back:hover { opacity: 1; }
 
     .product-name {
-      font-family: 'Space Mono', monospace;
+      font-family: var(--font-display);
       font-size: clamp(28px, 5vw, 48px);
       font-weight: 700;
       line-height: 1;
@@ -147,13 +172,13 @@
       gap: 0;
       margin-bottom: 16px;
       width: fit-content;
-      border: 1px solid rgba(26,26,26,0.2);
+      border: 1px solid var(--color-border-mid);
     }
     .qty-btn {
       background: none;
       border: none;
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      color: var(--color-text);
+      font-family: var(--font-body);
       font-size: 14px;
       width: 44px;
       height: 44px;
@@ -170,10 +195,10 @@
       text-align: center;
       background: none;
       border: none;
-      border-left: 1px solid rgba(26,26,26,0.2);
-      border-right: 1px solid rgba(26,26,26,0.2);
-      color: #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      border-left: 1px solid var(--color-border-mid);
+      border-right: 1px solid var(--color-border-mid);
+      color: var(--color-text);
+      font-family: var(--font-body);
       font-size: 12px;
       -moz-appearance: textfield;
     }
@@ -183,10 +208,10 @@
     /* Buttons */
     .btn-add {
       width: 100%;
-      background: #1a1a1a;
-      color: #f5f5f5;
-      border: 1px solid #1a1a1a;
-      font-family: 'Space Mono', monospace;
+      background: var(--color-btn-bg);
+      color: var(--color-btn-text);
+      border: 1px solid var(--color-btn-bg);
+      font-family: var(--font-body);
       font-size: 10px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -201,9 +226,9 @@
     .btn-buy {
       width: 100%;
       background: none;
-      color: #1a1a1a;
-      border: 1px solid rgba(26,26,26,0.3);
-      font-family: 'Space Mono', monospace;
+      color: var(--color-text);
+      border: 1px solid var(--color-border-mid);
+      font-family: var(--font-body);
       font-size: 10px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -213,7 +238,7 @@
       display: block;
       text-align: center;
     }
-    .btn-buy:hover { background: #f5f5f5; }
+    .btn-buy:hover { background: var(--color-surface); }
 
     /* Toast */
     .toast {
@@ -221,8 +246,8 @@
       bottom: 32px;
       left: 50%;
       transform: translateX(-50%) translateY(80px);
-      background: #2a2a2a;
-      color: #f5f5f5;
+      background: var(--color-footer-bg);
+      color: var(--color-footer-text);
       font-size: 10px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -245,8 +270,8 @@
 
     /* Footer */
     footer {
-      background: #2a2a2a;
-      color: #f5f5f5;
+      background: var(--color-footer-bg);
+      color: var(--color-footer-text);
       padding: 60px 24px 36px;
     }
     @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
@@ -255,16 +280,21 @@
       justify-content: space-between;
       align-items: flex-end;
       padding-bottom: 40px;
-      border-bottom: 1px solid rgba(245,245,245,0.1);
+      border-bottom: 1px solid var(--color-footer-border);
       margin-bottom: 28px;
       flex-wrap: wrap;
       gap: 24px;
+    }
+    .footer-brand-name {
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 14px;
     }
     footer img { width: 200px; }
     .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
     .footer-links a {
       font-size: 10px;
-      color: #f5f5f5;
+      color: var(--color-footer-text);
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -294,7 +324,7 @@
   <footer>
     <div class="footer-top">
       <div>
-        <p style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;">Demo Store</p>
+        <p class="footer-brand-name" data-store-name>Your Store</p>
       </div>
       <div class="footer-links">
         <a href="#">Help</a>
@@ -302,10 +332,9 @@
         <a href="#">Contact</a>
       </div>
     </div>
-    <p class="footer-copy">© 2026 Demo Store. All rights reserved.</p>
+    <p class="footer-copy">© 2026 <span data-store-name>Your Store</span>. All rights reserved.</p>
   </footer>
 
-  <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
     const params    = new URLSearchParams(location.search);
@@ -328,15 +357,25 @@
     function render(product) {
       const page   = document.getElementById('product-page');
       const stock  = stockLabel(product);
-      const image  = product.images && product.images[0] ? product.images[0] : null;
       const avail  = product.active && (product.stock === -1 || product.stock > 0);
+      const images    = product.images && product.images.length ? product.images : [];
+      const hasGallery = images.length > 1;
 
       page.innerHTML = `
         <div class="product-layout">
-          <div class="product-image">
-            ${image
-              ? `<img src="${image}" alt="${product.name}">`
-              : `<div class="product-image-placeholder">[Image]</div>`}
+          <div class="product-gallery">
+            <div class="product-image" id="main-image">
+              ${images.length
+                ? `<img src="${images[0]}" alt="${product.name}" id="main-img">`
+                : `<div class="product-image-placeholder">[Image]</div>`}
+            </div>
+            ${hasGallery ? `
+            <div class="product-thumbs" id="thumbs">
+              ${images.map((src, i) => `
+                <div class="product-thumb${i === 0 ? ' active' : ''}" data-src="${src}" data-idx="${i}">
+                  <img src="${src}" alt="${product.name} — view ${i + 1}" loading="lazy">
+                </div>`).join('')}
+            </div>` : ''}
           </div>
           <div class="product-info">
             <a href="products.html" class="product-back">← All Products</a>
@@ -367,6 +406,20 @@
         qtyInput.value = Math.min(maxQty, parseInt(qtyInput.value, 10) + 1);
       });
 
+      // Thumbnail gallery
+      const thumbsEl = document.getElementById('thumbs');
+      if (thumbsEl) {
+        thumbsEl.addEventListener('click', e => {
+          const thumb = e.target.closest('.product-thumb');
+          if (!thumb) return;
+          const src     = thumb.dataset.src;
+          const mainImg = document.getElementById('main-img');
+          if (mainImg) mainImg.src = src;
+          thumbsEl.querySelectorAll('.product-thumb').forEach(t => t.classList.remove('active'));
+          thumb.classList.add('active');
+        });
+      }
+
       // Add to cart
       document.getElementById('btn-add').addEventListener('click', () => {
         const qty = parseInt(qtyInput.value, 10) || 1;
@@ -382,7 +435,7 @@
         return;
       }
       try {
-        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/products/' + productId);
+        const res  = await fetch(`${API_BASE}/products/` + productId);
         const body = await res.json();
         if (!body.ok) throw new Error(body.error || 'Not found');
         document.title = body.data.name + ' — Demo Store';

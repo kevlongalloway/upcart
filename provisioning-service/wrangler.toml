@@ -1,0 +1,81 @@
+name = "upcart-provisioning"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat_v2"]
+
+# ─── D1 — tenant registry ─────────────────────────────────────────────────────
+# Create with: wrangler d1 create upcart-provisioning-db
+# Then apply migrations: wrangler d1 migrations apply upcart-provisioning-db
+[[d1_databases]]
+binding  = "DB"
+database_name = "upcart-provisioning-db"
+database_id   = "b748b0fe-5002-477f-815b-ee1fab4e81a2"
+
+# ─── R2 — compiled store worker bundles ──────────────────────────────────────
+# Create with: wrangler r2 bucket create upcart-worker-bundles
+# Then upload the backend bundle:
+#   cd ../backend && npm run build
+#   wrangler r2 object put upcart-worker-bundles/store-worker.js --file dist/index.js
+[[r2_buckets]]
+binding     = "WORKER_BUNDLES"
+bucket_name = "upcart-worker-bundles"
+
+# ─── Public vars ──────────────────────────────────────────────────────────────
+[vars]
+# Your root domain. Stores are deployed as <subdomain>.<BASE_DOMAIN>
+BASE_DOMAIN = "upcart.online"
+
+# Prefix for Worker script names. Each store's worker is named:
+#   <WORKER_SCRIPT_PREFIX>-<tenant_id>
+WORKER_SCRIPT_PREFIX = "upcart-store"
+
+# R2 object key for the compiled store worker bundle.
+# Update this whenever you ship a new backend version.
+WORKER_BUNDLE_KEY = "store-worker.js"
+
+# CORS origins for the provisioning API. Allow:
+#   - the landing page (root + www) — for POST /provision
+#   - the central dashboard         — for POST /auth/login + GET /auth/context
+# Add extra origins for local dev: "http://localhost:3000,http://localhost:8080".
+CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboard.upcart.online"
+
+# REQUIRED. The account-level workers.dev subdomain. provision.ts uses it
+# to reach a newly-provisioned tenant worker at
+#   https://<worker-name>.<sub>.workers.dev
+# for the inline /setup call. Same-zone Custom Domain routing returns HTTP
+# 522 for several minutes after binding, but workers.dev lives outside the
+# zone so it's routable immediately after deployWorker returns.
+#
+# Find yours at: Cloudflare dashboard → Workers & Pages → right sidebar,
+# under "Subdomain". If it shows "acmecorp.workers.dev", set this to
+# "acmecorp". Provisioning will throw if this is empty.
+CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
+
+# ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
+# The following secrets must be set before deploying:
+#
+#   # Cloudflare (required)
+#   wrangler secret put CF_ACCOUNT_ID    (your Cloudflare account ID)
+#   wrangler secret put CF_API_TOKEN     (see required scopes below)
+#   wrangler secret put CF_ZONE_ID       (zone ID for upcart.online)
+#
+#   # Platform Stripe — propagated into every tenant worker at provisioning
+#   # time. All merchants run through the platform's Stripe account via
+#   # Stripe Connect; they do NOT bring their own keys.
+#   wrangler secret put STRIPE_SECRET_KEY       (sk_live_... or sk_test_...)
+#   wrangler secret put STRIPE_WEBHOOK_SECRET   (whsec_... — single platform endpoint)
+#   wrangler secret put STRIPE_PUBLISHABLE_KEY  (pk_live_... or pk_test_...)
+#
+# Find your account ID: Cloudflare dashboard → right sidebar
+# Find your zone ID:    Cloudflare dashboard → upcart.online → right sidebar
+# Create the API token: https://dash.cloudflare.com/profile/api-tokens
+#
+# Required API token permissions:
+#   Account scope:
+#     - Workers Scripts: Edit   (deploy/delete Worker scripts, set secrets)
+#     - D1: Edit                (create databases, run migrations)
+#     - R2 Storage: Edit        (create image buckets)
+#     - Workers Custom Domains: Edit  (bind workers to subdomains)
+#   Zone scope (upcart.online):
+#     - DNS: Edit               (create/delete AAAA subdomain records)
+#     - Workers Routes: Edit    (fallback route creation)
