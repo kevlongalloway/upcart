@@ -1426,48 +1426,340 @@ nav { padding: 0 20px; }
     <h2 class="form-heading reveal">Let's build<br>your store.</h2>
     <p class="form-sub reveal">Tell us a little about what you need and we'll reach out within one business day to get things moving.</p>
 
-<form class="inquiry-form reveal" id="inquiry-form" novalidate>
-  <div class="form-row">
-    <div class="form-group">
-      <label class="form-label" for="fname">First Name</label>
-      <input class="form-input" type="text" id="fname" name="fname" placeholder="Jordan" required>
-    </div>
-    <div class="form-group">
-      <label class="form-label" for="lname">Last Name</label>
-      <input class="form-input" type="text" id="lname" name="lname" placeholder="Smith" required>
-    </div>
+<div class="setup-card reveal">
+
+  <!-- Step indicator (hidden during provisioning/success) -->
+  <div class="step-indicator" id="step-indicator">
+    <div class="step-dot active" id="dot-1">1</div>
+    <div class="step-line" id="line-1-2"></div>
+    <div class="step-dot" id="dot-2">2</div>
+    <div class="step-line" id="line-2-3"></div>
+    <div class="step-dot" id="dot-3">3</div>
   </div>
-  <div class="form-group">
-    <label class="form-label" for="email">Email Address</label>
-    <input class="form-input" type="email" id="email" name="email" placeholder="you@yourbusiness.com" required>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="business">Business Name</label>
-    <input class="form-input" type="text" id="business" name="business" placeholder="Your brand or business name" required>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="category">What do you sell?</label>
-    <select class="form-select form-input" id="category" name="category">
-      <option value="" disabled selected>Select a category</option>
-      <option>Clothing & Apparel</option>
-      <option>Beauty & Skincare</option>
-      <option>Food & Beverage</option>
-      <option>Home & Lifestyle</option>
-      <option>Art & Crafts</option>
-      <option>Health & Wellness</option>
-      <option>Electronics & Gadgets</option>
-      <option>Sports & Outdoors</option>
-      <option>Digital Products</option>
-      <option>Other</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="message">Anything else we should know? <span style="opacity:0.4;">(optional)</span></label>
-    <textarea class="form-textarea" id="message" name="message" placeholder="Tell us about your store — how many products, any special requirements, your timeline..."></textarea>
-  </div>
-  <button class="form-submit" type="submit">Request my store →</button>
-  <p class="form-note">We'll get back to you within one business day. No commitment required.</p>
-</form>
+
+  <!-- Card -->
+  <div class="card">
+    <div class="card-body p-4">
+
+      <!-- Global error banner -->
+      <div id="setup-error" class="alert alert-danger d-none py-2 small mb-3" role="alert"></div>
+
+      <!-- ══ Step 1: Store info ══ -->
+      <div class="step-panel active" id="panel-1">
+        <div class="step-title">Store details</div>
+        <div class="step-subtitle">Tell us about your store and claim your URL.</div>
+        <form id="form-1" novalidate>
+
+          <div class="mb-3">
+            <label class="form-label" for="store-name">Store name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="store-name" placeholder="My Awesome Store" maxlength="100" required>
+            <div class="invalid-feedback">Store name is required.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="store-subdomain">
+              Your store URL <span class="text-danger">*</span>
+            </label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="store-subdomain"
+                placeholder="mystore" maxlength="40" autocomplete="off" spellcheck="false" required>
+              <span class="input-group-text" style="color:var(--text-muted);font-size:0.8rem">.upcart.online</span>
+            </div>
+            <div id="subdomain-feedback" class="subdomain-status mt-1"></div>
+            <div class="invalid-feedback" id="subdomain-invalid">
+              Only lowercase letters, numbers, and hyphens. Must start with a letter.
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="store-desc">
+              Description
+              <span class="fw-normal ms-1" style="color:var(--text-muted)">(optional)</span>
+            </label>
+            <textarea class="form-control" id="store-desc" rows="2" maxlength="500"
+              placeholder="Short description of what you sell"></textarea>
+          </div>
+
+          <div class="row g-3 mb-1">
+            <div class="col-6">
+              <label class="form-label" for="store-currency">Currency <span class="text-danger">*</span></label>
+              <select class="form-select" id="store-currency" required>
+                <option value="usd" selected>USD — US Dollar</option>
+                <option value="eur">EUR — Euro</option>
+                <option value="gbp">GBP — Brit. Pound</option>
+                <option value="cad">CAD — Canadian Dollar</option>
+                <option value="aud">AUD — Aus. Dollar</option>
+                <option value="jpy">JPY — Japanese Yen</option>
+                <option value="chf">CHF — Swiss Franc</option>
+                <option value="nzd">NZD — NZ Dollar</option>
+                <option value="sek">SEK — Swedish Krona</option>
+                <option value="nok">NOK — Norw. Krone</option>
+                <option value="dkk">DKK — Danish Krone</option>
+                <option value="sgd">SGD — Singapore Dollar</option>
+                <option value="hkd">HKD — HK Dollar</option>
+                <option value="mxn">MXN — Mexican Peso</option>
+                <option value="brl">BRL — Brazilian Real</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="store-country">Country <span class="text-danger">*</span></label>
+              <select class="form-select" id="store-country" required>
+                <option value="US" selected>United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="NL">Netherlands</option>
+                <option value="SE">Sweden</option>
+                <option value="NO">Norway</option>
+                <option value="DK">Denmark</option>
+                <option value="CH">Switzerland</option>
+                <option value="NZ">New Zealand</option>
+                <option value="SG">Singapore</option>
+                <option value="JP">Japan</option>
+                <option value="MX">Mexico</option>
+                <option value="BR">Brazil</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Theme picker -->
+          <div class="mt-3 mb-1">
+            <label class="form-label mb-2">Storefront theme</label>
+            <div class="theme-grid" id="theme-grid">
+
+              <label class="theme-card selected" data-theme="mono">
+                <input type="radio" name="store-theme" value="mono" checked>
+                <div class="theme-preview" style="background:#f5f5f5">
+                  <div class="theme-preview-bar w100" style="background:#1a1a1a"></div>
+                  <div class="theme-preview-bar w70"  style="background:#1a1a1a"></div>
+                  <div class="theme-preview-bar w50"  style="background:#1a1a1a"></div>
+                  <div class="theme-preview-btn" style="background:#1a1a1a"></div>
+                </div>
+                <div class="theme-label" style="background:#f5f5f5;color:#1a1a1a">Mono</div>
+              </label>
+
+              <label class="theme-card" data-theme="minimal">
+                <input type="radio" name="store-theme" value="minimal">
+                <div class="theme-preview" style="background:#ffffff">
+                  <div class="theme-preview-bar w100" style="background:#111111"></div>
+                  <div class="theme-preview-bar w70"  style="background:#111111"></div>
+                  <div class="theme-preview-bar w50"  style="background:#111111"></div>
+                  <div class="theme-preview-btn" style="background:#111111"></div>
+                </div>
+                <div class="theme-label" style="background:#f4f4f4;color:#111111">Minimal</div>
+              </label>
+
+              <label class="theme-card" data-theme="boutique">
+                <input type="radio" name="store-theme" value="boutique">
+                <div class="theme-preview" style="background:#faf7f2">
+                  <div class="theme-preview-bar w100" style="background:#2c1810"></div>
+                  <div class="theme-preview-bar w70"  style="background:#2c1810"></div>
+                  <div class="theme-preview-bar w50"  style="background:#2c1810"></div>
+                  <div class="theme-preview-btn" style="background:#2c1810"></div>
+                </div>
+                <div class="theme-label" style="background:#f0ebe2;color:#2c1810">Boutique</div>
+              </label>
+
+              <label class="theme-card" data-theme="bold">
+                <input type="radio" name="store-theme" value="bold">
+                <div class="theme-preview" style="background:#0a0a0a">
+                  <div class="theme-preview-bar w100" style="background:#f0f0f0"></div>
+                  <div class="theme-preview-bar w70"  style="background:#f0f0f0"></div>
+                  <div class="theme-preview-bar w50"  style="background:#f0f0f0"></div>
+                  <div class="theme-preview-btn" style="background:#f5c000"></div>
+                </div>
+                <div class="theme-label" style="background:#111111;color:#f0f0f0">Bold</div>
+              </label>
+
+              <label class="theme-card" data-theme="studio">
+                <input type="radio" name="store-theme" value="studio">
+                <div class="theme-preview" style="background:#f5f0ea">
+                  <div class="theme-preview-bar w100" style="background:#2d2419"></div>
+                  <div class="theme-preview-bar w70"  style="background:#2d2419"></div>
+                  <div class="theme-preview-bar w50"  style="background:#2d2419"></div>
+                  <div class="theme-preview-btn" style="background:#c4603a"></div>
+                </div>
+                <div class="theme-label" style="background:#ede6db;color:#2d2419">Studio</div>
+              </label>
+
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end mt-4">
+            <button type="submit" class="btn btn-primary px-4" id="step1-next">
+              Next <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ══ Step 2: Admin account ══ -->
+      <div class="step-panel" id="panel-2">
+        <div class="step-title">Your account</div>
+        <div class="step-subtitle">Create your login credentials for the admin dashboard.</div>
+        <form id="form-2" novalidate>
+          <div class="mb-3">
+            <label class="form-label" for="admin-email">Email <span class="text-danger">*</span></label>
+            <input type="email" class="form-control" id="admin-email"
+              placeholder="you@example.com" autocomplete="email" required>
+            <div class="invalid-feedback">A valid email address is required.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="admin-username">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="admin-username"
+              placeholder="admin" minlength="3" maxlength="50"
+              autocomplete="username" required>
+            <div class="form-text">3–50 characters — letters, numbers, underscores only.</div>
+            <div class="invalid-feedback" id="username-feedback">
+              Username must be 3–50 characters (letters, numbers, underscores).
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="admin-password">Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="admin-password"
+              placeholder="Min. 8 characters" minlength="8"
+              autocomplete="new-password" required>
+            <div class="invalid-feedback">Password must be at least 8 characters.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label" for="admin-confirm">Confirm password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="admin-confirm"
+              placeholder="Repeat your password"
+              autocomplete="new-password" required>
+            <div class="invalid-feedback" id="confirm-feedback">Passwords do not match.</div>
+          </div>
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-1">
+              <i class="bi bi-arrow-left me-1"></i>Back
+            </button>
+            <button type="submit" class="btn btn-primary px-4">
+              Next <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ══ Step 3: Payments ══ -->
+      <div class="step-panel" id="panel-3">
+        <div class="step-title">Payments</div>
+        <div class="step-subtitle">
+          We handle all payment processing. After your store is live, you'll connect your
+          bank account via Stripe to receive payouts.
+        </div>
+        <form id="form-3" novalidate>
+          <div class="mb-1">
+            <div class="card" style="background:var(--bg-base);border:1px solid var(--border-default)">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-shield-check" style="color:var(--gold);font-size:1.1rem"></i>
+                  <span class="fw-semibold" style="font-size:0.85rem">How it works</span>
+                </div>
+                <ul class="mb-0 ps-3" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+                  <li>No API keys needed — we manage payments for you</li>
+                  <li>Customers pay securely via Stripe checkout</li>
+                  <li>Funds are held until the order is marked as delivered</li>
+                  <li>Withdraw to your bank anytime, or set up auto-payouts</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-2">
+              <i class="bi bi-arrow-left me-1"></i>Back
+            </button>
+            <button type="submit" class="btn btn-primary px-4" id="finish-btn">
+              Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ══ Provisioning ══ -->
+      <div class="step-panel" id="panel-provisioning">
+        <div class="text-center mb-3">
+          <div class="success-icon" id="provisioning-icon">
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+          </div>
+          <h5 class="fw-bold mb-1" id="provisioning-title">Setting up your store…</h5>
+          <p class="small mb-0" style="color:var(--text-muted)" id="provisioning-subtitle">
+            This takes about 30 seconds. Hang tight!
+          </p>
+        </div>
+
+        <div class="provision-progress">
+          <div class="provision-progress-bar" id="provision-progress-bar" style="width:0%"></div>
+        </div>
+
+        <div id="provision-steps" class="mt-3">
+          <div class="provision-step" id="pstep-db">
+            <span class="step-icon"><i class="bi bi-circle"></i></span>
+            <span>Creating your database</span>
+          </div>
+          <div class="provision-step" id="pstep-storage">
+            <span class="step-icon"><i class="bi bi-circle"></i></span>
+            <span>Setting up image storage</span>
+          </div>
+          <div class="provision-step" id="pstep-worker">
+            <span class="step-icon"><i class="bi bi-circle"></i></span>
+            <span>Deploying store backend</span>
+          </div>
+          <div class="provision-step" id="pstep-domain">
+            <span class="step-icon"><i class="bi bi-circle"></i></span>
+            <span>Configuring your domain</span>
+          </div>
+          <div class="provision-step" id="pstep-ready">
+            <span class="step-icon"><i class="bi bi-circle"></i></span>
+            <span>Finalizing &amp; going live</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Success ══ -->
+      <div class="step-panel" id="panel-success">
+        <div class="text-center mb-3">
+          <div class="success-icon">
+            <i class="bi bi-check-lg"></i>
+          </div>
+          <h5 class="fw-bold mb-1">Your store is live!</h5>
+          <p class="small mb-0" style="color:var(--text-muted)">
+            Everything is set up and ready to go.
+          </p>
+        </div>
+
+        <div class="d-flex flex-column gap-2 mt-3">
+          <a href="#" id="link-admin" class="store-link" target="_blank">
+            <i class="bi bi-speedometer2" style="color:var(--gold)"></i>
+            <div>
+              <span class="link-label">Admin Dashboard</span>
+              <span id="link-admin-url"></span>
+            </div>
+            <i class="bi bi-arrow-up-right ms-auto" style="font-size:0.75rem;color:var(--text-muted)"></i>
+          </a>
+          <a href="#" id="link-store" class="store-link" target="_blank">
+            <i class="bi bi-shop" style="color:var(--text-dim)"></i>
+            <div>
+              <span class="link-label">Your Store</span>
+              <span id="link-store-url"></span>
+            </div>
+            <i class="bi bi-arrow-up-right ms-auto" style="font-size:0.75rem;color:var(--text-muted)"></i>
+          </a>
+        </div>
+
+        <p class="text-center mt-3 mb-0" style="font-size:0.72rem;color:var(--text-muted)">
+          Bookmark your admin dashboard — you'll need it to manage products, orders, and settings.
+        </p>
+      </div>
+
+    </div><!-- /card-body -->
+  </div><!-- /card -->
+
+  <p class="text-center mt-3 mb-0" style="font-size:0.72rem;color:var(--text-muted)">
+    Already have a store? <a href="#" style="color:var(--gold)" id="sign-in-link">Sign in</a>
+  </p>
+
+</div><!-- /setup-card -->
 
   </div>
 </section>
@@ -1559,48 +1851,8 @@ nav { padding: 0 20px; }
     });
   });
 
-  // Form submission
-  const form = document.getElementById('inquiry-form');
-  const modal = document.getElementById('success-modal');
-  const modalCloseBtn = document.getElementById('modal-close-btn');
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    // Validate
-    const fname = form.fname.value.trim();
-    const email = form.email.value.trim();
-    const business = form.business.value.trim();
-    if (!fname || !email || !business) {
-      // Simple shake animation on empty required fields
-      [form.fname, form.email, form.business].forEach(input => {
-        if (!input.value.trim()) {
-          input.style.borderColor = 'rgba(255,100,100,0.5)';
-          input.style.outline = '2px solid rgba(255,100,100,0.3)';
-          setTimeout(() => {
-            input.style.borderColor = '';
-            input.style.outline = '';
-          }, 2000);
-        }
-      });
-      return;
-    }
-    // Show modal
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  });
-
-  modalCloseBtn.addEventListener('click', () => {
-    modal.classList.remove('open');
-    document.body.style.overflow = '';
-    form.reset();
-  });
-
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  });
+  // (Inquiry-form handler removed — get-started now hosts the setup wizard.
+  //  Wizard JS lands in a follow-up step.)
 </script>
 
 </body>
