@@ -13,21 +13,6 @@ function getStripe(secretKey: string): Stripe {
   });
 }
 
-/**
- * Look up the merchant's Stripe Connect account ID from store_settings.
- * Returns null if the merchant hasn't completed Connect onboarding.
- */
-async function getConnectAccountId(db: D1Database): Promise<string | null> {
-  try {
-    const row = await db
-      .prepare("SELECT value FROM store_settings WHERE key = 'stripe_connect_account_id'")
-      .first<{ value: string }>();
-    return row?.value || null;
-  } catch {
-    return null;
-  }
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LineItem = { productId: string; quantity: number };
@@ -237,10 +222,7 @@ checkout.post("/session", async (c) => {
         ? { allowed_countries: allowedCountries }
         : { allowed_countries: ["US", "CA", "GB", "AU", "NZ"] as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] };
 
-    // Look up merchant's Stripe Connect account for destination charges.
-    const connectAccountId = await getConnectAccountId(c.env.DB);
-
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    const session = await stripe.checkout.sessions.create({
       mode:      "payment",
       line_items: lineItems,
       success_url: successUrl,
@@ -254,19 +236,7 @@ checkout.post("/session", async (c) => {
         discount_code:   applied?.discount.code ?? "",
         discount_amount: String(discountAmount),
       },
-    };
-
-    // If merchant has completed Stripe Connect onboarding, use destination
-    // charges so funds flow through the platform then to the merchant.
-    if (connectAccountId) {
-      sessionParams.payment_intent_data = {
-        transfer_data: {
-          destination: connectAccountId,
-        },
-      };
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    });
 
     return c.json(ok({
       url:             session.url,
@@ -381,10 +351,7 @@ checkout.post("/intent", async (c) => {
           }
         : undefined;
 
-    // Look up merchant's Stripe Connect account for destination charges.
-    const connectAccountId = await getConnectAccountId(c.env.DB);
-
-    const intentParams: Stripe.PaymentIntentCreateParams = {
+    const intent = await stripe.paymentIntents.create({
       amount:   finalAmount,
       currency,
       automatic_payment_methods: { enabled: true },
@@ -396,16 +363,7 @@ checkout.post("/intent", async (c) => {
         discount_code:   applied?.discount.code ?? "",
         discount_amount: String(discountAmount),
       },
-    };
-
-    // Route funds through the platform to the merchant's connected account.
-    if (connectAccountId) {
-      intentParams.transfer_data = {
-        destination: connectAccountId,
-      };
-    }
-
-    const intent = await stripe.paymentIntents.create(intentParams);
+    });
 
     return c.json(ok({
       clientSecret:     intent.client_secret,

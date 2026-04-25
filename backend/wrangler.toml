@@ -5,10 +5,10 @@ compatibility_flags = ["nodejs_compat_v2"]
 
 # ─── D1 Database ─────────────────────────────────────────────────────────────
 # This is filled in automatically by `npm run setup`, or manually after running:
-#   wrangler d1 create upcart-db
+#   wrangler d1 create ecommaxxing-db
 [[d1_databases]]
 binding = "DB"
-database_name = "upcart-db"
+database_name = "blackstardb"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 
 # ─── R2 Image Storage ────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 # Then enable public access in the Cloudflare dashboard to get the public URL.
 [[r2_buckets]]
 binding = "IMAGES"
-bucket_name = "upcart-r2"
+bucket_name = "blackstarr2"
 
 # ─── Public Variables (non-sensitive) ────────────────────────────────────────
 [vars]

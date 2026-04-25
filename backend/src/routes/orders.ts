@@ -5,7 +5,6 @@ import type { Bindings } from "../types.js";
 import { getDatabase } from "../db/index.js";
 import { ok, err } from "../types.js";
 import type { OrderStatus, FulfillmentStatus } from "../types.js";
-import { releasePendingToAvailable } from "./balanceHelpers.js";
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
@@ -119,32 +118,10 @@ orders.put(
 
     try {
       const db = getDatabase(c.env);
-
-      // Check if this update is marking the order as delivered (triggers fund release).
-      const existing = input.fulfillment_status === "delivered"
-        ? await db.getOrder(id)
-        : null;
-
       const updated = await db.updateOrder(id, input);
       if (!updated) {
         return c.json(err("Order not found"), 404);
       }
-
-      // Release pending funds to the merchant's available balance when
-      // an order transitions to "delivered".
-      if (
-        input.fulfillment_status === "delivered" &&
-        existing &&
-        existing.fulfillment_status !== "delivered"
-      ) {
-        const tenantId = c.env.TENANT_ID || "";
-        await releasePendingToAvailable(
-          c.env.DB, tenantId, updated.id, updated.amount_total
-        ).catch((e) =>
-          console.error(`Failed to release balance for order ${updated.id}:`, e)
-        );
-      }
-
       return c.json(ok(updated));
     } catch (e) {
       console.error(`PUT /admin/orders/${id} error:`, e);

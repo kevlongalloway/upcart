@@ -4,18 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cart — Demo Store</title>
-  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
-  <script src="config.js"></script>
-  <script src="theme.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <!-- Stripe.js — loads the Stripe SDK (required for Apple Pay) -->
   <script src="https://js.stripe.com/v3/" async></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: var(--color-bg);
-      color: var(--color-text);
-      font-family: var(--font-body);
+      background: #f5f5f5;
+      color: #1a1a1a;
+      font-family: 'Space Mono', monospace;
       min-height: 100vh;
     }
 
@@ -31,17 +29,17 @@
     }
     @media (min-width: 640px) { nav { padding: 28px 40px; } }
     .nav-mark {
-      font-family: var(--font-body);
+      font-family: 'Space Mono', monospace;
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.1em;
       text-decoration: none;
-      color: var(--color-text);
+      color: #1a1a1a;
     }
     .nav-links { display: flex; gap: 32px; }
     .nav-links a {
       font-size: 10px;
-      color: var(--color-text);
+      color: #1a1a1a;
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -67,7 +65,7 @@
       margin-bottom: 16px;
     }
     .page-title {
-      font-family: var(--font-display);
+      font-family: 'Space Mono', monospace;
       font-size: clamp(36px, 8vw, 80px);
       font-weight: 700;
       line-height: 1;
@@ -75,7 +73,10 @@
     }
 
     /* Empty */
-    .empty-state { text-align: center; padding: 80px 0; }
+    .empty-state {
+      text-align: center;
+      padding: 80px 0;
+    }
     .empty-state p {
       font-size: 10px;
       letter-spacing: 0.15em;
@@ -87,9 +88,9 @@
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: var(--color-text);
+      color: #1a1a1a;
       text-decoration: none;
-      border-bottom: 1px solid var(--color-border-mid);
+      border-bottom: 1px solid rgba(26,26,26,0.2);
       padding-bottom: 2px;
       opacity: 0.6;
       transition: opacity 0.2s;
@@ -97,7 +98,9 @@
     .empty-state a:hover { opacity: 1; }
 
     /* Cart items */
-    .cart-items { border-top: 1px solid var(--color-border); }
+    .cart-items {
+      border-top: 1px solid rgba(26,26,26,0.1);
+    }
 
     .cart-item {
       display: grid;
@@ -105,31 +108,43 @@
       gap: 20px;
       align-items: center;
       padding: 20px 0;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid rgba(26,26,26,0.1);
     }
 
     .cart-item-img {
       aspect-ratio: 3/4;
-      background: var(--color-surface);
+      background: #e8e8e8;
       overflow: hidden;
-      border: 1px solid var(--color-surface-border);
+      border: 1px solid #ddd;
     }
-    .cart-item-img img { width: 100%; height: 100%; object-fit: cover; }
+    .cart-item-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
 
-    .cart-item-name { font-size: 10px; letter-spacing: 0.05em; margin-bottom: 6px; }
-    .cart-item-price { font-size: 10px; opacity: 0.6; margin-bottom: 12px; }
+    .cart-item-name {
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .cart-item-price {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-bottom: 12px;
+    }
 
     .qty-row {
       display: flex;
       align-items: center;
       width: fit-content;
-      border: 1px solid var(--color-border-mid);
+      border: 1px solid rgba(26,26,26,0.2);
     }
     .qty-btn {
       background: none;
       border: none;
-      color: var(--color-text);
-      font-family: var(--font-body);
+      color: #1a1a1a;
+      font-family: 'Space Mono', monospace;
       font-size: 14px;
       width: 36px;
       height: 36px;
@@ -143,11 +158,15 @@
       text-align: center;
       line-height: 36px;
       font-size: 11px;
-      border-left: 1px solid var(--color-border-mid);
-      border-right: 1px solid var(--color-border-mid);
+      border-left: 1px solid rgba(26,26,26,0.2);
+      border-right: 1px solid rgba(26,26,26,0.2);
     }
 
-    .cart-item-subtotal { font-size: 11px; letter-spacing: 0.05em; text-align: right; }
+    .cart-item-subtotal {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-align: right;
+    }
     .cart-item-remove {
       display: block;
       font-size: 9px;
@@ -156,8 +175,8 @@
       opacity: 0.4;
       background: none;
       border: none;
-      color: var(--color-text);
-      font-family: var(--font-body);
+      color: #1a1a1a;
+      font-family: 'Space Mono', monospace;
       margin-top: 6px;
       transition: opacity 0.2s;
       text-align: right;
@@ -168,7 +187,7 @@
     .cart-summary {
       margin-top: 40px;
       padding-top: 28px;
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid rgba(26,26,26,0.1);
     }
     .summary-row {
       display: flex;
@@ -187,7 +206,7 @@
       letter-spacing: 0.05em;
       margin-bottom: 32px;
       padding-top: 12px;
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid rgba(26,26,26,0.1);
     }
     .summary-total-label { opacity: 0.7; text-transform: uppercase; font-size: 9px; letter-spacing: 0.15em; }
 
@@ -195,20 +214,26 @@
     .checkout-section { margin-top: 32px; }
 
     /* Apple Pay / Google Pay button area */
-    #payment-request-wrapper { display: none; margin-bottom: 16px; }
+    #payment-request-wrapper {
+      display: none;
+      margin-bottom: 16px;
+    }
+    #payment-request-button {
+      /* Stripe mounts the Apple Pay / Google Pay button here */
+    }
 
     .divider {
       display: flex;
       align-items: center;
       gap: 16px;
       margin: 16px 0;
-      display: none;
+      display: none; /* shown when Apple Pay is available */
     }
     .divider::before, .divider::after {
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--color-border);
+      background: rgba(26,26,26,0.1);
     }
     .divider span {
       font-size: 9px;
@@ -220,10 +245,10 @@
 
     .btn-checkout {
       width: 100%;
-      background: var(--color-btn-bg);
-      color: var(--color-btn-text);
-      border: 1px solid var(--color-btn-bg);
-      font-family: var(--font-body);
+      background: #1a1a1a;
+      color: #f5f5f5;
+      border: 1px solid #1a1a1a;
+      font-family: 'Space Mono', monospace;
       font-size: 10px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -244,72 +269,6 @@
       margin-top: 16px;
     }
 
-    /* Discount code */
-    .discount-section {
-      margin-top: 24px;
-      padding-top: 24px;
-      border-top: 1px solid var(--color-border);
-    }
-    .discount-label {
-      font-size: 9px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      opacity: 0.6;
-      margin-bottom: 10px;
-    }
-    .discount-row { display: flex; gap: 8px; }
-    .discount-input {
-      flex: 1;
-      background: none;
-      border: 1px solid var(--color-border-mid);
-      color: var(--color-text);
-      font-family: var(--font-body);
-      font-size: 11px;
-      letter-spacing: 0.05em;
-      padding: 10px 14px;
-      text-transform: uppercase;
-    }
-    .discount-input:focus { outline: none; border-color: var(--color-text); }
-    .discount-input::placeholder { text-transform: none; opacity: 0.5; }
-    .discount-apply {
-      background: none;
-      border: 1px solid var(--color-border-mid);
-      color: var(--color-text);
-      font-family: var(--font-body);
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 10px 18px;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    .discount-apply:hover { border-color: var(--color-text); }
-    .discount-apply:disabled { opacity: 0.5; cursor: not-allowed; }
-    .discount-msg { font-size: 9px; letter-spacing: 0.08em; margin-top: 8px; display: none; }
-    .discount-msg.success { color: #16a34a; display: block; }
-    .discount-msg.error   { color: #dc2626; display: block; }
-    .discount-applied-row {
-      display: none;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 10px;
-      color: #16a34a;
-      margin-top: 8px;
-    }
-    .discount-applied-row.show { display: flex; }
-    .discount-remove {
-      background: none;
-      border: none;
-      font-family: var(--font-body);
-      font-size: 9px;
-      color: var(--color-text);
-      opacity: 0.4;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      transition: opacity 0.2s;
-    }
-    .discount-remove:hover { opacity: 0.8; }
-
     /* Error */
     .checkout-error {
       font-size: 9px;
@@ -322,8 +281,8 @@
 
     /* Footer */
     footer {
-      background: var(--color-footer-bg);
-      color: var(--color-footer-text);
+      background: #2a2a2a;
+      color: #f5f5f5;
       padding: 60px 24px 36px;
     }
     @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
@@ -332,21 +291,16 @@
       justify-content: space-between;
       align-items: flex-end;
       padding-bottom: 40px;
-      border-bottom: 1px solid var(--color-footer-border);
+      border-bottom: 1px solid rgba(245,245,245,0.1);
       margin-bottom: 28px;
       flex-wrap: wrap;
       gap: 24px;
-    }
-    .footer-brand-name {
-      font-family: var(--font-body);
-      font-weight: 700;
-      font-size: 14px;
     }
     footer img { width: 200px; }
     .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
     .footer-links a {
       font-size: 10px;
-      color: var(--color-footer-text);
+      color: #f5f5f5;
       text-decoration: none;
       letter-spacing: 0.1em;
       opacity: 0.6;
@@ -376,7 +330,7 @@
   <footer>
     <div class="footer-top">
       <div>
-        <p class="footer-brand-name" data-store-name>Your Store</p>
+        <p style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;">Demo Store</p>
       </div>
       <div class="footer-links">
         <a href="#">Help</a>
@@ -384,21 +338,18 @@
         <a href="#">Contact</a>
       </div>
     </div>
-    <p class="footer-copy">© 2026 <span data-store-name>Your Store</span>. All rights reserved.</p>
+    <p class="footer-copy">© 2026 Demo Store. All rights reserved.</p>
   </footer>
 
+  <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
-    // ─── DISCOUNT STATE ───────────────────────────────────────────────────────
-    let _discount = null; // { code, discount_amount, name, type, is_free_shipping }
-
     // ─── RENDER CART ──────────────────────────────────────────────────────────
     function renderCart() {
       const cart = getCart();
       const body = document.getElementById('cart-body');
 
       if (cart.length === 0) {
-        _discount = null;
         body.innerHTML = `
           <div class="empty-state">
             <p>Your cart is empty</p>
@@ -409,8 +360,6 @@
 
       const currency = cart[0].currency || 'usd';
       const subtotal = getCartTotal();
-      const discountAmt = _discount ? _discount.discount_amount : 0;
-      const total       = Math.max(0, subtotal - discountAmt);
 
       body.innerHTML = `
         <div class="cart-items">
@@ -437,51 +386,18 @@
             </div>`).join('')}
         </div>
 
-        <!-- Discount code input -->
-        <div class="discount-section">
-          <p class="discount-label">Promo Code</p>
-          <div class="discount-row">
-            <input class="discount-input" id="discount-input" type="text"
-                   placeholder="Enter code" maxlength="50"
-                   value="${_discount ? _discount.code : ''}"
-                   ${_discount ? 'disabled' : ''}>
-            <button class="discount-apply" id="discount-apply"
-                    ${_discount ? 'disabled' : ''}>
-              ${_discount ? 'Applied' : 'Apply'}
-            </button>
-          </div>
-          <p class="discount-msg${_discount ? ' success' : ''}" id="discount-msg">
-            ${_discount ? `${_discount.name} — ${_discount.is_free_shipping ? 'Free shipping' : formatPrice(_discount.discount_amount, currency) + ' off'}` : ''}
-          </p>
-          ${_discount ? `
-          <div class="discount-applied-row show" id="discount-applied-row">
-            <span></span>
-            <button class="discount-remove" id="discount-remove">Remove</button>
-          </div>` : `<div class="discount-applied-row" id="discount-applied-row"></div>`}
-        </div>
-
         <div class="cart-summary">
           <div class="summary-row">
             <span>Subtotal</span>
             <span>${formatPrice(subtotal, currency)}</span>
           </div>
-          ${discountAmt > 0 ? `
-          <div class="summary-row" style="color:#16a34a">
-            <span>${_discount.name}${_discount.code ? ` (${_discount.code})` : ''}</span>
-            <span>−${formatPrice(discountAmt, currency)}</span>
-          </div>` : ''}
-          ${_discount && _discount.is_free_shipping ? `
-          <div class="summary-row" style="color:#16a34a">
-            <span>Shipping</span>
-            <span>Free</span>
-          </div>` : `
           <div class="summary-row">
             <span>Shipping</span>
             <span>Calculated at checkout</span>
-          </div>`}
+          </div>
           <div class="summary-total">
             <span class="summary-total-label">Total</span>
-            <span>${formatPrice(total, currency)}</span>
+            <span>${formatPrice(subtotal, currency)}</span>
           </div>
         </div>
 
@@ -509,75 +425,8 @@
         });
       });
       body.querySelectorAll('.cart-item-remove').forEach(btn => {
-        btn.addEventListener('click', () => {
-          _discount = null; // reset discount when cart changes
-          removeFromCart(btn.dataset.id);
-        });
+        btn.addEventListener('click', () => removeFromCart(btn.dataset.id));
       });
-
-      // Discount code listeners
-      const discountInput  = document.getElementById('discount-input');
-      const discountApply  = document.getElementById('discount-apply');
-      const discountMsg    = document.getElementById('discount-msg');
-      const discountRemove = document.getElementById('discount-remove');
-
-      if (discountInput) {
-        discountInput.addEventListener('input', () => {
-          discountInput.value = discountInput.value.toUpperCase();
-        });
-      }
-
-      if (discountApply) {
-        discountApply.addEventListener('click', async () => {
-          const code = (discountInput?.value ?? '').trim();
-          if (!code) return;
-
-          discountApply.disabled    = true;
-          discountApply.textContent = '…';
-          discountMsg.className     = 'discount-msg';
-          discountMsg.textContent   = '';
-
-          const cart  = getCart();
-          const items = cart.map(i => ({ productId: i.productId, price: i.price, quantity: i.quantity }));
-
-          try {
-            const res  = await fetch(`${API_BASE}/discounts/validate`, {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ code, items }),
-            });
-            const body = await res.json();
-            if (!body.ok) throw new Error(body.error || 'Validation failed');
-
-            if (!body.data.valid) {
-              discountMsg.className   = 'discount-msg error';
-              discountMsg.textContent = body.data.error || 'Invalid discount code';
-              discountApply.disabled  = false;
-              discountApply.textContent = 'Apply';
-            } else {
-              _discount = {
-                code:             body.data.discount.code,
-                name:             body.data.discount.name,
-                discount_amount:  body.data.discount_amount,
-                is_free_shipping: body.data.is_free_shipping || body.data.discount?.type === 'free_shipping',
-              };
-              renderCart(); // re-render with discount applied
-            }
-          } catch (err) {
-            discountMsg.className   = 'discount-msg error';
-            discountMsg.textContent = err.message;
-            discountApply.disabled  = false;
-            discountApply.textContent = 'Apply';
-          }
-        });
-      }
-
-      if (discountRemove) {
-        discountRemove.addEventListener('click', () => {
-          _discount = null;
-          renderCart();
-        });
-      }
 
       // Checkout button
       document.getElementById('btn-checkout').addEventListener('click', hostedCheckout);
@@ -608,7 +457,7 @@
       try {
         // Create a payment intent to get the publishable key
         const items = cart.map(i => ({ productId: i.productId, quantity: i.quantity }));
-        const res   = await fetch(`${API_BASE}/checkout/intent`, {
+        const res   = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/checkout/intent', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ items }),
@@ -652,10 +501,11 @@
 
         // Handle the native payment sheet completion
         pr.on('paymentmethod', async (ev) => {
+          // Confirm the PaymentIntent using the payment method from the sheet
           const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
             clientSecret,
             { payment_method: ev.paymentMethod.id },
-            { handleActions: false }
+            { handleActions: false } // we'll handle 3DS ourselves
           );
 
           if (confirmError) {
@@ -667,15 +517,18 @@
           ev.complete('success');
 
           if (paymentIntent.status === 'requires_action') {
+            // 3D Secure required
             const { error } = await stripe.confirmCardPayment(clientSecret);
             if (error) { showCheckoutError(error.message); return; }
           }
 
+          // Payment successful
           clearCart();
-          window.location.href = 'success.html';
+          window.location.href = 'index.html?payment=success';
         });
 
       } catch (err) {
+        // Non-critical: Apple Pay setup failed silently
         console.warn('Payment Request init failed:', err.message);
       }
     }
@@ -691,14 +544,13 @@
       const items = cart.map(i => ({ productId: i.productId, quantity: i.quantity }));
 
       try {
-        const res  = await fetch(`${API_BASE}/checkout/session`, {
+        const res  = await fetch('https://ecommaxxing.kevlongalloway1999m.workers.dev/checkout/session', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             items,
-            successUrl:   window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
-            cancelUrl:    window.location.href,
-            ...(_discount?.code ? { discountCode: _discount.code } : {}),
+            successUrl: window.location.origin + '/index.html?payment=success',
+            cancelUrl:  window.location.href,
           }),
         });
         const body = await res.json();
@@ -720,45 +572,9 @@
       if (el) el.style.display = 'none';
     }
 
-    // ─── OUT-OF-STOCK GUARD ───────────────────────────────────────────────────
-    async function checkStockForCheckout() {
-      const cart = getCart();
-      if (cart.length === 0) return;
-
-      const btn = document.getElementById('btn-checkout');
-      if (!btn) return;
-
-      try {
-        const results = await Promise.all(
-          cart.map(item =>
-            fetch(`${API_BASE}/products/` + item.productId)
-              .then(r => r.json())
-              .catch(() => null)
-          )
-        );
-
-        const allOutOfStock = results.every(body => {
-          if (!body || !body.ok) return false;
-          const p = body.data;
-          return p.stock === 0;
-        });
-
-        if (allOutOfStock) {
-          btn.disabled    = true;
-          btn.textContent = 'Out of Stock';
-          showCheckoutError('All items in your cart are currently out of stock.');
-        }
-      } catch {
-        // Non-critical — ignore stock check errors
-      }
-    }
-
     // ─── INIT ─────────────────────────────────────────────────────────────────
     window.addEventListener('bst:cart-updated', renderCart);
-    document.addEventListener('DOMContentLoaded', () => {
-      renderCart();
-      checkStockForCheckout();
-    });
+    document.addEventListener('DOMContentLoaded', renderCart);
   </script>
 
 </body>
