@@ -1009,6 +1009,157 @@ nav { padding: 0 20px; }
 .footer-top { grid-template-columns: 1fr; }
 .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── WIZARD STEPS ── */
+.wizard-steps-bar {
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 48px;
+}
+.wizard-step { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ws-dot {
+width: 36px; height: 36px;
+border-radius: 50%;
+border: 1px solid var(--shade-70);
+background: var(--dark-forest);
+display: flex; align-items: center; justify-content: center;
+font-size: 14px; font-weight: 500; color: var(--shade-50);
+transition: all 200ms ease;
+}
+.wizard-step.active .ws-dot { border-color: var(--neon); color: var(--neon); background: rgba(54,244,164,0.08); }
+.wizard-step.completed .ws-dot { border-color: var(--neon); background: var(--neon); color: var(--void); font-size: 16px; }
+.ws-label { font-size: 12px; color: var(--shade-60); font-weight: 500; letter-spacing: 0.3px; }
+.wizard-step.active .ws-label { color: var(--white); }
+.wizard-step.completed .ws-label { color: rgba(54,244,164,0.7); }
+.ws-line {
+flex: 1; height: 1px; background: var(--border-dark);
+max-width: 72px; min-width: 32px; margin-bottom: 22px;
+transition: background 300ms ease;
+}
+.ws-line.done { background: rgba(54,244,164,0.35); }
+
+.wizard-page { display: none; }
+.wizard-page.active { display: block; }
+
+/* Input error states */
+.form-input.error { border-color: rgba(255,100,100,0.5) !important; outline: 2px solid rgba(255,100,100,0.18) !important; outline-offset: 0 !important; }
+.input-error-msg { font-size: 12px; color: rgba(255,130,130,0.9); margin-top: 5px; display: none; }
+.input-error-msg.show { display: block; }
+
+/* Password toggle */
+.pw-wrap { position: relative; }
+.pw-toggle {
+position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+background: none; border: none; cursor: pointer; color: var(--shade-50);
+padding: 4px; display: flex; align-items: center; transition: color 200ms ease;
+}
+.pw-toggle:hover { color: var(--muted); }
+.pw-wrap .form-input { padding-right: 44px; }
+
+/* Security note */
+.wizard-security-note {
+background: rgba(54,244,164,0.04);
+border: 1px solid rgba(54,244,164,0.15);
+border-radius: 8px; padding: 14px 16px;
+display: flex; gap: 12px; align-items: flex-start;
+margin-bottom: 24px;
+}
+.wizard-security-icon { flex-shrink: 0; color: var(--neon); margin-top: 2px; }
+.wizard-security-text { font-size: 14px; color: var(--muted); line-height: 1.55; }
+.wizard-security-text strong { color: var(--aloe); }
+
+/* API error */
+.wizard-api-error {
+background: rgba(255,80,80,0.08); border: 1px solid rgba(255,80,80,0.25);
+border-radius: 8px; padding: 14px 16px; font-size: 14px;
+color: rgba(255,160,160,0.9); margin-bottom: 16px;
+display: none; line-height: 1.5;
+}
+.wizard-api-error.show { display: block; }
+
+/* Wizard footer row */
+.wizard-footer {
+display: flex; justify-content: flex-end;
+align-items: center; gap: 12px; margin-top: 24px;
+}
+.wizard-back-btn {
+background: transparent; color: var(--muted);
+padding: 13px 24px; border-radius: 9999px;
+font-size: 15px; font-weight: 500;
+font-family: 'Inter', Helvetica, Arial, sans-serif;
+border: 1px solid var(--shade-70); cursor: pointer;
+transition: all 200ms ease;
+}
+.wizard-back-btn:hover { color: var(--white); border-color: var(--muted); }
+
+/* Loading spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+width: 16px; height: 16px;
+border: 2px solid rgba(0,0,0,0.25);
+border-top-color: rgba(0,0,0,0.8);
+border-radius: 50%; animation: spin 0.65s linear infinite;
+display: inline-block; vertical-align: middle; margin-right: 8px;
+}
+
+/* Success screen */
+.wizard-success { text-align: center; padding: 16px 0 8px; }
+.wizard-success-icon {
+width: 72px; height: 72px;
+background: rgba(54,244,164,0.1); border: 1px solid rgba(54,244,164,0.3);
+border-radius: 50%; display: flex; align-items: center; justify-content: center;
+margin: 0 auto 28px;
+}
+.wizard-success-title {
+font-size: 36px; font-weight: 330; letter-spacing: -0.5px;
+color: var(--white); margin-bottom: 14px;
+}
+.wizard-success-sub {
+font-size: 17px; color: var(--muted); line-height: 1.6; margin-bottom: 32px;
+}
+.wizard-id-box {
+background: var(--deep-teal); border: 1px solid var(--border-dark);
+border-radius: 8px; padding: 16px 20px; margin-bottom: 32px; text-align: left;
+}
+.wizard-id-label {
+font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
+color: var(--shade-50); margin-bottom: 6px;
+}
+.wizard-id-value { font-size: 13px; color: var(--aloe); font-family: monospace; word-break: break-all; }
+.wizard-success-cta {
+display: inline-block; background: var(--neon); color: var(--void);
+padding: 15px 40px; border-radius: 9999px; font-size: 16px; font-weight: 550;
+font-family: 'Inter', Helvetica, Arial, sans-serif; border: none;
+cursor: pointer; transition: opacity 200ms ease; text-decoration: none;
+}
+.wizard-success-cta:hover { opacity: 0.88; }
+
+/* ── STORE URL PREVIEW ── */
+.store-url-preview {
+background: var(--deep-teal);
+border: 1px solid var(--border-dark);
+border-radius: 8px;
+padding: 14px 18px;
+margin-bottom: 8px;
+}
+.store-url-label {
+font-size: 11px;
+font-weight: 500;
+letter-spacing: 0.8px;
+text-transform: uppercase;
+color: var(--shade-50);
+margin-bottom: 6px;
+}
+.store-url-value {
+font-size: 15px;
+color: var(--muted);
+font-family: 'Inter', monospace;
+}
+.store-url-slug {
+color: var(--aloe);
+font-weight: 500;
+}
 </style>
 
 </head>
@@ -1283,22 +1434,22 @@ nav { padding: 0 20px; }
 <section class="hiw-section" id="how-it-works">
   <div class="section-inner">
     <div class="overline reveal">Simple Process</div>
-    <h2 class="section-heading reveal">From inquiry to<br>open for business.</h2>
+    <h2 class="section-heading reveal">Live in minutes,<br>not weeks.</h2>
     <div class="hiw-grid">
       <div class="hiw-card reveal">
         <div class="hiw-num">01</div>
-        <div class="hiw-title">Tell us about your store</div>
-        <div class="hiw-body">Fill out a quick form — your business name, what you sell, and how you want it to look. No technical knowledge needed.</div>
+        <div class="hiw-title">Create your account</div>
+        <div class="hiw-body">Sign up with your email and a password. Name your store and pick your category. The whole thing takes under two minutes.</div>
       </div>
       <div class="hiw-card reveal">
         <div class="hiw-num">02</div>
-        <div class="hiw-title">We build it for you</div>
-        <div class="hiw-body">Our team sets up your store, connects your payment processing, and gets everything configured to your specifications.</div>
+        <div class="hiw-title">Set up your store</div>
+        <div class="hiw-body">Add products, configure checkout, and connect your payout account from your private admin dashboard — no code required.</div>
       </div>
       <div class="hiw-card reveal">
         <div class="hiw-num">03</div>
-        <div class="hiw-title">You start selling</div>
-        <div class="hiw-body">You get the keys to your admin dashboard and your store goes live. Add products, create discounts, and watch orders come in.</div>
+        <div class="hiw-title">Start selling</div>
+        <div class="hiw-body">Share your store link and start accepting payments immediately. Track orders, manage inventory, and grow your business.</div>
       </div>
     </div>
   </div>
@@ -1417,59 +1568,126 @@ nav { padding: 0 20px; }
   </div>
 </section>
 
-<!-- INQUIRY FORM -->
+<!-- SETUP WIZARD -->
 
 <section class="form-section" id="get-started">
   <div class="form-glow" aria-hidden="true"></div>
-  <div class="form-inner">
-    <div class="overline reveal" style="justify-content:center;display:flex;">Get Started</div>
-    <h2 class="form-heading reveal">Let's build<br>your store.</h2>
-    <p class="form-sub reveal">Tell us a little about what you need and we'll reach out within one business day to get things moving.</p>
+  <div class="form-inner" style="max-width:600px;">
 
-```
-<form class="inquiry-form reveal" id="inquiry-form" novalidate>
-  <div class="form-row">
-    <div class="form-group">
-      <label class="form-label" for="fname">First Name</label>
-      <input class="form-input" type="text" id="fname" name="fname" placeholder="Jordan" required>
+    <!-- Step progress bar -->
+    <div class="wizard-steps-bar">
+      <div class="wizard-step active" id="wstep-1">
+        <div class="ws-dot">1</div>
+        <div class="ws-label">Account</div>
+      </div>
+      <div class="ws-line" id="ws-line-1"></div>
+      <div class="wizard-step" id="wstep-2">
+        <div class="ws-dot">2</div>
+        <div class="ws-label">Store</div>
+      </div>
+      <div class="ws-line" id="ws-line-2"></div>
+      <div class="wizard-step" id="wstep-3">
+        <div class="ws-dot">3</div>
+        <div class="ws-label">Done</div>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label" for="lname">Last Name</label>
-      <input class="form-input" type="text" id="lname" name="lname" placeholder="Smith" required>
+
+    <!-- ── Step 1: Account ── -->
+    <div class="wizard-page active" id="wizard-step-1">
+      <div class="overline reveal" style="justify-content:center;display:flex;">Step 1 of 2</div>
+      <h2 class="form-heading reveal">Create your<br>account.</h2>
+      <p class="form-sub reveal" style="margin-bottom:36px;">Enter your email and choose a password to get started. It takes less than a minute.</p>
+      <form class="inquiry-form" id="account-form" novalidate autocomplete="on">
+        <div class="form-group">
+          <label class="form-label" for="w-email">Email Address</label>
+          <input class="form-input" type="email" id="w-email" placeholder="you@yourbusiness.com" autocomplete="email" required>
+          <div class="input-error-msg" id="err-email">A valid email address is required.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-password">Password</label>
+          <div class="pw-wrap">
+            <input class="form-input" type="password" id="w-password" placeholder="At least 8 characters" autocomplete="new-password" required>
+            <button type="button" class="pw-toggle" id="pw-toggle" aria-label="Toggle password visibility">
+              <svg id="pw-eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="pw-eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+          <div class="input-error-msg" id="err-password">Password must be at least 8 characters.</div>
+        </div>
+        <div class="wizard-footer">
+          <button type="submit" class="form-submit" style="width:auto;padding:14px 36px;">Continue →</button>
+        </div>
+      </form>
     </div>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="email">Email Address</label>
-    <input class="form-input" type="email" id="email" name="email" placeholder="you@yourbusiness.com" required>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="business">Business Name</label>
-    <input class="form-input" type="text" id="business" name="business" placeholder="Your brand or business name" required>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="category">What do you sell?</label>
-    <select class="form-select form-input" id="category" name="category">
-      <option value="" disabled selected>Select a category</option>
-      <option>Clothing & Apparel</option>
-      <option>Beauty & Skincare</option>
-      <option>Food & Beverage</option>
-      <option>Home & Lifestyle</option>
-      <option>Art & Crafts</option>
-      <option>Health & Wellness</option>
-      <option>Electronics & Gadgets</option>
-      <option>Sports & Outdoors</option>
-      <option>Digital Products</option>
-      <option>Other</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label class="form-label" for="message">Anything else we should know? <span style="opacity:0.4;">(optional)</span></label>
-    <textarea class="form-textarea" id="message" name="message" placeholder="Tell us about your store — how many products, any special requirements, your timeline..."></textarea>
-  </div>
-  <button class="form-submit" type="submit">Request my store →</button>
-  <p class="form-note">We'll get back to you within one business day. No commitment required.</p>
-</form>
-```
+
+    <!-- ── Step 2: Store Details ── -->
+    <div class="wizard-page" id="wizard-step-2">
+      <div class="overline" style="justify-content:center;display:flex;opacity:0.55;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--shade-50);margin-bottom:14px;">Step 2 of 2</div>
+      <h2 class="form-heading" style="font-size:clamp(32px,4vw,52px);margin-bottom:14px;">Set up your<br>store.</h2>
+      <p class="form-sub" style="margin-bottom:28px;">Tell us about yourself and your business so we can get you started.</p>
+      <form class="inquiry-form" id="store-form" novalidate autocomplete="on">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="w-fname">First Name</label>
+            <input class="form-input" type="text" id="w-fname" placeholder="Jordan" autocomplete="given-name" required>
+            <div class="input-error-msg" id="err-fname">First name is required.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="w-lname">Last Name</label>
+            <input class="form-input" type="text" id="w-lname" placeholder="Smith" autocomplete="family-name" required>
+            <div class="input-error-msg" id="err-lname">Last name is required.</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-bizname">Store Name</label>
+          <input class="form-input" type="text" id="w-bizname" placeholder="Your brand or store name" autocomplete="organization" required>
+          <div class="input-error-msg" id="err-bizname">Store name is required.</div>
+        </div>
+        <div class="store-url-preview">
+          <div class="store-url-label">Your store URL</div>
+          <div class="store-url-value"><span class="store-url-slug" id="url-slug">yourstore</span>.upcart.online</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-category">What do you sell?</label>
+          <select class="form-select form-input" id="w-category" required>
+            <option value="" disabled selected>Select a category</option>
+            <option>Clothing &amp; Apparel</option>
+            <option>Beauty &amp; Skincare</option>
+            <option>Food &amp; Beverage</option>
+            <option>Home &amp; Lifestyle</option>
+            <option>Art &amp; Crafts</option>
+            <option>Health &amp; Wellness</option>
+            <option>Electronics &amp; Gadgets</option>
+            <option>Sports &amp; Outdoors</option>
+            <option>Digital Products</option>
+            <option>Other</option>
+          </select>
+          <div class="input-error-msg" id="err-category">Please select a category.</div>
+        </div>
+        <div class="wizard-api-error" id="api-error"></div>
+        <div class="wizard-footer">
+          <button type="button" class="wizard-back-btn" id="wizard-back">← Back</button>
+          <button type="submit" class="form-submit" id="wizard-submit" style="width:auto;padding:14px 36px;">Create my store →</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Step 3: Success ── -->
+    <div class="wizard-page" id="wizard-step-3">
+      <div class="wizard-success">
+        <div class="wizard-success-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon)"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="wizard-success-title">You're all set!</div>
+        <p class="wizard-success-sub">Your store is ready. Head to your dashboard to add products, connect your payout account, and go live.</p>
+        <div class="wizard-id-box">
+          <div class="wizard-id-label">Merchant ID</div>
+          <div class="wizard-id-value" id="success-merchant-id">—</div>
+        </div>
+        <a id="goto-admin" href="https://admin.upcart.online" class="wizard-success-cta">Open Admin Dashboard →</a>
+        <p class="form-note" style="margin-top:20px;">Your session token has been saved locally. You can return to the dashboard at any time.</p>
+      </div>
+    </div>
 
   </div>
 </section>
@@ -1522,87 +1740,170 @@ nav { padding: 0 20px; }
   </div>
 </footer>
 
-<!-- SUCCESS MODAL -->
-
-<div class="modal-overlay" id="success-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-  <div class="modal-box">
-    <div class="modal-icon">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon)"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <h3 class="modal-title" id="modal-title">Request received!</h3>
-    <p class="modal-body">Thanks for reaching out. We'll review your store request and get back to you within one business day.</p>
-    <button class="modal-close" id="modal-close-btn">Back to Upcart</button>
-  </div>
-</div>
-
 <script>
-  // Nav scroll
-  const nav = document.getElementById('main-nav');
-  window.addEventListener('scroll', () => {
-    nav.classList.toggle('scrolled', window.scrollY > 40);
-  });
+// ── Config ────────────────────────────────────────────────────────────────────
+const API_BASE = 'https://api.upcart.online';
 
-  // Scroll reveal
-  const reveals = document.querySelectorAll('.reveal');
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.classList.add('visible');
-        io.unobserve(e.target);
-      }
+// ── Nav scroll ────────────────────────────────────────────────────────────────
+const nav = document.getElementById('main-nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 40);
+});
+
+// ── Scroll reveal ─────────────────────────────────────────────────────────────
+const revealEls = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -32px 0px' });
+revealEls.forEach(el => io.observe(el));
+
+document.querySelectorAll('.features-grid, .hiw-grid, .t-grid, .stats-inner').forEach(grid => {
+  grid.querySelectorAll('.reveal').forEach((child, i) => {
+    child.style.transitionDelay = `${i * 70}ms`;
+  });
+});
+
+// ── Wizard ────────────────────────────────────────────────────────────────────
+const stepData = {};
+
+function showStep(n) {
+  [1, 2, 3].forEach(s => {
+    document.getElementById(`wizard-step-${s}`).classList.toggle('active', s === n);
+    const dot = document.getElementById(`wstep-${s}`);
+    dot.classList.remove('active', 'completed');
+    if (s < n) dot.classList.add('completed');
+    else if (s === n) dot.classList.add('active');
+  });
+  document.getElementById('ws-line-1').classList.toggle('done', n > 1);
+  document.getElementById('ws-line-2').classList.toggle('done', n > 2);
+  window.scrollTo({ top: document.getElementById('get-started').offsetTop - 80, behavior: 'smooth' });
+}
+
+function markError(inputId, errId, msg) {
+  document.getElementById(inputId).classList.add('error');
+  const el = document.getElementById(errId);
+  if (msg) el.textContent = msg;
+  el.classList.add('show');
+}
+
+function clearError(inputId, errId) {
+  document.getElementById(inputId)?.classList.remove('error');
+  document.getElementById(errId)?.classList.remove('show');
+}
+
+// Wire up live error clearing on all wizard inputs
+[
+  ['w-email','err-email'], ['w-password','err-password'],
+  ['w-fname','err-fname'], ['w-lname','err-lname'],
+  ['w-bizname','err-bizname'], ['w-category','err-category'],
+].forEach(([inp, err]) => {
+  const el = document.getElementById(inp);
+  if (el) {
+    el.addEventListener('input', () => clearError(inp, err));
+    el.addEventListener('change', () => clearError(inp, err));
+  }
+});
+
+// Password show/hide toggle
+const pwInput = document.getElementById('w-password');
+document.getElementById('pw-toggle').addEventListener('click', () => {
+  const visible = pwInput.type === 'password';
+  pwInput.type = visible ? 'text' : 'password';
+  document.getElementById('pw-eye-on').style.display = visible ? 'none' : '';
+  document.getElementById('pw-eye-off').style.display = visible ? '' : 'none';
+});
+
+// ── Store URL slug from business name ────────────────────────────────────────
+function toSlug(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'yourstore';
+}
+const bizInput = document.getElementById('w-bizname');
+const slugEl = document.getElementById('url-slug');
+if (bizInput && slugEl) {
+  bizInput.addEventListener('input', () => {
+    slugEl.textContent = toSlug(bizInput.value) || 'yourstore';
+  });
+}
+
+// ── Step 1 submit (email + password) ─────────────────────────────────────────
+document.getElementById('account-form').addEventListener('submit', e => {
+  e.preventDefault();
+  let ok = true;
+  const v = id => document.getElementById(id).value.trim();
+
+  const email = v('w-email');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    markError('w-email', 'err-email'); ok = false;
+  }
+
+  const pw = document.getElementById('w-password').value;
+  if (pw.length < 8) { markError('w-password', 'err-password'); ok = false; }
+
+  if (!ok) return;
+
+  Object.assign(stepData, { email, password: pw });
+  showStep(2);
+});
+
+// ── Back button ───────────────────────────────────────────────────────────────
+document.getElementById('wizard-back').addEventListener('click', () => showStep(1));
+
+// ── Step 2 submit → API call ─────────────────────────────────────────────────
+document.getElementById('store-form').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const apiErr = document.getElementById('api-error');
+  apiErr.classList.remove('show');
+
+  let ok = true;
+  const v = id => document.getElementById(id).value.trim();
+
+  if (!v('w-fname'))  { markError('w-fname', 'err-fname'); ok = false; }
+  if (!v('w-lname'))  { markError('w-lname', 'err-lname'); ok = false; }
+  if (!v('w-bizname')) { markError('w-bizname', 'err-bizname'); ok = false; }
+
+  const cat = document.getElementById('w-category').value;
+  if (!cat) { markError('w-category', 'err-category'); ok = false; }
+
+  if (!ok) return;
+
+  const btn = document.getElementById('wizard-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Creating your store…';
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...stepData,
+        firstName: v('w-fname'),
+        lastName: v('w-lname'),
+        businessName: v('w-bizname'),
+        businessCategory: cat,
+      }),
     });
-  }, { threshold: 0.1, rootMargin: '0px 0px -32px 0px' });
-  reveals.forEach(el => io.observe(el));
 
-  // Stagger siblings in grids
-  document.querySelectorAll('.features-grid, .hiw-grid, .t-grid, .stats-inner').forEach(grid => {
-    grid.querySelectorAll('.reveal').forEach((child, i) => {
-      child.style.transitionDelay = `${i * 70}ms`;
-    });
-  });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Something went wrong. Please try again.');
 
-  // Form submission
-  const form = document.getElementById('inquiry-form');
-  const modal = document.getElementById('success-modal');
-  const modalCloseBtn = document.getElementById('modal-close-btn');
+    const { merchant_id, token, business_name } = json.data;
+    localStorage.setItem('upcart_token', token);
+    localStorage.setItem('upcart_merchant_id', merchant_id);
+    localStorage.setItem('upcart_business', business_name);
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    // Validate
-    const fname = form.fname.value.trim();
-    const email = form.email.value.trim();
-    const business = form.business.value.trim();
-    if (!fname || !email || !business) {
-      // Simple shake animation on empty required fields
-      [form.fname, form.email, form.business].forEach(input => {
-        if (!input.value.trim()) {
-          input.style.borderColor = 'rgba(255,100,100,0.5)';
-          input.style.outline = '2px solid rgba(255,100,100,0.3)';
-          setTimeout(() => {
-            input.style.borderColor = '';
-            input.style.outline = '';
-          }, 2000);
-        }
-      });
-      return;
-    }
-    // Show modal
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  });
+    document.getElementById('success-merchant-id').textContent = merchant_id;
+    showStep(3);
 
-  modalCloseBtn.addEventListener('click', () => {
-    modal.classList.remove('open');
-    document.body.style.overflow = '';
-    form.reset();
-  });
-
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  });
+  } catch (err) {
+    apiErr.textContent = err.message;
+    apiErr.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = 'Create my store →';
+  }
+});
 </script>
 
 </body>

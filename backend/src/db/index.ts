@@ -29,5 +29,5 @@ export function getDatabase(env: Bindings): Database {
         "Check your wrangler.toml [[d1_databases]] configuration."
     );
   }
-  return new D1Database(env.DB, env.TENANT_ID ?? "");
+  return new D1Database(env.DB);
 }

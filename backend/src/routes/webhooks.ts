@@ -3,7 +3,6 @@ import Stripe from "stripe";
 import type { Bindings } from "../types.js";
 import { ok, err } from "../types.js";
 import { getDatabase } from "../db/index.js";
-import { creditPendingBalance, releasePendingToAvailable } from "./balanceHelpers.js";
 
 const webhooks = new Hono<{ Bindings: Bindings }>();
 
@@ -212,14 +211,6 @@ async function handleCheckoutSessionCompleted(
     );
   }
 
-  // Credit the merchant's pending balance (held until delivery).
-  const tenantId = env.TENANT_ID || "";
-  await creditPendingBalance(
-    env.DB, tenantId, order.id, session.amount_total ?? 0, session.currency ?? "usd"
-  ).catch((e) =>
-    console.error(`Failed to credit pending balance for order ${order.id}:`, e)
-  );
-
   console.log(`Created order ${order.id} for session ${session.id} — status: paid`);
 }
 
@@ -315,14 +306,6 @@ async function handlePaymentIntentSucceeded(
       console.error(`Failed to increment discount usage for ${discountId}:`, e)
     );
   }
-
-  // Credit the merchant's pending balance (held until delivery).
-  const tenantId = env.TENANT_ID || "";
-  await creditPendingBalance(
-    env.DB, tenantId, order.id, intent.amount, intent.currency ?? "usd"
-  ).catch((e) =>
-    console.error(`Failed to credit pending balance for order ${order.id}:`, e)
-  );
 
   console.log(`Created order ${order.id} for intent ${intent.id} — status: paid`);
 }

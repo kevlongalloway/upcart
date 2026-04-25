@@ -24,7 +24,6 @@ import type {
 
 type ProductRow = {
   id: string;
-  tenant_id: string;
   name: string;
   description: string;
   price: number;
@@ -52,7 +51,6 @@ function rowToProduct(row: ProductRow): Product {
 
 type OrderRow = {
   id: string;
-  tenant_id: string;
   stripe_session_id: string | null;
   stripe_payment_intent_id: string | null;
   status: string;
@@ -84,7 +82,6 @@ type OrderRow = {
 
 type DiscountRow = {
   id: string;
-  tenant_id: string;
   code: string | null;
   name: string;
   description: string;
@@ -104,7 +101,6 @@ type DiscountRow = {
 
 type OrderItemRow = {
   id: string;
-  tenant_id: string;
   order_id: string;
   product_id: string;
   product_name: string;
@@ -137,16 +133,7 @@ function rowToDiscount(row: DiscountRow): Discount {
 // ─── D1Database ───────────────────────────────────────────────────────────────
 
 export class D1Database implements Database {
-  /**
-   * @param db       - Cloudflare D1 binding
-   * @param tenantId - Tenant identifier set by the provisioning service.
-   *                   All reads and writes are scoped to this value.
-   *                   Defaults to '' for single-tenant / legacy deployments.
-   */
-  constructor(
-    private readonly db: D1Database_CF,
-    private readonly tenantId: string = ""
-  ) {}
+  constructor(private readonly db: D1Database_CF) {}
 
   // ── Products ────────────────────────────────────────────────────────────────
 
@@ -154,12 +141,12 @@ export class D1Database implements Database {
     const { limit = 50, offset = 0, activeOnly = true } = options;
 
     const query = activeOnly
-      ? "SELECT * FROM products WHERE tenant_id = ?1 AND active = 1 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3"
-      : "SELECT * FROM products WHERE tenant_id = ?1 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3";
+      ? "SELECT * FROM products WHERE active = 1 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2"
+      : "SELECT * FROM products ORDER BY created_at DESC LIMIT ?1 OFFSET ?2";
 
     const { results } = await this.db
       .prepare(query)
-      .bind(this.tenantId, limit, offset)
+      .bind(limit, offset)
       .all<ProductRow>();
 
     return (results ?? []).map(rowToProduct);
@@ -167,8 +154,8 @@ export class D1Database implements Database {
 
   async getProduct(id: string): Promise<Product | null> {
     const row = await this.db
-      .prepare("SELECT * FROM products WHERE id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("SELECT * FROM products WHERE id = ?1")
+      .bind(id)
       .first<ProductRow>();
 
     return row ? rowToProduct(row) : null;
@@ -183,7 +170,6 @@ export class D1Database implements Database {
 
     const product: Product = {
       id,
-      tenant_id: this.tenantId,
       name: input.name,
       description: input.description ?? "",
       price: input.price,
@@ -201,13 +187,12 @@ export class D1Database implements Database {
     await this.db
       .prepare(
         `INSERT INTO products
-          (id, tenant_id, name, description, price, currency, images, metadata, stock, active,
+          (id, name, description, price, currency, images, metadata, stock, active,
            stripe_product_id, stripe_price_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
       )
       .bind(
         product.id,
-        product.tenant_id,
         product.name,
         product.description,
         product.price,
@@ -247,7 +232,7 @@ export class D1Database implements Database {
         `UPDATE products SET
            name = ?1, description = ?2, price = ?3, currency = ?4,
            images = ?5, metadata = ?6, stock = ?7, active = ?8, updated_at = ?9
-         WHERE id = ?10 AND tenant_id = ?11`
+         WHERE id = ?10`
       )
       .bind(
         updated.name,
@@ -259,8 +244,7 @@ export class D1Database implements Database {
         updated.stock,
         updated.active ? 1 : 0,
         updated.updated_at,
-        id,
-        this.tenantId
+        id
       )
       .run();
 
@@ -269,8 +253,8 @@ export class D1Database implements Database {
 
   async deleteProduct(id: string): Promise<boolean> {
     const { meta } = await this.db
-      .prepare("DELETE FROM products WHERE id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("DELETE FROM products WHERE id = ?1")
+      .bind(id)
       .run();
     return (meta.changes ?? 0) > 0;
   }
@@ -282,9 +266,9 @@ export class D1Database implements Database {
   ): Promise<void> {
     await this.db
       .prepare(
-        "UPDATE products SET stripe_product_id = ?1, stripe_price_id = ?2, updated_at = ?3 WHERE id = ?4 AND tenant_id = ?5"
+        "UPDATE products SET stripe_product_id = ?1, stripe_price_id = ?2, updated_at = ?3 WHERE id = ?4"
       )
-      .bind(stripeProductId, stripePriceId, new Date().toISOString(), id, this.tenantId)
+      .bind(stripeProductId, stripePriceId, new Date().toISOString(), id)
       .run();
   }
 
@@ -297,7 +281,7 @@ export class D1Database implements Database {
     await this.db
       .prepare(
         `INSERT INTO orders
-           (id, tenant_id, stripe_session_id, stripe_payment_intent_id, status, fulfillment_status,
+           (id, stripe_session_id, stripe_payment_intent_id, status, fulfillment_status,
             customer_email, customer_name,
             shipping_name, shipping_address_line1, shipping_address_line2,
             shipping_city, shipping_state, shipping_postal_code, shipping_country,
@@ -307,12 +291,11 @@ export class D1Database implements Database {
             discount_id, discount_code, discount_amount,
             metadata, notes, created_at, updated_at)
          VALUES
-           (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-            ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)`
+           (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
+            ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)`
       )
       .bind(
         id,
-        this.tenantId,
         input.stripe_session_id ?? null,
         input.stripe_payment_intent_id ?? null,
         input.status ?? "pending",
@@ -349,17 +332,16 @@ export class D1Database implements Database {
       const itemId = randomUUID();
       await this.db
         .prepare(
-          `INSERT INTO order_items (id, tenant_id, order_id, product_id, product_name, price, quantity, currency)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+          `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, currency)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
         )
-        .bind(itemId, this.tenantId, id, item.product_id, item.product_name, item.price, item.quantity, item.currency)
+        .bind(itemId, id, item.product_id, item.product_name, item.price, item.quantity, item.currency)
         .run();
-      itemRows.push({ id: itemId, tenant_id: this.tenantId, order_id: id, ...item });
+      itemRows.push({ id: itemId, order_id: id, ...item });
     }
 
     const orderRow: OrderRow = {
       id,
-      tenant_id: this.tenantId,
       stripe_session_id: input.stripe_session_id ?? null,
       stripe_payment_intent_id: input.stripe_payment_intent_id ?? null,
       status: input.status ?? "pending",
@@ -394,15 +376,15 @@ export class D1Database implements Database {
 
   async getOrder(id: string): Promise<Order | null> {
     const row = await this.db
-      .prepare("SELECT * FROM orders WHERE id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("SELECT * FROM orders WHERE id = ?1")
+      .bind(id)
       .first<OrderRow>();
 
     if (!row) return null;
 
     const { results: items } = await this.db
-      .prepare("SELECT * FROM order_items WHERE order_id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("SELECT * FROM order_items WHERE order_id = ?1")
+      .bind(id)
       .all<OrderItemRow>();
 
     return rowToOrder(row, items ?? []);
@@ -410,15 +392,15 @@ export class D1Database implements Database {
 
   async getOrderByStripeSession(sessionId: string): Promise<Order | null> {
     const row = await this.db
-      .prepare("SELECT * FROM orders WHERE stripe_session_id = ?1 AND tenant_id = ?2")
-      .bind(sessionId, this.tenantId)
+      .prepare("SELECT * FROM orders WHERE stripe_session_id = ?1")
+      .bind(sessionId)
       .first<OrderRow>();
 
     if (!row) return null;
 
     const { results: items } = await this.db
-      .prepare("SELECT * FROM order_items WHERE order_id = ?1 AND tenant_id = ?2")
-      .bind(row.id, this.tenantId)
+      .prepare("SELECT * FROM order_items WHERE order_id = ?1")
+      .bind(row.id)
       .all<OrderItemRow>();
 
     return rowToOrder(row, items ?? []);
@@ -426,15 +408,15 @@ export class D1Database implements Database {
 
   async getOrderByStripeIntent(intentId: string): Promise<Order | null> {
     const row = await this.db
-      .prepare("SELECT * FROM orders WHERE stripe_payment_intent_id = ?1 AND tenant_id = ?2")
-      .bind(intentId, this.tenantId)
+      .prepare("SELECT * FROM orders WHERE stripe_payment_intent_id = ?1")
+      .bind(intentId)
       .first<OrderRow>();
 
     if (!row) return null;
 
     const { results: items } = await this.db
-      .prepare("SELECT * FROM order_items WHERE order_id = ?1 AND tenant_id = ?2")
-      .bind(row.id, this.tenantId)
+      .prepare("SELECT * FROM order_items WHERE order_id = ?1")
+      .bind(row.id)
       .all<OrderItemRow>();
 
     return rowToOrder(row, items ?? []);
@@ -443,9 +425,9 @@ export class D1Database implements Database {
   async getOrders(options: OrderQueryOptions = {}): Promise<Order[]> {
     const { limit = 50, offset = 0, status, fulfillment_status } = options;
 
-    let query = "SELECT * FROM orders WHERE tenant_id = ?1";
+    let query = "SELECT * FROM orders";
     const conditions: string[] = [];
-    const bindings: unknown[] = [this.tenantId];
+    const bindings: unknown[] = [];
 
     if (status) {
       conditions.push(`status = ?${bindings.length + 1}`);
@@ -457,7 +439,7 @@ export class D1Database implements Database {
     }
 
     if (conditions.length > 0) {
-      query += " AND " + conditions.join(" AND ");
+      query += " WHERE " + conditions.join(" AND ");
     }
 
     query += ` ORDER BY created_at DESC LIMIT ?${bindings.length + 1} OFFSET ?${bindings.length + 2}`;
@@ -472,12 +454,10 @@ export class D1Database implements Database {
 
     // Fetch all items for these orders in one query.
     const orderIds = orderRows.map((o) => o.id);
-    const placeholders = orderIds.map((_, i) => `?${i + 2}`).join(",");
+    const placeholders = orderIds.map((_, i) => `?${i + 1}`).join(",");
     const { results: itemRows } = await this.db
-      .prepare(
-        `SELECT * FROM order_items WHERE tenant_id = ?1 AND order_id IN (${placeholders})`
-      )
-      .bind(this.tenantId, ...orderIds)
+      .prepare(`SELECT * FROM order_items WHERE order_id IN (${placeholders})`)
+      .bind(...orderIds)
       .all<OrderItemRow>();
 
     // Group items by order_id.
@@ -508,7 +488,7 @@ export class D1Database implements Database {
            shipping_carrier = ?13, shipping_service = ?14,
            tracking_number = ?15, label_url = ?16,
            notes = ?17, metadata = ?18, updated_at = ?19
-         WHERE id = ?20 AND tenant_id = ?21`
+         WHERE id = ?20`
       )
       .bind(
         input.status ?? existing.status,
@@ -530,8 +510,7 @@ export class D1Database implements Database {
         input.notes !== undefined ? input.notes : existing.notes,
         JSON.stringify(input.metadata ?? existing.metadata),
         now,
-        id,
-        this.tenantId
+        id
       )
       .run();
 
@@ -547,14 +526,13 @@ export class D1Database implements Database {
     await this.db
       .prepare(
         `INSERT INTO discounts
-           (id, tenant_id, code, name, description, type, value, applies_to, product_ids,
+           (id, code, name, description, type, value, applies_to, product_ids,
             minimum_order_amount, usage_limit, usage_count, active,
             starts_at, ends_at, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
       )
       .bind(
         id,
-        this.tenantId,
         input.code?.toUpperCase() ?? null,
         input.name,
         input.description ?? "",
@@ -578,16 +556,16 @@ export class D1Database implements Database {
 
   async getDiscount(id: string): Promise<Discount | null> {
     const row = await this.db
-      .prepare("SELECT * FROM discounts WHERE id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("SELECT * FROM discounts WHERE id = ?1")
+      .bind(id)
       .first<DiscountRow>();
     return row ? rowToDiscount(row) : null;
   }
 
   async getDiscountByCode(code: string): Promise<Discount | null> {
     const row = await this.db
-      .prepare("SELECT * FROM discounts WHERE code = ?1 AND tenant_id = ?2")
-      .bind(code.toUpperCase(), this.tenantId)
+      .prepare("SELECT * FROM discounts WHERE code = ?1")
+      .bind(code.toUpperCase())
       .first<DiscountRow>();
     return row ? rowToDiscount(row) : null;
   }
@@ -595,11 +573,11 @@ export class D1Database implements Database {
   async getDiscounts(options: DiscountQueryOptions = {}): Promise<Discount[]> {
     const { limit = 50, offset = 0, active } = options;
 
-    let query = "SELECT * FROM discounts WHERE tenant_id = ?1";
-    const bindings: unknown[] = [this.tenantId];
+    let query = "SELECT * FROM discounts";
+    const bindings: unknown[] = [];
 
     if (active !== undefined) {
-      query += ` AND active = ?${bindings.length + 1}`;
+      query += ` WHERE active = ?${bindings.length + 1}`;
       bindings.push(active ? 1 : 0);
     }
 
@@ -619,13 +597,12 @@ export class D1Database implements Database {
     const { results } = await this.db
       .prepare(
         `SELECT * FROM discounts
-         WHERE tenant_id = ?1
-           AND active = 1
+         WHERE active = 1
            AND code IS NULL
-           AND (starts_at IS NULL OR starts_at <= ?2)
-           AND (ends_at IS NULL OR ends_at > ?2)`
+           AND (starts_at IS NULL OR starts_at <= ?1)
+           AND (ends_at IS NULL OR ends_at > ?1)`
       )
-      .bind(this.tenantId, now)
+      .bind(now)
       .all<DiscountRow>();
     return (results ?? []).map(rowToDiscount);
   }
@@ -642,7 +619,7 @@ export class D1Database implements Database {
            applies_to = ?5, product_ids = ?6,
            minimum_order_amount = ?7, usage_limit = ?8,
            active = ?9, starts_at = ?10, ends_at = ?11, updated_at = ?12
-         WHERE id = ?13 AND tenant_id = ?14`
+         WHERE id = ?13`
       )
       .bind(
         input.name ?? existing.name,
@@ -657,8 +634,7 @@ export class D1Database implements Database {
         input.starts_at !== undefined ? input.starts_at : existing.starts_at,
         input.ends_at !== undefined ? input.ends_at : existing.ends_at,
         now,
-        id,
-        this.tenantId
+        id
       )
       .run();
 
@@ -667,18 +643,16 @@ export class D1Database implements Database {
 
   async deleteDiscount(id: string): Promise<boolean> {
     const { meta } = await this.db
-      .prepare("DELETE FROM discounts WHERE id = ?1 AND tenant_id = ?2")
-      .bind(id, this.tenantId)
+      .prepare("DELETE FROM discounts WHERE id = ?1")
+      .bind(id)
       .run();
     return (meta.changes ?? 0) > 0;
   }
 
   async incrementDiscountUsage(id: string): Promise<void> {
     await this.db
-      .prepare(
-        "UPDATE discounts SET usage_count = usage_count + 1, updated_at = ?1 WHERE id = ?2 AND tenant_id = ?3"
-      )
-      .bind(new Date().toISOString(), id, this.tenantId)
+      .prepare("UPDATE discounts SET usage_count = usage_count + 1, updated_at = ?1 WHERE id = ?2")
+      .bind(new Date().toISOString(), id)
       .run();
   }
 }

@@ -197,7 +197,7 @@ async function main() {
   if (useD1) {
     toml = setTomlVar(toml, "DB_ADAPTER", "d1");
 
-    const dbName = await ask("D1 database name", "upcart-db");
+    const dbName = await ask("D1 database name", "ecommaxxing-db");
     toml = toml.replace(/database_name\s*=\s*"[^"]*"/, `database_name = "${dbName}"`);
 
     info(`Creating D1 database "${dbName}"...`);
@@ -327,7 +327,7 @@ async function main() {
 
   // ── Run D1 migrations ─────────────────────────────────────────────────────
   if (useD1) {
-    const dbName = toml.match(/database_name\s*=\s*"([^"]+)"/)?.[1] ?? "upcart-db";
+    const dbName = toml.match(/database_name\s*=\s*"([^"]+)"/)?.[1] ?? "ecommaxxing-db";
     info("Running D1 migrations...");
     const migResult = run(`wrangler d1 migrations apply ${dbName} 2>&1`);
     if (migResult !== null) {

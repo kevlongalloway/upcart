@@ -3,15 +3,16 @@ import { verify } from "hono/jwt";
 import type { Bindings } from "../types.js";
 
 /**
- * Admin JWT authentication middleware.
+ * Merchant JWT authentication middleware.
  *
  * Expects: Authorization: Bearer <token>
+ * Token must have type: "merchant" in payload (issued by /auth/signup or /auth/login).
  *
- * Token is obtained by calling POST /admin/login with ADMIN_USERNAME + ADMIN_PASSWORD.
- * Token is signed with JWT_SECRET (set via `wrangler secret put JWT_SECRET`).
+ * On success, sets c.set("merchantId", <id>) for downstream handlers.
  */
-export const adminAuthMiddleware = (): MiddlewareHandler<{
+export const merchantAuthMiddleware = (): MiddlewareHandler<{
   Bindings: Bindings;
+  Variables: { merchantId: string; merchantEmail: string };
 }> => {
   return async (c, next) => {
     if (!c.env.JWT_SECRET) {
@@ -32,10 +33,22 @@ export const adminAuthMiddleware = (): MiddlewareHandler<{
     }
 
     try {
-      await verify(token.trim(), c.env.JWT_SECRET, "HS256");
+      const payload = await verify(token.trim(), c.env.JWT_SECRET, "HS256") as {
+        sub: string;
+        email: string;
+        type?: string;
+      };
+
+      if (payload.type !== "merchant") {
+        return c.json({ ok: false, error: "Unauthorized: not a merchant token" }, 401);
+      }
+
+      c.set("merchantId", payload.sub);
+      c.set("merchantEmail", payload.email);
     } catch {
       return c.json({ ok: false, error: "Unauthorized: invalid or expired token" }, 401);
     }
+
     await next();
   };
 };

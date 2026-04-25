@@ -3,7 +3,7 @@
 // ─── API ─────────────────────────────────────────────────────────────────────
 // Set via window.BST_API_BASE (injected by config.js, generated at build time).
 // On Render, configure the API_BASE_URL environment variable in the dashboard.
-const API_BASE = (typeof window !== 'undefined' && window.BST_API_BASE) || '';
+const API_BASE = 'https://ecommaxxing.kevlongalloway1999m.workers.dev'
 
 // ─── CART STORAGE ─────────────────────────────────────────────────────────────
 const CART_KEY = 'bst_cart';
