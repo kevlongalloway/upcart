@@ -1,7 +1,25 @@
 import { randomUUID } from "crypto";
-import type { Tenant, TenantStatus, TenantPlan } from "./types.js";
+import type { Tenant, TenantStatus, TenantPlan, VerificationToken } from "./types.js";
 
-// ─── Row shape from D1 ────────────────────────────────────────────────────────
+// ─── Row shapes from D1 ───────────────────────────────────────────────────────
+
+type VerificationTokenRow = {
+  id: string;
+  identifier: string;
+  channel: string;
+  code: string;
+  expires_at: string;
+  verified_at: string | null;
+  attempt_count: number;
+  created_at: string;
+};
+
+function rowToVerificationToken(row: VerificationTokenRow): VerificationToken {
+  return {
+    ...row,
+    channel: row.channel as "email" | "sms",
+  };
+}
 
 type TenantRow = {
   id: string;
@@ -19,6 +37,9 @@ type TenantRow = {
   cf_custom_domain_id: string | null;
   cf_route_id: string | null;
   payment_method_id: string | null;
+  email_verified_at: string | null;
+  phone_number: string | null;
+  phone_verified_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: number;
   store_url: string | null;
@@ -49,6 +70,7 @@ export class TenantDB {
     username: string;
     plan?: TenantPlan;
     payment_method_id: string;
+    email_verified_at?: string;
   }): Promise<Tenant> {
     const id  = randomUUID();
     const now = new Date().toISOString();
@@ -56,8 +78,9 @@ export class TenantDB {
     await this.db
       .prepare(
         `INSERT INTO tenants
-           (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data, status, payment_method_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', NULL, 'provisioning', ?7, ?8, ?8)`
+           (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data,
+            status, payment_method_id, email_verified_at, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', NULL, 'provisioning', ?7, ?8, ?9, ?9)`
       )
       .bind(
         id,
@@ -67,6 +90,7 @@ export class TenantDB {
         input.email.toLowerCase().trim(),
         input.username,
         input.payment_method_id,
+        input.email_verified_at ?? null,
         now
       )
       .run();
@@ -123,6 +147,72 @@ export class TenantDB {
       )
       .bind(status, errorMessage ?? null, new Date().toISOString(), id)
       .run();
+  }
+
+  // ─── Verification token methods ─────────────────────────────────────────────
+
+  async createVerificationToken(input: {
+    identifier: string;
+    channel: "email" | "sms";
+    code: string;
+    expiresAt: string;
+  }): Promise<string> {
+    const id  = randomUUID();
+    const now = new Date().toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO verification_tokens (id, identifier, channel, code, expires_at, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      )
+      .bind(id, input.identifier.toLowerCase().trim(), input.channel, input.code, input.expiresAt, now)
+      .run();
+    return id;
+  }
+
+  async getVerificationToken(id: string): Promise<VerificationToken | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM verification_tokens WHERE id = ?1")
+      .bind(id)
+      .first<VerificationTokenRow>();
+    return row ? rowToVerificationToken(row) : null;
+  }
+
+  /** Count how many OTP sends have occurred for this identifier within the window. */
+  async countRecentSends(
+    identifier: string,
+    channel: string,
+    windowMs: number
+  ): Promise<number> {
+    const since = new Date(Date.now() - windowMs).toISOString();
+    const row = await this.db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM verification_tokens
+         WHERE identifier = ?1 AND channel = ?2 AND created_at > ?3`
+      )
+      .bind(identifier.toLowerCase().trim(), channel, since)
+      .first<{ total: number }>();
+    return row?.total ?? 0;
+  }
+
+  async markVerified(id: string): Promise<void> {
+    await this.db
+      .prepare("UPDATE verification_tokens SET verified_at = ?1 WHERE id = ?2")
+      .bind(new Date().toISOString(), id)
+      .run();
+  }
+
+  async incrementAttempts(id: string): Promise<number> {
+    await this.db
+      .prepare(
+        "UPDATE verification_tokens SET attempt_count = attempt_count + 1 WHERE id = ?1"
+      )
+      .bind(id)
+      .run();
+    const row = await this.db
+      .prepare("SELECT attempt_count FROM verification_tokens WHERE id = ?1")
+      .bind(id)
+      .first<{ attempt_count: number }>();
+    return row?.attempt_count ?? 1;
   }
 
   /**

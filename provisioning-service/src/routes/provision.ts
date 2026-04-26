@@ -6,6 +6,7 @@ import { ok, err } from "../types.js";
 import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
 import { hashPassword } from "../password.js";
+import { generateOtpCode, sendEmailOtp, sendSmsOtp } from "../otp.js";
 
 // ─── Stripe helpers (raw fetch — no SDK needed in CF Workers) ────────────────
 
@@ -165,6 +166,16 @@ const verifyPaymentSchema = z.object({
   email:    z.string().email(),
 });
 
+const sendOtpSchema = z.object({
+  identifier: z.string().min(1).max(320),
+  channel:    z.enum(["email", "sms"]),
+});
+
+const verifyOtpSchema = z.object({
+  token_id: z.string().uuid(),
+  code:     z.string().length(6).regex(/^\d{6}$/),
+});
+
 const provisionSchema = z.object({
   store: z.object({
     name:        z.string().min(1).max(100),
@@ -183,6 +194,9 @@ const provisionSchema = z.object({
   payment_intent_id: z.string().min(1),
   // PaymentMethod to store on the tenant for future subscription charges.
   payment_method_id: z.string().min(1),
+  // Token ID returned by POST /provision/verify-otp. Must reference a verified,
+  // non-expired token whose identifier matches admin.email.
+  verification_token_id: z.string().uuid(),
   // No longer required — the platform manages payments via Stripe Connect.
   stripe_publishable_key: z.string().optional().default(""),
 });
@@ -213,6 +227,108 @@ provisionRouter.get("/check-subdomain", async (c) => {
   const tenantDB  = new TenantDB(c.env.DB);
   const available = await tenantDB.isSubdomainAvailable(name);
   return c.json(ok({ available, reason: available ? null : "taken" }));
+});
+
+/**
+ * POST /provision/send-otp
+ * Generates a 6-digit OTP and delivers it to the given identifier via email
+ * (Resend) or SMS (Twilio). Rate-limited to 4 sends per identifier per
+ * 10-minute window (1 original + 3 resends).
+ *
+ * Body: { identifier: string, channel: "email" | "sms" }
+ * Returns: { token_id: string, expires_in: 600 }
+ */
+provisionRouter.post("/send-otp", zValidator("json", sendOtpSchema), async (c) => {
+  const { identifier, channel } = c.req.valid("json");
+  const normalised = identifier.toLowerCase().trim();
+  const tenantDB   = new TenantDB(c.env.DB);
+
+  // Rate limit: max 4 sends per identifier per 10 minutes (1 original + 3 resends)
+  const recentSends = await tenantDB.countRecentSends(normalised, channel, 10 * 60 * 1000);
+  if (recentSends >= 4) {
+    return c.json(
+      err("Too many verification attempts. Please wait 10 minutes before requesting another code."),
+      429
+    );
+  }
+
+  const code      = generateOtpCode();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  try {
+    if (channel === "email") {
+      if (!c.env.RESEND_API_KEY) {
+        return c.json(err("Email verification is not configured."), 503);
+      }
+      await sendEmailOtp(c.env.RESEND_API_KEY, normalised, code);
+    } else {
+      if (!c.env.TWILIO_ACCOUNT_SID || !c.env.TWILIO_AUTH_TOKEN || !c.env.TWILIO_FROM_NUMBER) {
+        return c.json(err("SMS verification is not configured."), 503);
+      }
+      await sendSmsOtp(
+        c.env.TWILIO_ACCOUNT_SID,
+        c.env.TWILIO_AUTH_TOKEN,
+        c.env.TWILIO_FROM_NUMBER,
+        normalised,
+        code
+      );
+    }
+  } catch (e) {
+    console.error("Failed to send OTP:", e);
+    return c.json(err("Failed to send verification code. Please try again."), 502);
+  }
+
+  const tokenId = await tenantDB.createVerificationToken({
+    identifier: normalised,
+    channel,
+    code,
+    expiresAt,
+  });
+
+  return c.json(ok({ token_id: tokenId, expires_in: 600 }));
+});
+
+/**
+ * POST /provision/verify-otp
+ * Validates a 6-digit OTP code against a previously issued token. On success
+ * marks the token as verified and returns the same token_id for the client to
+ * pass to POST /provision.
+ *
+ * Body: { token_id: string, code: string }
+ * Returns: { verified: true, token_id: string }
+ */
+provisionRouter.post("/verify-otp", zValidator("json", verifyOtpSchema), async (c) => {
+  const { token_id, code } = c.req.valid("json");
+  const tenantDB = new TenantDB(c.env.DB);
+
+  const token = await tenantDB.getVerificationToken(token_id);
+
+  if (!token) {
+    return c.json(err("Invalid verification token."), 400);
+  }
+  if (token.verified_at) {
+    return c.json(err("This code has already been used."), 400);
+  }
+  if (new Date(token.expires_at) < new Date()) {
+    return c.json(err("This code has expired. Please request a new one."), 400);
+  }
+  if (token.attempt_count >= 5) {
+    return c.json(
+      err("Too many incorrect attempts. Please request a new verification code."),
+      429
+    );
+  }
+  if (token.code !== code) {
+    const attempts = await tenantDB.incrementAttempts(token_id);
+    const remaining = Math.max(0, 5 - attempts);
+    return c.json(
+      err(`Incorrect code. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.`),
+      400
+    );
+  }
+
+  await tenantDB.markVerified(token_id);
+  return c.json(ok({ verified: true, token_id }));
 });
 
 /**
@@ -269,8 +385,24 @@ provisionRouter.post(
  * No provisioning happens if the card has not been successfully authorized.
  */
 provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
-  const { store, admin, stripe_publishable_key, payment_intent_id, payment_method_id } = c.req.valid("json");
+  const { store, admin, stripe_publishable_key, payment_intent_id, payment_method_id, verification_token_id } = c.req.valid("json");
   const subdomain = store.subdomain.toLowerCase();
+
+  // ── Validate email verification token ────────────────────────────────────
+  {
+    const tenantDB = new TenantDB(c.env.DB);
+    const vToken   = await tenantDB.getVerificationToken(verification_token_id);
+
+    if (!vToken || !vToken.verified_at) {
+      return c.json(err("Email verification is required before creating your store."), 400);
+    }
+    if (vToken.identifier !== admin.email.toLowerCase().trim()) {
+      return c.json(err("Verification token does not match the provided email address."), 400);
+    }
+    if (new Date(vToken.expires_at) < new Date()) {
+      return c.json(err("Your email verification has expired. Please verify your email again."), 400);
+    }
+  }
 
   // ── Validate payment intent ───────────────────────────────────────────────
   if (!c.env.STRIPE_SECRET_KEY) {
@@ -317,6 +449,7 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
     email:             admin.email,
     username:          admin.username,
     payment_method_id,
+    email_verified_at: new Date().toISOString(),
   });
 
   // ── Kick off async provisioning ───────────────────────────────────────────

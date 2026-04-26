@@ -32,6 +32,19 @@ export type Bindings = {
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;
 
+  // ── Identity verification credentials (set via `wrangler secret put`) ──
+  // Resend — used to send email OTP codes during signup verification.
+  // Get your API key at https://resend.com/api-keys
+  RESEND_API_KEY: string;
+
+  // Twilio — used to send SMS OTP codes during signup verification.
+  // Find these at https://console.twilio.com → Account Info
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  // The Twilio phone number (E.164 format, e.g. "+15551234567") or
+  // Messaging Service SID to send from.
+  TWILIO_FROM_NUMBER: string;
+
   // ── Config vars (set in wrangler.toml [vars]) ──
   BASE_DOMAIN: string;           // "upcart.online"
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
@@ -91,6 +104,11 @@ export type Tenant = {
   // Payment method collected during signup ($1 auth flow)
   payment_method_id: string | null;
 
+  // Identity verification timestamps (set when OTP is confirmed pre-provisioning)
+  email_verified_at: string | null;
+  phone_number: string | null;
+  phone_verified_at: string | null;
+
   // Stripe Connect
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
@@ -104,6 +122,19 @@ export type Tenant = {
 
   created_at: string;
   updated_at: string;
+};
+
+// ─── Verification token ───────────────────────────────────────────────────────
+
+export type VerificationToken = {
+  id: string;
+  identifier: string;        // email address or E.164 phone number
+  channel: "email" | "sms";
+  code: string;
+  expires_at: string;
+  verified_at: string | null;
+  attempt_count: number;
+  created_at: string;
 };
 
 // ─── Provision request ────────────────────────────────────────────────────────
@@ -131,6 +162,9 @@ export type ProvisionRequest = {
   // Stripe PaymentMethod attached to the PaymentIntent; stored on the tenant
   // record for future subscription charges.
   payment_method_id: string;
+  // Token ID returned by POST /provision/verify-otp. Must reference a verified,
+  // non-expired token whose identifier matches admin.email.
+  verification_token_id: string;
 };
 
 // ─── Cloudflare API response shapes ──────────────────────────────────────────
