@@ -5,6 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Upcart — Your Store, Built to Scale</title>
+<!-- Set at deploy time by your CI/CD pipeline: -->
+<!-- <meta name="upcart-stripe-pk" content="pk_live_..."> -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700;800;900&display=swap" rel="stylesheet">
@@ -1760,13 +1762,22 @@ nav { padding: 0 20px; }
 
       <!-- ══ Step 3: Payments ══ -->
       <div class="step-panel" id="panel-3">
-        <div class="step-title">Payments</div>
+        <div class="step-title">Verify payment method</div>
         <div class="step-subtitle">
-          We handle all payment processing. After your store is live, you'll connect your
-          bank account via Stripe to receive payouts.
+          We place a $1 authorization hold to confirm your card is valid — it's
+          released immediately once your store is live. No charge will appear.
         </div>
         <form id="form-3" novalidate>
-          <div class="mb-1">
+          <!-- Card input mounted by Stripe.js -->
+          <div class="mb-3">
+            <label class="form-label" style="font-size:0.82rem">Card details</label>
+            <div id="card-element"
+                 style="background:var(--bg-base);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;transition:border-color 0.2s">
+            </div>
+            <div id="card-errors" class="mt-2" style="font-size:0.78rem;color:#f87171;min-height:1.2em"></div>
+          </div>
+
+          <div class="mb-3">
             <div class="card" style="background:var(--bg-base);border:1px solid var(--border-default)">
               <div class="card-body py-3 px-3">
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -1774,20 +1785,21 @@ nav { padding: 0 20px; }
                   <span class="fw-semibold" style="font-size:0.85rem">How it works</span>
                 </div>
                 <ul class="mb-0 ps-3" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+                  <li>A $1 hold is placed to verify your card — released right away</li>
                   <li>No API keys needed — we manage payments for you</li>
                   <li>Customers pay securely via Stripe checkout</li>
-                  <li>Funds are held until the order is marked as delivered</li>
                   <li>Withdraw to your bank anytime, or set up auto-payouts</li>
                 </ul>
               </div>
             </div>
           </div>
+
           <div class="d-flex justify-content-between mt-4">
             <button type="button" class="btn btn-secondary px-3" id="back-to-2">
               <i class="bi bi-arrow-left me-1"></i>Back
             </button>
             <button type="submit" class="btn btn-primary px-4" id="finish-btn">
-              Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>
+              Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>
             </button>
           </div>
         </form>
@@ -1942,6 +1954,7 @@ nav { padding: 0 20px; }
   </div>
 </div>
 
+<script src="https://js.stripe.com/v3/"></script>
 <script>
   // Nav scroll
   const nav = document.getElementById('main-nav');
@@ -1996,7 +2009,53 @@ nav { padding: 0 20px; }
     subdomain: '',
     subdomainAvailable: false,
     theme: 'mono',
+    payment_intent_id: '',
+    payment_method_id: '',
   };
+
+  // ── Stripe Elements (card for $1 auth) ────────────────────────────────────
+  let stripeInstance = null;
+  let cardElement    = null;
+
+  async function initStripeElements() {
+    if (stripeInstance) return; // already initialized
+
+    // STRIPE_PUBLISHABLE_KEY is injected by the provisioning service meta tag,
+    // or we fall back to checking a data attribute on the wizard container.
+    const pkMeta = document.querySelector('meta[name="upcart-stripe-pk"]');
+    const pk     = pkMeta?.content || '';
+    if (!pk) {
+      console.warn('Stripe publishable key not found — card element will not mount.');
+      return;
+    }
+
+    stripeInstance = Stripe(pk);
+    const elements = stripeInstance.elements();
+    cardElement = elements.create('card', {
+      style: {
+        base: {
+          color:            '#ffffff',
+          fontFamily:       'Inter, Helvetica, Arial, sans-serif',
+          fontSize:         '14px',
+          fontWeight:       '400',
+          '::placeholder':  { color: '#71717A' },
+          iconColor:        '#A1A1AA',
+        },
+        invalid: { color: '#f87171', iconColor: '#f87171' },
+      },
+    });
+    cardElement.mount('#card-element');
+    cardElement.on('change', ({ error }) => {
+      const el = document.getElementById('card-errors');
+      el.textContent = error ? error.message : '';
+    });
+    cardElement.on('focus', () => {
+      document.getElementById('card-element').style.borderColor = '#C9A227';
+    });
+    cardElement.on('blur', () => {
+      document.getElementById('card-element').style.borderColor = 'var(--border-default)';
+    });
+  }
 
   document.getElementById('theme-grid').addEventListener('click', e => {
     const card = e.target.closest('.theme-card');
@@ -2185,11 +2244,69 @@ nav { padding: 0 20px; }
 
     wizardState.admin = { email, username, password };
     goToStep(3);
+    // Initialize the Stripe card element now that we know the store currency.
+    initStripeElements();
   });
 
   document.getElementById('form-3').addEventListener('submit', async e => {
     e.preventDefault();
     wizardState.stripe_publishable_key = '';
+
+    const btn = document.getElementById('finish-btn');
+    const cardErrEl = document.getElementById('card-errors');
+
+    if (!stripeInstance || !cardElement) {
+      showError('Payment processing is not available. Please refresh and try again.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying card…';
+    cardErrEl.textContent = '';
+
+    try {
+      // 1. Ask the provisioning service to create a $1 manual-capture PaymentIntent.
+      const piRes = await fetch(`${PROVISION_URL}/provision/verify-payment`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          currency: wizardState.store.currency || 'usd',
+          email:    wizardState.admin.email,
+        }),
+      });
+      const piBody = await piRes.json();
+      if (!piRes.ok || !piBody.ok) throw new Error(piBody.error || 'Could not initialize payment verification.');
+
+      const { client_secret, payment_intent_id } = piBody.data;
+
+      // 2. Confirm the PaymentIntent with the card (authorize-only, no capture).
+      const { error, paymentIntent } = await stripeInstance.confirmCardPayment(client_secret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: { email: wizardState.admin.email },
+        },
+      });
+
+      if (error) {
+        cardErrEl.textContent = error.message;
+        btn.disabled = false;
+        btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
+        return;
+      }
+
+      // PaymentIntent is now `requires_capture` — card authorized, hold placed.
+      wizardState.payment_intent_id = paymentIntent.id;
+      wizardState.payment_method_id = (typeof paymentIntent.payment_method === 'string')
+        ? paymentIntent.payment_method
+        : (paymentIntent.payment_method?.id ?? '');
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
+      showError(err.message);
+      return;
+    }
+
+    // 3. Proceed to provision now that the card is verified.
     await submitProvision();
   });
 
@@ -2258,6 +2375,8 @@ nav { padding: 0 20px; }
           store:                  wizardState.store,
           admin:                  wizardState.admin,
           stripe_publishable_key: wizardState.stripe_publishable_key,
+          payment_intent_id:      wizardState.payment_intent_id,
+          payment_method_id:      wizardState.payment_method_id,
         }),
       });
       const body = await res.json();
@@ -2267,7 +2386,7 @@ nav { padding: 0 20px; }
     } catch (err) {
       goToStep(3);
       btn.disabled = false;
-      btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
+      btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
       showError(err.message);
       return;
     }
