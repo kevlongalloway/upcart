@@ -20,6 +20,11 @@ database_id   = "b748b0fe-5002-477f-815b-ee1fab4e81a2"
 binding     = "WORKER_BUNDLES"
 bucket_name = "upcart-worker-bundles"
 
+# ─── Scheduled triggers ───────────────────────────────────────────────────────
+# Runs the trial-expiry reminder job and deprovision check daily at 10:00 UTC.
+[triggers]
+crons = ["0 10 * * *"]
+
 # ─── Public vars ──────────────────────────────────────────────────────────────
 [vars]
 # Your root domain. Stores are deployed as <subdomain>.<BASE_DOMAIN>
@@ -50,6 +55,13 @@ CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboar
 # under "Subdomain". If it shows "acmecorp.workers.dev", set this to
 # "acmecorp". Provisioning will throw if this is empty.
 CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
+
+# Stripe Price ID for the platform subscription plan.
+# Create a recurring price in Stripe dashboard → Products → Add product, then
+# paste the price ID here (e.g. "price_1Abc123..."). Used at provisioning time
+# to create each new tenant's 90-day trialing subscription. Leave blank to skip
+# subscription creation at provisioning (it can be set up later).
+STRIPE_PRICE_ID = ""
 
 # ─── Secrets (set via `wrangler secret put` or the Cloudflare dashboard) ─────
 # Navigate to: Workers & Pages → upcart-provisioning → Settings → Variables

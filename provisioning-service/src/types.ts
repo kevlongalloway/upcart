@@ -50,6 +50,10 @@ export type Bindings = {
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
   WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
   CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
+  // Stripe Price ID for the platform subscription plan (e.g. "price_...").
+  // Create a recurring price in your Stripe dashboard and paste the ID here.
+  // Required for subscription creation; set to "" to skip billing at provisioning.
+  STRIPE_PRICE_ID: string;
 
   // The account-level workers.dev subdomain. Required — provision.ts uses
   // `<worker>.<sub>.workers.dev` to reach a newly-provisioned tenant
@@ -73,9 +77,36 @@ export type TenantStatus =
   | "configuring_domain"
   | "finalizing"
   | "active"
+  | "payment_failed"
   | "suspended"
   | "cancelled"
   | "failed";
+
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "payment_failed"
+  | "suspended"
+  | "cancelled";
+
+export type Subscription = {
+  id: string;
+  tenant_id: string;
+  plan: TenantPlan;
+  status: SubscriptionStatus;
+  trial_ends_at: string;
+  current_period_end: string | null;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  payment_failed_at: string | null;
+  payment_failed_count: number;
+  reminder_30d_sent: boolean;
+  reminder_7d_sent: boolean;
+  reminder_1d_sent: boolean;
+  expired_notice_sent: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export type TenantPlan = "starter" | "pro" | "business";
 

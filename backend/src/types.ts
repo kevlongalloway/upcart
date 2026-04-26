@@ -37,6 +37,13 @@ export type Bindings = {
   // the per-Worker (one D1 per tenant) and future shared-DB models.
   TENANT_ID: string;
 
+  // Set to "suspended" by the provisioning service via the Cloudflare Secrets
+  // API when a tenant's subscription enters a delinquent state. The worker
+  // returns a 402 page for all requests when this value is "suspended".
+  // Omitted (undefined) on new workers; treat any value other than "suspended"
+  // as active.
+  TENANT_STATUS: string;
+
   // Store / from-address used when generating shipping labels
   STORE_NAME: string;
   STORE_ADDRESS_LINE1: string;

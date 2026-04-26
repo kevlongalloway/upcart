@@ -789,6 +789,60 @@ async function runProvisioning(
     }
   }
 
+  // ── Step 6 (non-fatal): Create Stripe Customer + Subscription ────────────
+  // Creates a 90-day trialing subscription immediately after the store is
+  // live. Non-fatal: provisioning succeeds even if this step fails, and
+  // the subscription can be created later via a separate admin flow.
+  // Requires STRIPE_PRICE_ID to be configured; skipped if it is absent.
+  if (env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID) {
+    try {
+      const freshTenant = await tenantDB.getTenant(tenantId);
+      if (freshTenant) {
+        const customerParams: Record<string, string> = {
+          email:                freshTenant.email,
+          description:          `Upcart merchant: ${freshTenant.store_name}`,
+          "metadata[tenant_id]": tenantId,
+        };
+        if (freshTenant.payment_method_id) {
+          customerParams["invoice_settings[default_payment_method]"] = freshTenant.payment_method_id;
+        }
+        const customer = await stripePost("/customers", env.STRIPE_SECRET_KEY, customerParams);
+        const customerId = customer.id as string;
+
+        const trialEndUnix = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+        const subParams: Record<string, string> = {
+          customer:         customerId,
+          "items[0][price]": env.STRIPE_PRICE_ID,
+          trial_end:        trialEndUnix.toString(),
+          "metadata[tenant_id]": tenantId,
+        };
+        if (freshTenant.payment_method_id) {
+          subParams["default_payment_method"] = freshTenant.payment_method_id;
+        }
+        const stripeSub = await stripePost("/subscriptions", env.STRIPE_SECRET_KEY, subParams);
+
+        await tenantDB.createSubscription({
+          tenantId,
+          plan:                  "starter",
+          stripeCustomerId:      customerId,
+          stripeSubscriptionId:  stripeSub.id as string,
+          trialEndsAt:           new Date(trialEndUnix * 1000).toISOString(),
+        });
+
+        console.log(`Tenant ${tenantId}: Stripe subscription ${stripeSub.id} created (90-day trial).`);
+      }
+    } catch (e) {
+      console.warn(
+        `Tenant ${tenantId}: failed to create Stripe subscription (store is still live):`,
+        (e as Error).message
+      );
+    }
+  } else if (!env.STRIPE_PRICE_ID) {
+    console.info(
+      `Tenant ${tenantId}: STRIPE_PRICE_ID not set — skipping subscription creation.`
+    );
+  }
+
   console.log(`Tenant ${tenantId} (${hostname}) provisioned successfully.`);
   } catch (e) {
     // A step failed. Best-effort cleanup of anything we already created, then

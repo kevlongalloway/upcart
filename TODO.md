@@ -16,13 +16,13 @@
 - [x] Gate: no provisioning without a valid payment method on file
 
 ### 2. Identity Verification Before Provisioning
-- [ ] Require **at least one** of the following before spinning up Workers, D1, or R2:
+- [x] Require **at least one** of the following before spinning up Workers, D1, or R2:
   - **Email verification** — send OTP/magic link; block provisioning until clicked
   - **Phone (SMS) verification** — send 6-digit OTP via Twilio/Resend; block until confirmed
-- [ ] Store `email_verified_at` and/or `phone_verified_at` on the tenant record
-- [ ] Show clear UI states: "Check your inbox" / "Enter the code we texted you"
-- [ ] Resend flow with rate limiting (max 3 resends per 10 min)
-- [ ] OTPs expire after 10 minutes
+- [x] Store `email_verified_at` and/or `phone_verified_at` on the tenant record
+- [x] Show clear UI states: "Check your inbox" / "Enter the code we texted you"
+- [x] Resend flow with rate limiting (max 3 resends per 10 min)
+- [x] OTPs expire after 10 minutes
 
 ### 3. Untrusted Store / SSL Certificate Issues
 - [ ] **Root cause:** Browsers flag sites as untrusted when the SSL certificate is missing, self-signed, or not yet propagated
@@ -37,30 +37,30 @@
 ## HIGH PRIORITY — Subscription & Billing
 
 ### 4. Tenant Subscription Plans
-- [ ] Define plan tiers (e.g., Free Trial → Starter → Pro) in `provisioning-service/migrations`
-- [ ] Create `subscriptions` table: `tenant_id`, `plan`, `status`, `trial_ends_at`, `current_period_end`, `stripe_subscription_id`, `stripe_customer_id`
-- [ ] Use Stripe Subscriptions API to create a subscription after the $1 auth charge
-- [ ] Attach the saved `payment_method_id` as the default payment method for the Stripe Customer
+- [x] Define plan tiers (e.g., Free Trial → Starter → Pro) in `provisioning-service/migrations`
+- [x] Create `subscriptions` table: `tenant_id`, `plan`, `status`, `trial_ends_at`, `current_period_end`, `stripe_subscription_id`, `stripe_customer_id`
+- [x] Use Stripe Subscriptions API to create a subscription after the $1 auth charge
+- [x] Attach the saved `payment_method_id` as the default payment method for the Stripe Customer
 
 ### 5. Free Trial (3 Months)
-- [ ] Grant every new tenant a 3-month free trial automatically at signup
-- [ ] Set `trial_ends_at = now() + 90 days` on the tenant record
-- [ ] During trial: all features fully available, no charge
-- [ ] After trial: first real charge via Stripe Subscription billing cycle
+- [x] Grant every new tenant a 3-month free trial automatically at signup
+- [x] Set `trial_ends_at = now() + 90 days` on the tenant record
+- [x] During trial: all features fully available, no charge
+- [x] After trial: first real charge via Stripe Subscription billing cycle
 
 ### 6. Trial Expiry Notices
-- [ ] Send email at **30 days before** trial ends: "Your free trial ends in 30 days — add a card to keep your store live"
-- [ ] Send email at **7 days before**: urgency notice
-- [ ] Send email at **1 day before**: final warning
-- [ ] On trial expiration day: send "Your trial has ended" email with upgrade CTA
-- [ ] Schedule via a Cloudflare Cron Trigger on the provisioning service (daily job queries `trial_ends_at`)
+- [x] Send email at **30 days before** trial ends: "Your free trial ends in 30 days — add a card to keep your store live"
+- [x] Send email at **7 days before**: urgency notice
+- [x] Send email at **1 day before**: final warning
+- [x] On trial expiration day: send "Your trial has ended" email with upgrade CTA
+- [x] Schedule via a Cloudflare Cron Trigger on the provisioning service (daily job queries `trial_ends_at`)
 
 ### 7. Unpaid / Delinquent Tenant Handling
-- [ ] On Stripe `invoice.payment_failed` webhook: mark tenant `status = payment_failed`, send failure email
-- [ ] After **3 failed attempts** (Stripe's default retry schedule): set tenant `status = suspended`
-- [ ] Suspended tenants: Worker returns a 402 "Store Suspended" page (not a crash)
-- [ ] Grace period: 7 days from first failure before suspension
-- [ ] On successful payment recovery: set `status = active`, restore Worker immediately
+- [x] On Stripe `invoice.payment_failed` webhook: mark tenant `status = payment_failed`, send failure email
+- [x] After **3 failed attempts** (Stripe's default retry schedule): set tenant `status = suspended`
+- [x] Suspended tenants: Worker returns a 402 "Store Suspended" page (not a crash)
+- [x] Grace period: 7 days from first failure before suspension
+- [x] On successful payment recovery: set `status = active`, restore Worker immediately
 - [ ] Hard delete / deprovision after 30 days of non-payment (with data export warning email)
 
 ---
