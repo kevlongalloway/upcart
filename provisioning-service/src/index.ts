@@ -7,6 +7,8 @@ import { provisionRouter } from "./routes/provision.js";
 import { statusRouter } from "./routes/status.js";
 import { authRouter } from "./routes/auth.js";
 import { debugRouter } from "./routes/debug.js";
+import { webhookRouter } from "./routes/webhooks.js";
+import { handleTrialExpiry } from "./jobs/trial-expiry.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -44,6 +46,9 @@ app.get("/health", (c) =>
 
 // POST /provision           — create a new store
 // GET  /provision/check-subdomain?name=... — availability check
+// POST /provision/send-otp  — send email/SMS OTP
+// POST /provision/verify-otp — verify OTP code
+// POST /provision/verify-payment — create $1 Stripe auth hold
 app.route("/provision", provisionRouter);
 
 // GET /provision/:id/status — poll provisioning progress
@@ -59,6 +64,9 @@ app.route("/auth", authRouter);
 // GET /debug/tenant?email=   — deep-diagnose why a tenant can't log in
 app.route("/debug", debugRouter);
 
+// POST /webhooks/stripe     — Stripe platform subscription lifecycle events
+app.route("/webhooks", webhookRouter);
+
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
 app.notFound((c) =>
@@ -70,4 +78,15 @@ app.onError((e, c) => {
   return c.json({ ok: false, error: "Internal server error" }, 500);
 });
 
-export default app;
+// ─── Exports ───────────────────────────────────────────────────────────────────
+// Export both fetch (HTTP handler) and scheduled (cron handler) so Cloudflare
+// Workers routes the daily cron trigger to handleTrialExpiry.
+
+export default {
+  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+    return app.fetch(request, env, ctx);
+  },
+  async scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(handleTrialExpiry(env));
+  },
+};

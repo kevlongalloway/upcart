@@ -44,3 +44,12 @@ RESEND_API_KEY=re_YOUR_RESEND_API_KEY
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_FROM_NUMBER=+15551234567
+
+# ── Subscription billing ─────────────────────────────────────────────────────
+# Stripe Price ID for the platform's recurring subscription plan.
+# Create a Product + Price in your Stripe dashboard, then paste the ID here
+# (e.g. "price_1Abc123..."). Subscriptions are created with a 90-day trial.
+# Leave blank to skip subscription creation in local dev.
+# Note: STRIPE_PRICE_ID is a public var — set it in wrangler.toml [vars],
+# not as a secret.
+# STRIPE_PRICE_ID=price_YOUR_PRICE_ID
