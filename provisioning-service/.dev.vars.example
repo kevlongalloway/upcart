@@ -30,3 +30,17 @@ CF_ZONE_ID=your-zone-id
 STRIPE_SECRET_KEY=sk_test_YOUR_PLATFORM_TEST_KEY
 STRIPE_WEBHOOK_SECRET=whsec_YOUR_PLATFORM_WEBHOOK_SECRET
 STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_PLATFORM_TEST_KEY
+
+# ── Identity verification ────────────────────────────────────────────────────
+# Resend — sends email OTP codes to users during signup verification.
+# Get your API key at https://resend.com/api-keys
+# Leave blank to disable email OTP in local dev (endpoint returns 503).
+RESEND_API_KEY=re_YOUR_RESEND_API_KEY
+
+# Twilio — sends SMS OTP codes to users during signup verification.
+# Account SID and Auth Token: https://console.twilio.com → Account Info
+# From number must be a verified Twilio number in E.164 format (e.g. +15551234567).
+# Leave all three blank to disable SMS OTP in local dev.
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_FROM_NUMBER=+15551234567

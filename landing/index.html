@@ -1554,6 +1554,8 @@ nav { padding: 0 20px; }
     <div class="step-dot" id="dot-2">2</div>
     <div class="step-line" id="line-2-3"></div>
     <div class="step-dot" id="dot-3">3</div>
+    <div class="step-line" id="line-3-4"></div>
+    <div class="step-dot" id="dot-4">4</div>
   </div>
 
   <!-- Card -->
@@ -1760,14 +1762,47 @@ nav { padding: 0 20px; }
         </form>
       </div>
 
-      <!-- ══ Step 3: Payments ══ -->
+      <!-- ══ Step 3: Verify email ══ -->
       <div class="step-panel" id="panel-3">
+        <div class="step-title">Verify your email</div>
+        <div class="step-subtitle" id="otp-subtitle">We sent a 6-digit code to your email. Enter it below to continue.</div>
+        <form id="form-3" novalidate>
+          <div class="mb-3">
+            <label class="form-label" for="otp-code">Verification code <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="otp-code"
+              placeholder="123456" maxlength="6" inputmode="numeric"
+              autocomplete="one-time-code" required
+              style="font-size:1.5rem;letter-spacing:0.3em;text-align:center">
+            <div class="invalid-feedback" id="otp-feedback">Please enter the 6-digit code we sent you.</div>
+          </div>
+          <div class="mb-3 text-center">
+            <button type="button" class="btn btn-link btn-sm p-0" id="resend-btn"
+              style="color:var(--text-muted);font-size:0.78rem">
+              Didn't get the code? <span style="color:var(--gold)">Resend</span>
+            </button>
+            <span id="resend-cooldown" class="d-none" style="font-size:0.78rem;color:var(--text-muted)">
+              Resend available in <span id="resend-countdown">60</span>s
+            </span>
+          </div>
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-2">
+              <i class="bi bi-arrow-left me-1"></i>Back
+            </button>
+            <button type="submit" class="btn btn-primary px-4" id="verify-btn">
+              Verify <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ══ Step 4: Payments ══ -->
+      <div class="step-panel" id="panel-4">
         <div class="step-title">Verify payment method</div>
         <div class="step-subtitle">
           We place a $1 authorization hold to confirm your card is valid — it's
           released immediately once your store is live. No charge will appear.
         </div>
-        <form id="form-3" novalidate>
+        <form id="form-4" novalidate>
           <!-- Card input mounted by Stripe.js -->
           <div class="mb-3">
             <label class="form-label" style="font-size:0.82rem">Card details</label>
@@ -1795,7 +1830,7 @@ nav { padding: 0 20px; }
           </div>
 
           <div class="d-flex justify-content-between mt-4">
-            <button type="button" class="btn btn-secondary px-3" id="back-to-2">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-3">
               <i class="bi bi-arrow-left me-1"></i>Back
             </button>
             <button type="submit" class="btn btn-primary px-4" id="finish-btn">
@@ -2011,6 +2046,7 @@ nav { padding: 0 20px; }
     theme: 'mono',
     payment_intent_id: '',
     payment_method_id: '',
+    verification_token_id: '',
   };
 
   // ── Stripe Elements (card for $1 auth) ────────────────────────────────────
@@ -2094,7 +2130,7 @@ nav { padding: 0 20px; }
     document.getElementById('step-indicator').style.display = '';
     document.getElementById(`panel-${step}`).classList.add('active');
 
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 4; i++) {
       const dot = document.getElementById(`dot-${i}`);
       dot.classList.remove('active', 'done');
       if (i < step) {
@@ -2110,6 +2146,7 @@ nav { padding: 0 20px; }
 
     document.getElementById('line-1-2').classList.toggle('done', step > 1);
     document.getElementById('line-2-3').classList.toggle('done', step > 2);
+    document.getElementById('line-3-4').classList.toggle('done', step > 3);
   }
 
   let subdomainTimer = null;
@@ -2243,12 +2280,122 @@ nav { padding: 0 20px; }
     if (!valid) return;
 
     wizardState.admin = { email, username, password };
-    goToStep(3);
-    // Initialize the Stripe card element now that we know the store currency.
-    initStripeElements();
+
+    // Send OTP to the provided email before advancing to the verification step.
+    const nextBtn = e.target.querySelector('button[type="submit"]');
+    nextBtn.disabled = true;
+    nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending code…';
+
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/send-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ identifier: email, channel: 'email' }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Failed to send verification code.');
+      wizardState.verification_token_id = body.data.token_id;
+      document.getElementById('otp-subtitle').textContent =
+        `We sent a 6-digit code to ${email}. Enter it below to continue.`;
+      document.getElementById('otp-code').value = '';
+      document.getElementById('otp-feedback').textContent = 'Please enter the 6-digit code we sent you.';
+      startResendCooldown();
+      goToStep(3);
+    } catch (sendErr) {
+      showError(sendErr.message);
+    } finally {
+      nextBtn.disabled = false;
+      nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
+    }
   });
 
+  // ── Resend cooldown timer ─────────────────────────────────────────────────
+  let resendTimer = null;
+  function startResendCooldown(seconds = 60) {
+    const btn      = document.getElementById('resend-btn');
+    const cooldown = document.getElementById('resend-cooldown');
+    const counter  = document.getElementById('resend-countdown');
+    btn.classList.add('d-none');
+    cooldown.classList.remove('d-none');
+    let remaining = seconds;
+    counter.textContent = remaining;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      remaining -= 1;
+      counter.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(resendTimer);
+        cooldown.classList.add('d-none');
+        btn.classList.remove('d-none');
+      }
+    }, 1000);
+  }
+
+  document.getElementById('resend-btn').addEventListener('click', async () => {
+    const email = wizardState.admin.email;
+    if (!email) return;
+    document.getElementById('resend-btn').disabled = true;
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/send-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ identifier: email, channel: 'email' }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Failed to resend code.');
+      wizardState.verification_token_id = body.data.token_id;
+      document.getElementById('otp-code').value = '';
+      startResendCooldown();
+    } catch (resendErr) {
+      showError(resendErr.message);
+    } finally {
+      document.getElementById('resend-btn').disabled = false;
+    }
+  });
+
+  // ── Step 3: OTP verification ──────────────────────────────────────────────
   document.getElementById('form-3').addEventListener('submit', async e => {
+    e.preventDefault();
+    const codeEl   = document.getElementById('otp-code');
+    const feedback = document.getElementById('otp-feedback');
+    const btn      = document.getElementById('verify-btn');
+    const code     = codeEl.value.trim().replace(/\D/g, '');
+
+    codeEl.classList.remove('is-invalid');
+    if (!code || code.length !== 6) {
+      feedback.textContent = 'Please enter the 6-digit code we sent you.';
+      codeEl.classList.add('is-invalid');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying…';
+
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/verify-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ token_id: wizardState.verification_token_id, code }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        feedback.textContent = body.error || 'Incorrect code. Please try again.';
+        codeEl.classList.add('is-invalid');
+        return;
+      }
+      // Email verified — advance to payment step.
+      goToStep(4);
+      initStripeElements();
+    } catch (verifyErr) {
+      showError(verifyErr.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Verify <i class="bi bi-arrow-right ms-1"></i>';
+    }
+  });
+
+  // ── Step 4: Payment ───────────────────────────────────────────────────────
+  document.getElementById('form-4').addEventListener('submit', async e => {
     e.preventDefault();
     wizardState.stripe_publishable_key = '';
 
@@ -2312,6 +2459,7 @@ nav { padding: 0 20px; }
 
   document.getElementById('back-to-1').addEventListener('click', () => goToStep(1));
   document.getElementById('back-to-2').addEventListener('click', () => goToStep(2));
+  document.getElementById('back-to-3').addEventListener('click', () => goToStep(3));
 
   const PSTEPS = ['pstep-db', 'pstep-storage', 'pstep-worker', 'pstep-domain', 'pstep-ready'];
 
@@ -2377,6 +2525,7 @@ nav { padding: 0 20px; }
           stripe_publishable_key: wizardState.stripe_publishable_key,
           payment_intent_id:      wizardState.payment_intent_id,
           payment_method_id:      wizardState.payment_method_id,
+          verification_token_id:  wizardState.verification_token_id,
         }),
       });
       const body = await res.json();
@@ -2384,7 +2533,7 @@ nav { padding: 0 20px; }
       tenantId = body.data.tenant_id;
       applyStatus(body.data.status);
     } catch (err) {
-      goToStep(3);
+      goToStep(4);
       btn.disabled = false;
       btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
       showError(err.message);
