@@ -88,6 +88,9 @@ export type Tenant = {
   cf_custom_domain_id: string | null;  // Workers Custom Domain binding ID
   cf_route_id: string | null;          // Workers Route ID (fallback only)
 
+  // Payment method collected during signup ($1 auth flow)
+  payment_method_id: string | null;
+
   // Stripe Connect
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
@@ -121,6 +124,13 @@ export type ProvisionRequest = {
   };
   // No longer required — the platform manages payments via Stripe Connect.
   stripe_publishable_key?: string;
+
+  // PaymentIntent created during the $1 authorization step on the wizard.
+  // Must be in `requires_capture` status before provisioning proceeds.
+  payment_intent_id: string;
+  // Stripe PaymentMethod attached to the PaymentIntent; stored on the tenant
+  // record for future subscription charges.
+  payment_method_id: string;
 };
 
 // ─── Cloudflare API response shapes ──────────────────────────────────────────

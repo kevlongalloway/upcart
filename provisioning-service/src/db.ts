@@ -18,6 +18,7 @@ type TenantRow = {
   cf_dns_record_id: string | null;
   cf_custom_domain_id: string | null;
   cf_route_id: string | null;
+  payment_method_id: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: number;
   store_url: string | null;
@@ -47,21 +48,16 @@ export class TenantDB {
     email: string;
     username: string;
     plan?: TenantPlan;
+    payment_method_id: string;
   }): Promise<Tenant> {
     const id  = randomUUID();
     const now = new Date().toISOString();
 
-    // password_hash and provisioning_data are legacy columns — the
-    // provisioning DB no longer tracks passwords (auth proxies to the
-    // tenant worker's admin_accounts) or stashes signup payloads (we
-    // run /setup inline during provisioning now). Write empty/NULL so
-    // the NOT NULL constraint on password_hash is satisfied without
-    // needing a schema migration.
     await this.db
       .prepare(
         `INSERT INTO tenants
-           (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', NULL, 'provisioning', ?7, ?7)`
+           (id, subdomain, store_name, plan, email, username, password_hash, provisioning_data, status, payment_method_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', NULL, 'provisioning', ?7, ?8, ?8)`
       )
       .bind(
         id,
@@ -70,6 +66,7 @@ export class TenantDB {
         input.plan ?? "starter",
         input.email.toLowerCase().trim(),
         input.username,
+        input.payment_method_id,
         now
       )
       .run();

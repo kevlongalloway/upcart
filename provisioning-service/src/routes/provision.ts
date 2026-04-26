@@ -7,6 +7,44 @@ import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
 import { hashPassword } from "../password.js";
 
+// ─── Stripe helpers (raw fetch — no SDK needed in CF Workers) ────────────────
+
+async function stripePost(
+  path: string,
+  secretKey: string,
+  body: Record<string, string>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://api.stripe.com/v1${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+  const json = await res.json() as Record<string, unknown>;
+  if (!res.ok) {
+    const e = (json as { error?: { message?: string } }).error;
+    throw new Error(e?.message ?? `Stripe error ${res.status}`);
+  }
+  return json;
+}
+
+async function stripeGet(
+  path: string,
+  secretKey: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://api.stripe.com/v1${path}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  const json = await res.json() as Record<string, unknown>;
+  if (!res.ok) {
+    const e = (json as { error?: { message?: string } }).error;
+    throw new Error(e?.message ?? `Stripe error ${res.status}`);
+  }
+  return json;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SUBDOMAIN_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$|^[a-z]{2,40}$/;
@@ -122,6 +160,11 @@ CREATE TABLE IF NOT EXISTS auto_withdrawal_settings (
 
 const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
 
+const verifyPaymentSchema = z.object({
+  currency: z.string().length(3).toLowerCase(),
+  email:    z.string().email(),
+});
+
 const provisionSchema = z.object({
   store: z.object({
     name:        z.string().min(1).max(100),
@@ -136,8 +179,11 @@ const provisionSchema = z.object({
     username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_]+$/),
     password: z.string().min(8),
   }),
+  // PaymentIntent (requires_capture) from the $1 authorization step.
+  payment_intent_id: z.string().min(1),
+  // PaymentMethod to store on the tenant for future subscription charges.
+  payment_method_id: z.string().min(1),
   // No longer required — the platform manages payments via Stripe Connect.
-  // Merchants connect their bank accounts after store setup.
   stripe_publishable_key: z.string().optional().default(""),
 });
 
@@ -170,16 +216,89 @@ provisionRouter.get("/check-subdomain", async (c) => {
 });
 
 /**
+ * POST /provision/verify-payment
+ * Creates a $1 (100 minor units) manual-capture PaymentIntent so the signup
+ * wizard can authorize the merchant's card without charging it.  The wizard
+ * confirms the intent via Stripe.js, then passes the resulting
+ * payment_intent_id + payment_method_id to POST /provision.
+ *
+ * Body: { currency: string (3-char ISO), email: string }
+ * Returns: { client_secret: string, payment_intent_id: string }
+ */
+provisionRouter.post(
+  "/verify-payment",
+  zValidator("json", verifyPaymentSchema),
+  async (c) => {
+    if (!c.env.STRIPE_SECRET_KEY) {
+      return c.json(err("Payment processing is not configured."), 503);
+    }
+
+    const { currency, email } = c.req.valid("json");
+
+    try {
+      const pi = await stripePost("/payment_intents", c.env.STRIPE_SECRET_KEY, {
+        amount:         "100",
+        currency:       currency.toLowerCase(),
+        capture_method: "manual",
+        // Surface the card in the PaymentIntent so we can store the PM id.
+        setup_future_usage: "off_session",
+        description:    "Upcart signup verification ($1 authorization hold)",
+        "metadata[type]":  "signup_verification",
+        "metadata[email]": email,
+      });
+
+      return c.json(ok({
+        client_secret:     pi.client_secret as string,
+        payment_intent_id: pi.id as string,
+      }));
+    } catch (e) {
+      console.error("Failed to create verify-payment intent:", e);
+      return c.json(err("Could not initialize payment verification. Please try again."), 502);
+    }
+  }
+);
+
+/**
  * POST /provision
  * Creates a new store for a sign-up. Provisions Cloudflare resources
  * asynchronously (via ctx.waitUntil) and returns the tenant_id immediately
  * so the client can poll for status.
+ *
+ * Requires a PaymentIntent in `requires_capture` status (produced by the
+ * wizard's $1 authorization step via POST /provision/verify-payment).
+ * No provisioning happens if the card has not been successfully authorized.
  */
 provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
-  const { store, admin, stripe_publishable_key } = c.req.valid("json");
+  const { store, admin, stripe_publishable_key, payment_intent_id, payment_method_id } = c.req.valid("json");
   const subdomain = store.subdomain.toLowerCase();
 
-  // ── Validation ────────────────────────────────────────────────────────────
+  // ── Validate payment intent ───────────────────────────────────────────────
+  if (!c.env.STRIPE_SECRET_KEY) {
+    return c.json(err("Payment processing is not configured."), 503);
+  }
+
+  let piStatus: string;
+  try {
+    const pi = await stripeGet(`/payment_intents/${encodeURIComponent(payment_intent_id)}`, c.env.STRIPE_SECRET_KEY);
+    piStatus  = pi.status as string;
+  } catch (e) {
+    console.error("Failed to retrieve PaymentIntent:", e);
+    return c.json(err("Could not verify payment authorization. Please try again."), 402);
+  }
+
+  // `requires_capture` = card authorized, hold placed, not yet captured.
+  if (piStatus !== "requires_capture") {
+    return c.json(
+      err(
+        piStatus === "canceled"
+          ? "Your payment authorization has expired. Please go back and re-enter your card."
+          : "Your card has not been authorized yet. Please complete the payment step."
+      ),
+      402
+    );
+  }
+
+  // ── Subdomain validation ──────────────────────────────────────────────────
   if (RESERVED_SUBDOMAINS.has(subdomain)) {
     return c.json(err("That subdomain is reserved. Please choose another."), 400);
   }
@@ -194,19 +313,24 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
   // ── Create tenant record ──────────────────────────────────────────────────
   const tenant = await tenantDB.createTenant({
     subdomain,
-    store_name: store.name,
-    email:      admin.email,
-    username:   admin.username,
+    store_name:        store.name,
+    email:             admin.email,
+    username:          admin.username,
+    payment_method_id,
   });
 
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
   c.executionCtx.waitUntil(
-    runProvisioning(c.env, tenant.id, { store, admin, stripe_publishable_key: stripe_publishable_key ?? "" }, tenantDB)
-      .catch(async (e) => {
-        console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
-        await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
-      })
+    runProvisioning(
+      c.env,
+      tenant.id,
+      { store, admin, stripe_publishable_key: stripe_publishable_key ?? "", payment_intent_id },
+      tenantDB
+    ).catch(async (e) => {
+      console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
+      await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
+    })
   );
 
   return c.json(
@@ -280,6 +404,7 @@ async function runProvisioning(
     store: z.infer<typeof provisionSchema>["store"];
     admin: z.infer<typeof provisionSchema>["admin"];
     stripe_publishable_key: string;
+    payment_intent_id: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
@@ -510,6 +635,26 @@ async function runProvisioning(
 
   await tenantDB.updateResources(tenantId, { store_url: storeUrl, admin_url: adminUrl });
   await tenantDB.updateStatus(tenantId, "active");
+
+  // ── Capture and immediately refund the $1 authorization hold ─────────────
+  // Capture first (required before refund), then refund in full so the
+  // merchant's card statement shows a $0 net charge.
+  if (env.STRIPE_SECRET_KEY && input.payment_intent_id) {
+    try {
+      await stripePost(
+        `/payment_intents/${encodeURIComponent(input.payment_intent_id)}/capture`,
+        env.STRIPE_SECRET_KEY,
+        {}
+      );
+      await stripePost("/refunds", env.STRIPE_SECRET_KEY, {
+        payment_intent: input.payment_intent_id,
+      });
+      console.log(`Captured and refunded $1 authorization for tenant ${tenantId}.`);
+    } catch (e) {
+      // Non-fatal — the store is live; log and continue.
+      console.warn(`Failed to capture/refund $1 auth for tenant ${tenantId}:`, (e as Error).message);
+    }
+  }
 
   console.log(`Tenant ${tenantId} (${hostname}) provisioned successfully.`);
   } catch (e) {
