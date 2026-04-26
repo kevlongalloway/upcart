@@ -8,12 +8,12 @@
 ## CRITICAL — Must ship before open beta
 
 ### 1. Pre-Provisioning Payment Verification ($1 Auth Charge)
-- [ ] Add a Stripe Payment Intent step (`amount: 100, capture_method: manual`) to the signup wizard **before** any cloud resources are provisioned
-- [ ] Only proceed to provision (Worker, D1, R2, DNS) after the $1 authorization succeeds
-- [ ] Capture and immediately refund the $1 hold once provisioning completes successfully
-- [ ] If the card declines, show a clear error and do not spin up any resources
-- [ ] Store the `payment_method_id` on the tenant record for future subscription charges
-- [ ] Gate: no provisioning without a valid payment method on file
+- [x] Add a Stripe Payment Intent step (`amount: 100, capture_method: manual`) to the signup wizard **before** any cloud resources are provisioned
+- [x] Only proceed to provision (Worker, D1, R2, DNS) after the $1 authorization succeeds
+- [x] Capture and immediately refund the $1 hold once provisioning completes successfully
+- [x] If the card declines, show a clear error and do not spin up any resources
+- [x] Store the `payment_method_id` on the tenant record for future subscription charges
+- [x] Gate: no provisioning without a valid payment method on file
 
 ### 2. Identity Verification Before Provisioning
 - [ ] Require **at least one** of the following before spinning up Workers, D1, or R2:
