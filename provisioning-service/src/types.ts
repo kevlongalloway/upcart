@@ -65,6 +65,12 @@ export type Bindings = {
   // under "Subdomain". If yours shows "acmecorp.workers.dev", set this
   // to "acmecorp".
   CF_WORKERS_SUBDOMAIN: string;
+
+  // Controls whether SMS/phone verification is required during signup.
+  // "true"  → SMS OTP is enabled (Twilio credentials must be configured).
+  // "false" → SMS channel is disabled; only email verification is accepted.
+  // Set in wrangler.toml [vars]; change to "true" once Twilio is ready.
+  REQUIRE_SMS_VERIFICATION: string;
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────

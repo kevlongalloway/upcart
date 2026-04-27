@@ -63,6 +63,11 @@ CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
 # subscription creation at provisioning (it can be set up later).
 STRIPE_PRICE_ID = ""
 
+# Set to "true" to require phone/SMS verification during signup (requires Twilio
+# credentials). Set to "false" to skip SMS verification and use email only.
+# Change to "true" once Twilio is configured and a verified number is purchased.
+REQUIRE_SMS_VERIFICATION = "false"
+
 # ─── Secrets (set via `wrangler secret put` or the Cloudflare dashboard) ─────
 # Navigate to: Workers & Pages → upcart-provisioning → Settings → Variables
 # Toggle "Encrypt" for each value to store it as a secret.
