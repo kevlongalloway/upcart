@@ -15,7 +15,7 @@ function getStripe(secretKey: string): Stripe {
 
 /**
  * Look up the merchant's Stripe Connect account ID from store_settings.
- * Returns null if the merchant hasn't completed Connect onboarding.
+ * Returns null if Connect onboarding hasn't started.
  */
 async function getConnectAccountId(db: D1Database): Promise<string | null> {
   try {
@@ -25,6 +25,22 @@ async function getConnectAccountId(db: D1Database): Promise<string | null> {
     return row?.value || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Returns true only when the merchant has completed Connect onboarding and
+ * charges are enabled on their account. Until then, destination charges must
+ * not be used — Stripe will reject transfers to unverified accounts.
+ */
+async function isConnectChargesEnabled(db: D1Database): Promise<boolean> {
+  try {
+    const row = await db
+      .prepare("SELECT value FROM store_settings WHERE key = 'stripe_connect_charges_enabled'")
+      .first<{ value: string }>();
+    return row?.value === "true";
+  } catch {
+    return false;
   }
 }
 
@@ -237,8 +253,11 @@ checkout.post("/session", async (c) => {
         ? { allowed_countries: allowedCountries }
         : { allowed_countries: ["US", "CA", "GB", "AU", "NZ"] as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] };
 
-    // Look up merchant's Stripe Connect account for destination charges.
-    const connectAccountId = await getConnectAccountId(c.env.DB);
+    // Only use destination charges when the merchant has fully completed Connect
+    // onboarding (charges_enabled = true). Attempting a transfer to an
+    // unverified account causes a Stripe error.
+    const connectAccountId  = await getConnectAccountId(c.env.DB);
+    const connectReady      = connectAccountId && await isConnectChargesEnabled(c.env.DB);
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode:      "payment",
@@ -256,12 +275,10 @@ checkout.post("/session", async (c) => {
       },
     };
 
-    // If merchant has completed Stripe Connect onboarding, use destination
-    // charges so funds flow through the platform then to the merchant.
-    if (connectAccountId) {
+    if (connectReady) {
       sessionParams.payment_intent_data = {
         transfer_data: {
-          destination: connectAccountId,
+          destination: connectAccountId as string,
         },
       };
     }
@@ -381,8 +398,9 @@ checkout.post("/intent", async (c) => {
           }
         : undefined;
 
-    // Look up merchant's Stripe Connect account for destination charges.
-    const connectAccountId = await getConnectAccountId(c.env.DB);
+    // Only route funds to the merchant's connected account when charges_enabled.
+    const connectAccountId  = await getConnectAccountId(c.env.DB);
+    const connectReady      = connectAccountId && await isConnectChargesEnabled(c.env.DB);
 
     const intentParams: Stripe.PaymentIntentCreateParams = {
       amount:   finalAmount,
@@ -398,10 +416,9 @@ checkout.post("/intent", async (c) => {
       },
     };
 
-    // Route funds through the platform to the merchant's connected account.
-    if (connectAccountId) {
+    if (connectReady) {
       intentParams.transfer_data = {
-        destination: connectAccountId,
+        destination: connectAccountId as string,
       };
     }
 

@@ -1,6 +1,6 @@
 # Upcart — Production Readiness TODO
 
-> Last updated: 2026-04-26  
+> Last updated: 2026-04-27  
 > Provisioning is working. This file tracks everything needed before public launch.
 
 ---
@@ -68,12 +68,12 @@
 ## HIGH PRIORITY — Stripe Connect for Tenants
 
 ### 8. Stripe Connect Onboarding
-- [ ] After provisioning, prompt tenant to complete Stripe Connect Express onboarding (currently partially wired but not enforced)
-- [ ] Block live payments (non-test) until Connect onboarding is `charges_enabled = true`
-- [ ] Poll or use `account.updated` webhook to detect when onboarding completes
-- [ ] Store `stripe_account_id`, `charges_enabled`, `payouts_enabled` on tenant record
-- [ ] Show a dashboard banner: "Complete your payout setup to accept live payments"
-- [ ] Handle Connect account restrictions (e.g., info needed, capabilities disabled)
+- [x] After provisioning, prompt tenant to complete Stripe Connect Express onboarding (currently partially wired but not enforced)
+- [x] Block live payments (non-test) until Connect onboarding is `charges_enabled = true`
+- [x] Poll or use `account.updated` webhook to detect when onboarding completes
+- [x] Store `stripe_account_id`, `charges_enabled`, `payouts_enabled` on tenant record
+- [x] Show a dashboard banner: "Complete your payout setup to accept live payments"
+- [x] Handle Connect account restrictions (e.g., info needed, capabilities disabled)
 
 ---
 

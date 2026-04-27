@@ -143,6 +143,8 @@ export type Tenant = {
   // Stripe Connect
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
+  stripe_connect_charges_enabled: boolean;
+  stripe_connect_payouts_enabled: boolean;
 
   // Live URLs (set once provisioning completes)
   store_url: string | null;

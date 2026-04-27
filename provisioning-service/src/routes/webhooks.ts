@@ -261,5 +261,36 @@ webhookRouter.post("/stripe", async (c) => {
     await db.updateStatus(sub.tenant_id, "cancelled");
   }
 
+  // ── account.updated (Stripe Connect) ─────────────────────────────────────
+  // Fired when a connected account's status changes — e.g. after the merchant
+  // completes Express onboarding. We sync charges_enabled and payouts_enabled
+  // to the provisioning DB so the dashboard banner updates without polling.
+  else if (event.type === "account.updated") {
+    const account          = event.data.object;
+    const connectAccountId = account.id as string;
+    if (!connectAccountId) return c.json({ ok: true });
+
+    const tenant = await db.getTenantByConnectAccountId(connectAccountId);
+    if (!tenant) {
+      console.warn(`webhooks: no tenant for Connect account ${connectAccountId}`);
+      return c.json({ ok: true });
+    }
+
+    const chargesEnabled    = account.charges_enabled as boolean;
+    const payoutsEnabled    = account.payouts_enabled as boolean;
+    const detailsSubmitted  = account.details_submitted as boolean;
+
+    await db.updateConnectStatus(tenant.id, {
+      stripe_connect_charges_enabled:   chargesEnabled,
+      stripe_connect_payouts_enabled:   payoutsEnabled,
+      stripe_connect_onboarding_complete: detailsSubmitted && chargesEnabled,
+    });
+
+    console.log(
+      `webhooks: Connect account ${connectAccountId} updated for tenant ${tenant.id}` +
+      ` — charges=${chargesEnabled}, payouts=${payoutsEnabled}`
+    );
+  }
+
   return c.json({ ok: true });
 });
