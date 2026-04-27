@@ -2056,10 +2056,21 @@ nav { padding: 0 20px; }
   async function initStripeElements() {
     if (stripeInstance) return; // already initialized
 
-    // STRIPE_PUBLISHABLE_KEY is injected by the provisioning service meta tag,
-    // or we fall back to checking a data attribute on the wizard container.
+    // Prefer a meta tag injected at deploy time; fall back to fetching from
+    // the provisioning service so the card loads without a CI/CD build step.
     const pkMeta = document.querySelector('meta[name="upcart-stripe-pk"]');
-    const pk     = pkMeta?.content || '';
+    let pk = pkMeta?.content || '';
+    if (!pk) {
+      try {
+        const cfgRes = await fetch(`${PROVISION_URL}/provision/config`);
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          pk = cfg?.data?.stripe_publishable_key || '';
+        }
+      } catch (e) {
+        console.warn('Could not fetch Stripe config:', e);
+      }
+    }
     if (!pk) {
       console.warn('Stripe publishable key not found — card element will not mount.');
       return;
