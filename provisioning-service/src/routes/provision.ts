@@ -262,6 +262,9 @@ provisionRouter.post("/send-otp", zValidator("json", sendOtpSchema), async (c) =
       }
       await sendEmailOtp(c.env.RESEND_API_KEY, normalised, code);
     } else {
+      if (c.env.REQUIRE_SMS_VERIFICATION !== "true") {
+        return c.json(err("SMS verification is not available at this time. Please use email verification."), 503);
+      }
       if (!c.env.TWILIO_ACCOUNT_SID || !c.env.TWILIO_AUTH_TOKEN || !c.env.TWILIO_FROM_NUMBER) {
         return c.json(err("SMS verification is not configured."), 503);
       }

@@ -45,6 +45,12 @@ TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_FROM_NUMBER=+15551234567
 
+# Controls whether the SMS/phone verification channel is enabled.
+# Defaults to "false" in wrangler.toml [vars] until Twilio is configured.
+# Uncomment and set to "true" here to test SMS locally before flipping the
+# production flag.
+# REQUIRE_SMS_VERIFICATION=true
+
 # ── Subscription billing ─────────────────────────────────────────────────────
 # Stripe Price ID for the platform's recurring subscription plan.
 # Create a Product + Price in your Stripe dashboard, then paste the ID here
