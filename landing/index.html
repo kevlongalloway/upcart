@@ -2242,7 +2242,7 @@ nav { padding: 0 20px; }
     goToStep(2);
   });
 
-  document.getElementById('form-2').addEventListener('submit', e => {
+  document.getElementById('form-2').addEventListener('submit', async e => {
     e.preventDefault();
     const emailEl    = document.getElementById('admin-email');
     const usernameEl = document.getElementById('admin-username');
