@@ -214,6 +214,18 @@ function generateSecret(): string {
 export const provisionRouter = new Hono<{ Bindings: Bindings }>();
 
 /**
+ * GET /provision/config
+ * Returns public configuration needed by the signup wizard, including the
+ * Stripe publishable key so the card element can be initialized without
+ * requiring CI/CD to inject it into the static HTML at build time.
+ */
+provisionRouter.get("/config", (c) => {
+  return c.json(ok({
+    stripe_publishable_key: c.env.STRIPE_PUBLISHABLE_KEY ?? "",
+  }));
+});
+
+/**
  * GET /provision/check-subdomain?name=<subdomain>
  * Returns whether a subdomain is available to register.
  */
