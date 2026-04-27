@@ -112,6 +112,8 @@ connect.post("/onboard", async (c) => {
 // ─── GET /connect/status ────────────────────────────────────────────────────
 /**
  * Returns the current Connect onboarding status for the tenant.
+ * Also persists charges_enabled and payouts_enabled to store_settings so
+ * checkout can gate destination charges without an extra Stripe round-trip.
  */
 connect.get("/status", async (c) => {
   const stripe = getStripe(c.env.STRIPE_SECRET_KEY);
@@ -127,6 +129,15 @@ connect.get("/status", async (c) => {
 
     const account = await stripe.accounts.retrieve(accountId);
 
+    // Persist capability flags so checkout can read them without a Stripe call.
+    await Promise.all([
+      setStoreSetting(db, tenantId, "stripe_connect_charges_enabled", String(account.charges_enabled)),
+      setStoreSetting(db, tenantId, "stripe_connect_payouts_enabled", String(account.payouts_enabled)),
+    ]);
+
+    // Surface any blocking requirements so the dashboard can show actionable info.
+    const reqs = account.requirements ?? {};
+
     return c.json(
       ok({
         connected: true,
@@ -134,6 +145,11 @@ connect.get("/status", async (c) => {
         payouts_enabled: account.payouts_enabled,
         details_submitted: account.details_submitted,
         account_id: account.id,
+        requirements: {
+          currently_due:       reqs.currently_due        ?? [],
+          pending_verification: reqs.pending_verification ?? [],
+          disabled_reason:     reqs.disabled_reason       ?? null,
+        },
       })
     );
   } catch (e) {
@@ -225,10 +241,18 @@ connect.post("/withdraw", async (c) => {
       );
     }
 
-    // Get Connect account ID
+    // Get Connect account ID and verify payouts are enabled.
     const connectAccountId = await getStoreSetting(db, "stripe_connect_account_id");
     if (!connectAccountId) {
-      return c.json(err("No Connect account found. Complete onboarding first."), 400);
+      return c.json(err("No Connect account found. Complete Stripe onboarding first."), 400);
+    }
+
+    const payoutsEnabled = await getStoreSetting(db, "stripe_connect_payouts_enabled");
+    if (payoutsEnabled !== "true") {
+      return c.json(
+        err("Payouts are not yet enabled on your Stripe account. Complete onboarding to withdraw funds."),
+        400
+      );
     }
 
     // Create Stripe Transfer to the connected account

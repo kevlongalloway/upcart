@@ -46,6 +46,8 @@ type TenantRow = {
   phone_verified_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: number;
+  stripe_connect_charges_enabled: number;
+  stripe_connect_payouts_enabled: number;
   store_url: string | null;
   admin_url: string | null;
   error_message: string | null;
@@ -59,6 +61,8 @@ function rowToTenant(row: TenantRow): Tenant {
     plan: row.plan as TenantPlan,
     status: row.status as TenantStatus,
     stripe_connect_onboarding_complete: row.stripe_connect_onboarding_complete === 1,
+    stripe_connect_charges_enabled: row.stripe_connect_charges_enabled === 1,
+    stripe_connect_payouts_enabled: row.stripe_connect_payouts_enabled === 1,
   };
 }
 
@@ -263,6 +267,51 @@ export class TenantDB {
     await this.db
       .prepare(`UPDATE tenants SET ${sets.join(", ")} WHERE id = ?${bindings.length}`)
       .bind(...bindings)
+      .run();
+  }
+
+  async getTenantByConnectAccountId(connectAccountId: string): Promise<Tenant | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM tenants WHERE stripe_connect_account_id = ?1")
+      .bind(connectAccountId)
+      .first<TenantRow>();
+    return row ? rowToTenant(row) : null;
+  }
+
+  async updateConnectStatus(
+    id: string,
+    updates: {
+      stripe_connect_account_id?: string;
+      stripe_connect_onboarding_complete?: boolean;
+      stripe_connect_charges_enabled?: boolean;
+      stripe_connect_payouts_enabled?: boolean;
+    }
+  ): Promise<void> {
+    const now  = new Date().toISOString();
+    const sets = ["updated_at = ?1"];
+    const vals: unknown[] = [now];
+
+    if (updates.stripe_connect_account_id !== undefined) {
+      sets.push(`stripe_connect_account_id = ?${vals.length + 1}`);
+      vals.push(updates.stripe_connect_account_id);
+    }
+    if (updates.stripe_connect_onboarding_complete !== undefined) {
+      sets.push(`stripe_connect_onboarding_complete = ?${vals.length + 1}`);
+      vals.push(updates.stripe_connect_onboarding_complete ? 1 : 0);
+    }
+    if (updates.stripe_connect_charges_enabled !== undefined) {
+      sets.push(`stripe_connect_charges_enabled = ?${vals.length + 1}`);
+      vals.push(updates.stripe_connect_charges_enabled ? 1 : 0);
+    }
+    if (updates.stripe_connect_payouts_enabled !== undefined) {
+      sets.push(`stripe_connect_payouts_enabled = ?${vals.length + 1}`);
+      vals.push(updates.stripe_connect_payouts_enabled ? 1 : 0);
+    }
+
+    vals.push(id);
+    await this.db
+      .prepare(`UPDATE tenants SET ${sets.join(", ")} WHERE id = ?${vals.length}`)
+      .bind(...vals)
       .run();
   }
 
