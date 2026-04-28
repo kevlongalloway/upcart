@@ -392,6 +392,11 @@ function renderNavbar() {
                 <i class="bi bi-palette2"></i><span class="nav-label ms-1">Customize</span>
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link py-1 px-2" href="/store-editor/" title="Visual store editor">
+                <i class="bi bi-pencil-square"></i><span class="nav-label ms-1">Store Editor</span>
+              </a>
+            </li>
           </ul>
           ${storeUrl ? `
             <a class="btn btn-outline-secondary btn-sm" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">

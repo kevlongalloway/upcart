@@ -30,6 +30,7 @@ const PUBLIC_KEYS = [
   "hero_title",
   "hero_subtitle",
   "hero_cta",
+  "page_sections",  // JSON-encoded section layout for the Store Editor
 ] as const;
 
 // Additional admin-only keys (kept internal). We don't currently return these
@@ -112,6 +113,7 @@ publicSettings.get("/", async (c) => {
       hero_title:        rows.hero_title        ?? "",
       hero_subtitle:     rows.hero_subtitle     ?? "",
       hero_cta:          rows.hero_cta          ?? "",
+      page_sections:     rows.page_sections     ?? "",
     }));
   } catch (e) {
     console.error("GET /settings/public failed:", e);
@@ -128,6 +130,7 @@ publicSettings.get("/", async (c) => {
       hero_title:        "",
       hero_subtitle:     "",
       hero_cta:          "",
+      page_sections:     "",
     }));
   }
 });
@@ -150,6 +153,7 @@ adminSettings.get("/", async (c) => {
     hero_title:        rows.hero_title        ?? "",
     hero_subtitle:     rows.hero_subtitle     ?? "",
     hero_cta:          rows.hero_cta          ?? "",
+    page_sections:     rows.page_sections     ?? "",
   }));
 });
 
@@ -171,6 +175,8 @@ const updateSchema = z
     hero_title:        z.string().max(100).optional(),
     hero_subtitle:     z.string().max(200).optional(),
     hero_cta:          z.string().max(50).optional(),
+    // JSON-encoded page section layout saved by the Store Editor
+    page_sections:     z.string().max(32768).optional(),
   })
   .strict();
 
@@ -210,5 +216,6 @@ adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
     hero_title:        rows.hero_title        ?? "",
     hero_subtitle:     rows.hero_subtitle     ?? "",
     hero_cta:          rows.hero_cta          ?? "",
+    page_sections:     rows.page_sections     ?? "",
   }));
 });
