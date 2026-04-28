@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/Canvas.tsx","./src/LeftPanel.tsx","./src/RightPanel.tsx","./src/TopBar.tsx","./src/api.ts","./src/fields.tsx","./src/main.tsx","./src/registry.ts","./src/store.ts","./src/types.ts","./src/utils.ts"],"version":"5.9.3"}
