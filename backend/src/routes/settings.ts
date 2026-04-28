@@ -27,6 +27,9 @@ const PUBLIC_KEYS = [
   "brand_accent",
   "logo_url",
   "currency",
+  "hero_title",
+  "hero_subtitle",
+  "hero_cta",
 ] as const;
 
 // Additional admin-only keys (kept internal). We don't currently return these
@@ -101,11 +104,14 @@ publicSettings.get("/", async (c) => {
     return c.json(ok({
       store_name:        rows.store_name        ?? c.env.STORE_NAME ?? "",
       store_description: rows.store_description ?? "",
-      theme:             rows.theme             ?? "mono",
+      theme:             rows.theme             ?? "base",
       brand_primary:     rows.brand_primary     ?? "",
       brand_accent:      rows.brand_accent      ?? "",
       logo_url:          rows.logo_url          ?? "",
       currency:          rows.currency          ?? c.env.DEFAULT_CURRENCY ?? "usd",
+      hero_title:        rows.hero_title        ?? "",
+      hero_subtitle:     rows.hero_subtitle     ?? "",
+      hero_cta:          rows.hero_cta          ?? "",
     }));
   } catch (e) {
     console.error("GET /settings/public failed:", e);
@@ -114,11 +120,14 @@ publicSettings.get("/", async (c) => {
     return c.json(ok({
       store_name:        c.env.STORE_NAME ?? "",
       store_description: "",
-      theme:             "mono",
+      theme:             "base",
       brand_primary:     "",
       brand_accent:      "",
       logo_url:          "",
       currency:          c.env.DEFAULT_CURRENCY ?? "usd",
+      hero_title:        "",
+      hero_subtitle:     "",
+      hero_cta:          "",
     }));
   }
 });
@@ -132,16 +141,19 @@ adminSettings.get("/", async (c) => {
   return c.json(ok({
     store_name:        rows.store_name        ?? c.env.STORE_NAME ?? "",
     store_description: rows.store_description ?? "",
-    theme:             rows.theme             ?? "mono",
+    theme:             rows.theme             ?? "base",
     brand_primary:     rows.brand_primary     ?? "",
     brand_accent:      rows.brand_accent      ?? "",
     logo_url:          rows.logo_url          ?? "",
     currency:          rows.currency          ?? c.env.DEFAULT_CURRENCY ?? "usd",
     country:           rows.country           ?? c.env.STORE_COUNTRY ?? "",
+    hero_title:        rows.hero_title        ?? "",
+    hero_subtitle:     rows.hero_subtitle     ?? "",
+    hero_cta:          rows.hero_cta          ?? "",
   }));
 });
 
-const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
 const hex6 = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Must be a 6-digit hex color like #1a1a1a")
@@ -156,6 +168,9 @@ const updateSchema = z
     brand_accent:      hex6.optional(),
     logo_url:          z.string().url().or(z.literal("")).optional(),
     currency:          z.string().length(3).toLowerCase().optional(),
+    hero_title:        z.string().max(100).optional(),
+    hero_subtitle:     z.string().max(200).optional(),
+    hero_cta:          z.string().max(50).optional(),
   })
   .strict();
 
@@ -186,11 +201,14 @@ adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
   return c.json(ok({
     store_name:        rows.store_name        ?? "",
     store_description: rows.store_description ?? "",
-    theme:             rows.theme             ?? "mono",
+    theme:             rows.theme             ?? "base",
     brand_primary:     rows.brand_primary     ?? "",
     brand_accent:      rows.brand_accent      ?? "",
     logo_url:          rows.logo_url          ?? "",
     currency:          rows.currency          ?? "",
     country:           rows.country           ?? "",
+    hero_title:        rows.hero_title        ?? "",
+    hero_subtitle:     rows.hero_subtitle     ?? "",
+    hero_cta:          rows.hero_cta          ?? "",
   }));
 });

@@ -13,6 +13,30 @@
   /* ── Theme definitions ───────────────────────────────────────────────────── */
   var THEMES = {
 
+    // ── Base ──────────────────────────────────────────────────────────────────
+    // Default Shopify-style theme. System fonts only — zero external deps.
+    base: {
+      fonts: null,
+      vars: [
+        '--font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
+        '--font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
+        '--font-hero:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
+        '--color-bg:#ffffff',
+        '--color-text:#111111',
+        '--color-surface:#f5f5f5',
+        '--color-surface-border:#e8e8e8',
+        '--color-border:rgba(0,0,0,0.08)',
+        '--color-border-mid:rgba(0,0,0,0.14)',
+        '--color-ticker-bg:#111111',
+        '--color-ticker-text:#ffffff',
+        '--color-footer-bg:#111111',
+        '--color-footer-text:#ffffff',
+        '--color-footer-border:rgba(255,255,255,0.12)',
+        '--color-btn-bg:#111111',
+        '--color-btn-text:#ffffff',
+      ],
+    },
+
     // ── Mono ─────────────────────────────────────────────────────────────────
     // Editorial monochrome. Space Mono everywhere, Bebas Neue for hero text.
     mono: {
@@ -138,13 +162,13 @@
      Paint from window.STORE_THEME (baked in at build time) before first paint
      so there is zero FOUC even if the live-settings fetch below fails.
      The live fetch then overrides brand colors / logo on top of the preset. */
-  var requested = String(window.STORE_THEME || 'mono').replace(/[^a-z0-9-]/g, '');
-  var theme     = THEMES[requested] || THEMES.mono;
-  var activeName = THEMES[requested] ? requested : 'mono';
+  var requested = String(window.STORE_THEME || 'base').replace(/[^a-z0-9-]/g, '');
+  var theme     = THEMES[requested] || THEMES.base;
+  var activeName = THEMES[requested] ? requested : 'base';
 
   function applyThemeName(name) {
-    var t = THEMES[name] || THEMES.mono;
-    activeName = THEMES[name] ? name : 'mono';
+    var t = THEMES[name] || THEMES.base;
+    activeName = THEMES[name] ? name : 'base';
 
     var existingVars = document.getElementById('bst-theme-vars');
     if (existingVars) existingVars.remove();
@@ -218,10 +242,6 @@
     // Expose live settings so header/footer partials can pick them up.
     window.STORE_SETTINGS = settings;
 
-    // Replace known brand-text elements so the storefront shows the merchant's
-    // store name + tagline without every page template having to fetch the
-    // settings itself. Matches `data-store-name`, `data-store-description`,
-    // `data-store-logo`, plus common class hooks used across the pages.
     var apply = function () {
       if (settings.store_name) {
         var nameNodes = document.querySelectorAll('[data-store-name],.footer-brand-name,.brand-text,.brand-name');
@@ -235,11 +255,31 @@
           n.textContent = settings.store_description;
         });
       }
-      if (settings.logo_url) {
-        document.querySelectorAll('[data-store-logo]').forEach(function (n) {
-          if (n.tagName === 'IMG') { n.src = settings.logo_url; n.alt = settings.store_name || ''; }
-          else { n.style.backgroundImage = 'url("' + settings.logo_url.replace(/"/g,'%22') + '")'; }
-        });
+      document.querySelectorAll('[data-store-logo]').forEach(function (n) {
+        if (n.tagName === 'IMG') {
+          if (settings.logo_url) {
+            n.src = settings.logo_url;
+            n.alt = settings.store_name || '';
+            n.classList.add('has-logo');
+          } else {
+            n.classList.remove('has-logo');
+          }
+        } else if (settings.logo_url) {
+          n.style.backgroundImage = 'url("' + settings.logo_url.replace(/"/g,'%22') + '")';
+        }
+      });
+      // Hero section content — falls back to store name/description if not set.
+      var heroTitle = settings.hero_title || settings.store_name || '';
+      if (heroTitle) {
+        document.querySelectorAll('[data-hero-title]').forEach(function (n) { n.textContent = heroTitle; });
+      }
+      if (settings.hero_subtitle) {
+        document.querySelectorAll('[data-hero-subtitle]').forEach(function (n) { n.textContent = settings.hero_subtitle; });
+      } else if (settings.store_description) {
+        document.querySelectorAll('[data-hero-subtitle]').forEach(function (n) { n.textContent = settings.store_description; });
+      }
+      if (settings.hero_cta) {
+        document.querySelectorAll('[data-hero-cta]').forEach(function (n) { n.textContent = settings.hero_cta; });
       }
     };
     if (document.readyState === 'loading') {
@@ -271,4 +311,13 @@
       if (body && body.ok && body.data) applyBrandOverrides(body.data);
     })
     .catch(function () { /* silent — keep the preset */ });
+
+  // Live preview bridge: the admin dashboard customizer sends postMessage
+  // events when a merchant tweaks settings without saving. We apply them
+  // immediately so changes are visible in the iframe preview.
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'bst:preview') return;
+    if (e.source !== window.parent) return;
+    applyBrandOverrides(e.data.settings);
+  });
 })();

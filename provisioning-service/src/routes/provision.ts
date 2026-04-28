@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS auto_withdrawal_settings (
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
 
 const verifyPaymentSchema = z.object({
   currency: z.string().length(3).toLowerCase(),
@@ -183,7 +183,7 @@ const provisionSchema = z.object({
     description: z.string().max(500).optional().default(""),
     currency:    z.string().length(3),
     country:     z.string().length(2),
-    theme:       z.string().optional().default("mono").transform(t => VALID_THEMES.has(t) ? t : "mono"),
+    theme:       z.string().optional().default("base").transform(t => VALID_THEMES.has(t) ? t : "base"),
   }),
   admin: z.object({
     email:    z.string().email(),
