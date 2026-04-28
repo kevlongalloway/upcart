@@ -349,7 +349,7 @@ function renderNavbar() {
   const hash          = location.hash.replace(/^#/, '');
   const onOrders      = hash.startsWith('/orders');
   const onDiscounts   = hash.startsWith('/discounts');
-  const onTheme       = hash.startsWith('/theme') || hash.startsWith('/settings');
+  const onTheme       = hash.startsWith('/theme') || hash.startsWith('/settings') || hash.startsWith('/customize');
   const onPayouts     = hash.startsWith('/payouts');
   const onProducts    = !onOrders && !onDiscounts && !onTheme && !onPayouts;
   const ctx           = Auth.getContext() || {};
@@ -388,8 +388,8 @@ function renderNavbar() {
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onTheme ? 'active' : ''}" href="#/theme">
-                <i class="bi bi-palette"></i><span class="nav-label ms-1">Theme</span>
+              <a class="nav-link py-1 px-2 ${onTheme ? 'active' : ''}" href="#/customize">
+                <i class="bi bi-palette2"></i><span class="nav-label ms-1">Customize</span>
               </a>
             </li>
           </ul>
@@ -2718,7 +2718,8 @@ const DiscountFormView = {
 // and applies the values with CSS custom properties (no rebuild required).
 const ThemeView = {
   _themes: [
-    { id: 'mono',     name: 'Mono',     desc: 'Editorial, monospace, light',  bg: '#f5f5f5', text: '#1a1a1a', btn: '#1a1a1a' },
+    { id: 'base',     name: 'Base',     desc: 'System fonts, clean & modern',  bg: '#ffffff', text: '#111111', btn: '#111111' },
+    { id: 'mono',     name: 'Mono',     desc: 'Editorial, monospace, light',   bg: '#f5f5f5', text: '#1a1a1a', btn: '#1a1a1a' },
     { id: 'minimal',  name: 'Minimal',  desc: 'Clean white, Inter, corporate', bg: '#ffffff', text: '#111111', btn: '#111111' },
     { id: 'boutique', name: 'Boutique', desc: 'Cream, serif, luxury fashion',  bg: '#faf7f2', text: '#2c1810', btn: '#2c1810' },
     { id: 'bold',     name: 'Bold',     desc: 'Dark, gold accent, streetwear', bg: '#0a0a0a', text: '#f0f0f0', btn: '#f5c000' },
@@ -3376,6 +3377,412 @@ const PayoutsView = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// View: Customize (Shopify-style visual theme editor)
+// ═══════════════════════════════════════════════════════════════
+// Full-page layout: left sidebar with collapsible control sections,
+// right panel with a live iframe of the merchant's actual storefront.
+// Changes are sent to the iframe via postMessage (bst:preview) so the
+// store's theme.js applies them instantly without a page reload.
+// Clicking "Save & Publish" persists the settings to the backend.
+const CustomizeView = {
+  _themes: [
+    { id: 'base',     name: 'Base',     desc: 'System fonts, clean & modern',       bg: '#ffffff', text: '#111111', btn: '#111111' },
+    { id: 'mono',     name: 'Mono',     desc: 'Editorial monospace, light',          bg: '#f5f5f5', text: '#1a1a1a', btn: '#1a1a1a' },
+    { id: 'minimal',  name: 'Minimal',  desc: 'Pure white, Inter, corporate',        bg: '#ffffff', text: '#111111', btn: '#111111' },
+    { id: 'boutique', name: 'Boutique', desc: 'Cream, serif, luxury fashion',         bg: '#faf7f2', text: '#2c1810', btn: '#2c1810' },
+    { id: 'bold',     name: 'Bold',     desc: 'Dark, gold accent, streetwear',        bg: '#0a0a0a', text: '#f0f0f0', btn: '#f5c000' },
+    { id: 'studio',   name: 'Studio',   desc: 'Warm, DM Serif, artisan',              bg: '#f5f0ea', text: '#2d2419', btn: '#c4603a' },
+  ],
+
+  render() {
+    return `
+      ${renderNavbar()}
+      <div class="customize-layout" id="customize-layout">
+
+        <!-- ── Sidebar ─────────────────────────────────────────── -->
+        <div class="customize-sidebar">
+          <div class="customize-sidebar-header d-flex align-items-center justify-content-between">
+            <h6 class="mb-0 fw-bold">Customize</h6>
+          </div>
+
+          <div class="customize-sidebar-body">
+            <div class="text-center py-5" id="cz-loading">
+              <div class="spinner-border spinner-border-sm text-secondary"></div>
+            </div>
+
+            <div id="cz-controls" class="d-none">
+
+              <!-- Theme Preset -->
+              <div class="cz-section">
+                <button class="cz-section-toggle" data-section="theme" aria-expanded="true">
+                  <span>Theme Preset</span>
+                  <i class="bi bi-chevron-down cz-chevron" id="cz-chev-theme"></i>
+                </button>
+                <div class="cz-section-body" id="cz-sec-theme">
+                  <div class="row g-2 pt-1">
+                    ${this._themes.map(t => `
+                      <div class="col-6">
+                        <button type="button" class="cz-preset w-100 p-0 border-0"
+                                data-theme="${t.id}"
+                                style="background:${t.bg};color:${t.text}">
+                          <div class="cz-preset-bar" style="background:${t.btn}"></div>
+                          <div class="cz-preset-info p-2 text-start">
+                            <div class="fw-semibold" style="font-size:0.78rem">${t.name}</div>
+                            <div style="font-size:0.67rem;opacity:0.6;line-height:1.3">${t.desc}</div>
+                          </div>
+                        </button>
+                      </div>`).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Colors -->
+              <div class="cz-section">
+                <button class="cz-section-toggle" data-section="colors" aria-expanded="true">
+                  <span>Brand Colors</span>
+                  <i class="bi bi-chevron-down cz-chevron" id="cz-chev-colors"></i>
+                </button>
+                <div class="cz-section-body" id="cz-sec-colors">
+                  <div class="pt-1">
+                    <div class="mb-3">
+                      <label class="form-label small fw-semibold mb-1" for="cz-primary">Primary — buttons &amp; links</label>
+                      <div class="input-group input-group-sm">
+                        <input type="color" class="form-control form-control-color flex-shrink-0" id="cz-primary-picker" style="width:40px;padding:3px 4px">
+                        <input type="text" class="form-control font-monospace" id="cz-primary" placeholder="#111111" maxlength="7">
+                        <button class="btn btn-outline-secondary" id="cz-primary-clear" type="button" title="Reset to preset">✕</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="form-label small fw-semibold mb-1" for="cz-accent">Accent — highlights &amp; badges</label>
+                      <div class="input-group input-group-sm">
+                        <input type="color" class="form-control form-control-color flex-shrink-0" id="cz-accent-picker" style="width:40px;padding:3px 4px">
+                        <input type="text" class="form-control font-monospace" id="cz-accent" placeholder="#4a9eff" maxlength="7">
+                        <button class="btn btn-outline-secondary" id="cz-accent-clear" type="button" title="Reset to preset">✕</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Header -->
+              <div class="cz-section">
+                <button class="cz-section-toggle" data-section="header" aria-expanded="true">
+                  <span>Header</span>
+                  <i class="bi bi-chevron-down cz-chevron" id="cz-chev-header"></i>
+                </button>
+                <div class="cz-section-body" id="cz-sec-header">
+                  <div class="pt-1">
+                    <div class="mb-3">
+                      <label class="form-label small fw-semibold mb-1" for="cz-store-name">Store name</label>
+                      <input type="text" class="form-control form-control-sm" id="cz-store-name" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label small fw-semibold mb-1" for="cz-store-desc">Tagline / description</label>
+                      <input type="text" class="form-control form-control-sm" id="cz-store-desc" maxlength="300" placeholder="Short line shown in SEO meta">
+                    </div>
+                    <div>
+                      <label class="form-label small fw-semibold mb-1">Logo</label>
+                      <div class="d-flex align-items-center gap-2">
+                        <div id="cz-logo-preview" class="cz-logo-preview" aria-hidden="true"></div>
+                        <div class="flex-grow-1">
+                          <input type="file" class="form-control form-control-sm" id="cz-logo-file" accept="image/*">
+                          <div class="small text-secondary mt-1" id="cz-logo-status"></div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger flex-shrink-0" id="cz-logo-remove" type="button" title="Remove logo">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                      <input type="hidden" id="cz-logo-url">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hero Banner -->
+              <div class="cz-section">
+                <button class="cz-section-toggle" data-section="hero" aria-expanded="true">
+                  <span>Hero Banner</span>
+                  <i class="bi bi-chevron-down cz-chevron" id="cz-chev-hero"></i>
+                </button>
+                <div class="cz-section-body" id="cz-sec-hero">
+                  <div class="pt-1">
+                    <div class="mb-3">
+                      <label class="form-label small fw-semibold mb-1" for="cz-hero-title">Headline</label>
+                      <input type="text" class="form-control form-control-sm" id="cz-hero-title" maxlength="100" placeholder="Defaults to store name">
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label small fw-semibold mb-1" for="cz-hero-subtitle">Subheadline</label>
+                      <input type="text" class="form-control form-control-sm" id="cz-hero-subtitle" maxlength="200" placeholder="Discover our curated collection">
+                    </div>
+                    <div>
+                      <label class="form-label small fw-semibold mb-1" for="cz-hero-cta">Button text</label>
+                      <input type="text" class="form-control form-control-sm" id="cz-hero-cta" maxlength="50" placeholder="Shop Now">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /cz-controls -->
+          </div><!-- /sidebar-body -->
+
+          <div class="customize-sidebar-footer">
+            <button class="btn btn-primary w-100" id="cz-save" disabled>
+              <i class="bi bi-check2 me-2"></i>Save &amp; Publish
+            </button>
+          </div>
+        </div><!-- /sidebar -->
+
+        <!-- ── Preview panel ────────────────────────────────────── -->
+        <div class="customize-preview-panel">
+          <div class="customize-preview-bar">
+            <div class="d-flex align-items-center gap-2">
+              <span class="small fw-semibold" style="color:var(--text-dim)">Preview</span>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Viewport size">
+                <button class="btn btn-outline-secondary active" id="cz-vp-desktop" type="button" title="Desktop">
+                  <i class="bi bi-display"></i>
+                </button>
+                <button class="btn btn-outline-secondary" id="cz-vp-mobile" type="button" title="Mobile (390px)">
+                  <i class="bi bi-phone"></i>
+                </button>
+              </div>
+            </div>
+            <a href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" id="cz-open-store">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Open store
+            </a>
+          </div>
+          <div class="customize-iframe-wrap" id="cz-iframe-wrap">
+            <iframe id="cz-iframe" src="about:blank" title="Store preview"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-top-navigation-by-user-activation"></iframe>
+          </div>
+        </div>
+
+      </div>`;
+  },
+
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    const ctx       = Auth.getContext() || {};
+    const storeUrl  = ctx.store_url || '';
+    const openLink  = document.getElementById('cz-open-store');
+    if (storeUrl) openLink.href = storeUrl;
+
+    // ── State ────────────────────────────────────────────────────────────
+    const state = {
+      theme: 'base', brand_primary: '', brand_accent: '', logo_url: '',
+      store_name: '', store_description: '',
+      hero_title: '', hero_subtitle: '', hero_cta: '',
+    };
+
+    // ── Load current settings ────────────────────────────────────────────
+    let initial = {};
+    try {
+      initial = await Api.getSettings();
+    } catch (e) {
+      Toast.error(`Failed to load settings: ${e.message}`);
+    }
+    Object.assign(state, {
+      theme:             initial.theme             || 'base',
+      brand_primary:     initial.brand_primary     || '',
+      brand_accent:      initial.brand_accent      || '',
+      logo_url:          initial.logo_url          || '',
+      store_name:        initial.store_name        || ctx.store_name || '',
+      store_description: initial.store_description || '',
+      hero_title:        initial.hero_title        || '',
+      hero_subtitle:     initial.hero_subtitle     || '',
+      hero_cta:          initial.hero_cta          || '',
+    });
+    const snapshot = { ...state };
+
+    document.getElementById('cz-loading').classList.add('d-none');
+    document.getElementById('cz-controls').classList.remove('d-none');
+    document.getElementById('cz-save').disabled = false;
+
+    // ── DOM refs ─────────────────────────────────────────────────────────
+    const $name     = document.getElementById('cz-store-name');
+    const $desc     = document.getElementById('cz-store-desc');
+    const $prim     = document.getElementById('cz-primary');
+    const $primPk   = document.getElementById('cz-primary-picker');
+    const $acc      = document.getElementById('cz-accent');
+    const $accPk    = document.getElementById('cz-accent-picker');
+    const $logoUrl  = document.getElementById('cz-logo-url');
+    const $logoPv   = document.getElementById('cz-logo-preview');
+    const $logoSt   = document.getElementById('cz-logo-status');
+    const $logoFile = document.getElementById('cz-logo-file');
+    const $logoDel  = document.getElementById('cz-logo-remove');
+    const $htitle   = document.getElementById('cz-hero-title');
+    const $hsub     = document.getElementById('cz-hero-subtitle');
+    const $hcta     = document.getElementById('cz-hero-cta');
+    const $iframe   = document.getElementById('cz-iframe');
+
+    // ── Populate fields ──────────────────────────────────────────────────
+    $name.value     = state.store_name;
+    $desc.value     = state.store_description;
+    $prim.value     = state.brand_primary;
+    $primPk.value   = state.brand_primary || '#111111';
+    $acc.value      = state.brand_accent;
+    $accPk.value    = state.brand_accent  || '#4a9eff';
+    $logoUrl.value  = state.logo_url;
+    $htitle.value   = state.hero_title;
+    $hsub.value     = state.hero_subtitle;
+    $hcta.value     = state.hero_cta;
+    if (state.logo_url) $logoPv.style.backgroundImage = `url('${cssEscUrl(state.logo_url)}')`;
+
+    // ── Send live preview to iframe ───────────────────────────────────────
+    let storeOrigin = '*';
+    try { if (storeUrl) storeOrigin = new URL(storeUrl).origin; } catch {}
+
+    const sendPreview = () => {
+      if ($iframe.contentWindow) {
+        $iframe.contentWindow.postMessage({ type: 'bst:preview', settings: { ...state } }, storeOrigin);
+      }
+    };
+
+    // Load iframe AFTER settings are ready so the postMessage can fire on load.
+    if (storeUrl) {
+      $iframe.addEventListener('load', () => {
+        // Small delay to let theme.js initialise its message listener.
+        setTimeout(sendPreview, 300);
+      });
+      $iframe.src = storeUrl;
+    }
+
+    // ── Preset selection ─────────────────────────────────────────────────
+    const paintPresets = () => {
+      document.querySelectorAll('.cz-preset').forEach(btn => {
+        btn.style.outline = btn.dataset.theme === state.theme
+          ? '2px solid #0d6efd' : '2px solid transparent';
+      });
+    };
+    paintPresets();
+
+    document.querySelectorAll('.cz-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.theme = btn.dataset.theme;
+        paintPresets();
+        sendPreview();
+      });
+    });
+
+    // ── Color inputs ─────────────────────────────────────────────────────
+    const onColor = (key, $text, $picker) => (e) => {
+      const raw = e.target.value.trim();
+      if (e.target.type === 'color') {
+        state[key] = raw;
+        $text.value = raw;
+      } else {
+        const hex = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : '';
+        state[key] = hex;
+        if (hex) $picker.value = hex;
+      }
+      sendPreview();
+    };
+    $prim.addEventListener('input',   onColor('brand_primary', $prim, $primPk));
+    $primPk.addEventListener('input', onColor('brand_primary', $prim, $primPk));
+    $acc.addEventListener('input',    onColor('brand_accent',  $acc,  $accPk));
+    $accPk.addEventListener('input',  onColor('brand_accent',  $acc,  $accPk));
+
+    document.getElementById('cz-primary-clear').addEventListener('click', () => {
+      state.brand_primary = ''; $prim.value = ''; sendPreview();
+    });
+    document.getElementById('cz-accent-clear').addEventListener('click', () => {
+      state.brand_accent = ''; $acc.value = ''; sendPreview();
+    });
+
+    // ── Text inputs ──────────────────────────────────────────────────────
+    $name.addEventListener('input',   () => { state.store_name        = $name.value;   sendPreview(); });
+    $desc.addEventListener('input',   () => { state.store_description = $desc.value;   sendPreview(); });
+    $htitle.addEventListener('input', () => { state.hero_title        = $htitle.value; sendPreview(); });
+    $hsub.addEventListener('input',   () => { state.hero_subtitle     = $hsub.value;   sendPreview(); });
+    $hcta.addEventListener('input',   () => { state.hero_cta          = $hcta.value;   sendPreview(); });
+
+    // ── Logo upload ──────────────────────────────────────────────────────
+    $logoFile.addEventListener('change', async () => {
+      const file = $logoFile.files?.[0];
+      if (!file) return;
+      $logoSt.textContent = 'Uploading…';
+      try {
+        const { url } = await Api.uploadImage(file);
+        state.logo_url = url;
+        $logoUrl.value = url;
+        $logoPv.style.backgroundImage = `url('${cssEscUrl(url)}')`;
+        $logoSt.innerHTML = '<span class="text-success">Uploaded.</span>';
+        sendPreview();
+      } catch (e) {
+        $logoSt.innerHTML = `<span class="text-danger">Upload failed: ${escHtml(e.message)}</span>`;
+      } finally {
+        $logoFile.value = '';
+      }
+    });
+
+    $logoDel.addEventListener('click', () => {
+      state.logo_url = ''; $logoUrl.value = '';
+      $logoPv.style.backgroundImage = ''; sendPreview();
+    });
+
+    // ── Section accordion toggles ────────────────────────────────────────
+    document.querySelectorAll('.cz-section-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key  = btn.dataset.section;
+        const body = document.getElementById(`cz-sec-${key}`);
+        const chev = document.getElementById(`cz-chev-${key}`);
+        const open = !body.classList.contains('d-none');
+        body.classList.toggle('d-none', open);
+        chev.style.transform = open ? 'rotate(-90deg)' : '';
+        btn.setAttribute('aria-expanded', String(!open));
+      });
+    });
+
+    // ── Viewport toggle ──────────────────────────────────────────────────
+    const $wrap = document.getElementById('cz-iframe-wrap');
+    document.getElementById('cz-vp-desktop').addEventListener('click', (e) => {
+      $wrap.classList.remove('vp-mobile');
+      e.currentTarget.classList.add('active');
+      document.getElementById('cz-vp-mobile').classList.remove('active');
+    });
+    document.getElementById('cz-vp-mobile').addEventListener('click', (e) => {
+      $wrap.classList.add('vp-mobile');
+      e.currentTarget.classList.add('active');
+      document.getElementById('cz-vp-desktop').classList.remove('active');
+    });
+
+    // ── Save & Publish ────────────────────────────────────────────────────
+    document.getElementById('cz-save').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+      try {
+        await Api.updateSettings({
+          theme:             state.theme,
+          brand_primary:     state.brand_primary,
+          brand_accent:      state.brand_accent,
+          logo_url:          state.logo_url,
+          store_name:        state.store_name,
+          store_description: state.store_description,
+          hero_title:        state.hero_title,
+          hero_subtitle:     state.hero_subtitle,
+          hero_cta:          state.hero_cta,
+        });
+        Toast.success('Published — your storefront is updated.');
+        try {
+          const ctxNow = Auth.getContext() || {};
+          sessionStorage.setItem(Auth._K_CTX, JSON.stringify({
+            ...ctxNow,
+            store_name: state.store_name || ctxNow.store_name,
+          }));
+        } catch {}
+        Object.assign(snapshot, state);
+      } catch (e) {
+        Toast.error(`Save failed: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2 me-2"></i>Save &amp; Publish';
+      }
+    });
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════
 const Router = {
@@ -3477,9 +3884,9 @@ const Router = {
       return;
     }
 
-    if (hash === '/theme' || hash === '/settings') {
-      app.innerHTML = ThemeView.render();
-      ThemeView.init();
+    if (hash === '/theme' || hash === '/settings' || hash === '/customize') {
+      app.innerHTML = CustomizeView.render();
+      CustomizeView.init();
       return;
     }
 

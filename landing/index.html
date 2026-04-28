@@ -790,7 +790,7 @@ margin: 0 auto 1rem;
 }
 
 /* Theme picker */
-.theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .theme-card {
 border-radius: 6px;
 overflow: hidden;
@@ -896,7 +896,7 @@ border: 1px solid var(--border-default);
 }
 
 @media (max-width: 480px) {
-.theme-grid { grid-template-columns: repeat(3, 1fr); }
+.theme-grid { grid-template-columns: repeat(2, 1fr); }
 .step-line  { width: 28px; }
 }
 
@@ -1650,8 +1650,19 @@ nav { padding: 0 20px; }
             <label class="form-label mb-2">Storefront theme</label>
             <div class="theme-grid" id="theme-grid">
 
-              <label class="theme-card selected" data-theme="mono">
-                <input type="radio" name="store-theme" value="mono" checked>
+              <label class="theme-card selected" data-theme="base">
+                <input type="radio" name="store-theme" value="base" checked>
+                <div class="theme-preview" style="background:#ffffff">
+                  <div class="theme-preview-bar w100" style="background:#111111"></div>
+                  <div class="theme-preview-bar w70"  style="background:#111111"></div>
+                  <div class="theme-preview-bar w50"  style="background:#111111"></div>
+                  <div class="theme-preview-btn" style="background:#111111"></div>
+                </div>
+                <div class="theme-label" style="background:#f5f5f5;color:#111111">Base</div>
+              </label>
+
+              <label class="theme-card" data-theme="mono">
+                <input type="radio" name="store-theme" value="mono">
                 <div class="theme-preview" style="background:#f5f5f5">
                   <div class="theme-preview-bar w100" style="background:#1a1a1a"></div>
                   <div class="theme-preview-bar w70"  style="background:#1a1a1a"></div>

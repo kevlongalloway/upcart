@@ -12,7 +12,7 @@ const PBKDF2_ITERATIONS = 100_000;
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
 
 const setupSchema = z.object({
   store: z.object({
@@ -20,7 +20,7 @@ const setupSchema = z.object({
     description: z.string().max(500).optional().default(""),
     currency:    z.string().length(3, "Currency must be a 3-letter ISO code"),
     country:     z.string().length(2, "Country must be a 2-letter ISO code"),
-    theme:       z.string().optional().default("mono").transform(t => VALID_THEMES.has(t) ? t : "mono"),
+    theme:       z.string().optional().default("base").transform(t => VALID_THEMES.has(t) ? t : "base"),
   }),
   admin: z.object({
     username: z

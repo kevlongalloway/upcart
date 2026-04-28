@@ -28,8 +28,10 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use("*", logger());
 
-// Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-app.use("*", secureHeaders());
+// Security headers — X-Frame-Options disabled so the storefront can be loaded
+// in the admin dashboard's visual theme customizer iframe. The store is a
+// public page, so framing it from the dashboard is not a security concern.
+app.use("*", secureHeaders({ xFrameOptions: false }));
 
 // CORS — must come before CSRF so that preflight requests are handled first.
 app.use("*", corsMiddleware());
