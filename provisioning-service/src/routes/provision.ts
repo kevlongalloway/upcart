@@ -726,8 +726,11 @@ async function runProvisioning(
       `Bound ${hostname} to worker "${workerName}" via Custom Domains (id: ${customDomain.id})`
     );
 
-    // Retrieve the DNS record ID that Custom Domains created so we can clean
-    // it up during deprovisioning.
+    // Look up the DNS record that Custom Domains created (needed for cleanup
+    // and for deprovisioning). If no record is found, Cloudflare did not
+    // create one automatically — create it explicitly and add a Worker Route
+    // so the store is reachable immediately rather than waiting (possibly
+    // indefinitely) for Custom Domain DNS to propagate.
     try {
       const records = await cf.listDnsRecords(env.CF_ZONE_ID, hostname);
       const rec     = records.find(r => r.name === hostname && r.proxied);
@@ -735,9 +738,50 @@ async function runProvisioning(
         created.dnsRecordId = rec.id;
         await tenantDB.updateResources(tenantId, { cf_dns_record_id: rec.id });
         console.log(`Recorded DNS record ${rec.id} created by Custom Domains for ${hostname}`);
+      } else {
+        // Custom Domain binding exists but Cloudflare has not yet created (or
+        // exposed via API) the DNS record. Create an explicit proxied AAAA
+        // record + Worker Route as a belt-and-suspenders guarantee so the
+        // store resolves and serves traffic while Custom Domain DNS catches up.
+        console.warn(
+          `[provision] No proxied DNS record found for ${hostname} after Custom Domain binding — ` +
+          `adding explicit DNS record + Worker Route as backup.`
+        );
+
+        // Create the DNS record. Treat a conflict (409) as "Custom Domain
+        // already created it but it is not yet visible" — re-fetch to capture
+        // the ID for cleanup tracking.
+        try {
+          const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
+          created.dnsRecordId = dnsRecord.id;
+          await tenantDB.updateResources(tenantId, { cf_dns_record_id: dnsRecord.id });
+          console.log(`[provision] Created backup DNS record ${dnsRecord.id} for ${hostname}`);
+        } catch {
+          const recheckRecords = await cf.listDnsRecords(env.CF_ZONE_ID, hostname).catch(() => [] as typeof records);
+          const recheckRec = recheckRecords.find(r => r.name === hostname && r.proxied);
+          if (recheckRec) {
+            created.dnsRecordId = recheckRec.id;
+            await tenantDB.updateResources(tenantId, { cf_dns_record_id: recheckRec.id });
+            console.log(`[provision] Re-captured DNS record ${recheckRec.id} for ${hostname} after conflict`);
+          }
+        }
+
+        // Add Worker Route as routing backup (Custom Domain takes precedence
+        // once its own DNS record appears, but this guarantees the store is
+        // live in the meantime).
+        try {
+          const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
+          created.routeId = route.id;
+          await tenantDB.updateResources(tenantId, { cf_route_id: route.id });
+          console.log(`[provision] Added Worker Route backup for ${hostname} (id: ${route.id})`);
+        } catch (routeErr) {
+          console.warn(
+            `[provision] Worker Route backup failed for ${hostname}: ${(routeErr as Error).message}`
+          );
+        }
       }
-    } catch {
-      // Non-fatal — only affects deprovisioning cleanup.
+    } catch (e) {
+      console.warn(`[provision] DNS record check/backup failed for ${hostname}: ${(e as Error).message}`);
     }
   } catch (customDomainErr) {
     console.warn(
