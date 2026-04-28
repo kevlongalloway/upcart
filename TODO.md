@@ -1,7 +1,10 @@
 # Upcart — Production Readiness TODO
 
-> Last updated: 2026-04-27  
-> Provisioning is working. This file tracks everything needed before public launch.
+> Last updated: 2026-04-28  
+> **Audit completed on branch `claude/fix-deploy-stripe-setup-myYtq` — overall readiness: 42/100.**  
+> Core provisioning flow (D1, R2, Worker, DNS, auth) works. Three independent P0 blockers  
+> prevent any real merchant from receiving revenue or seeing orders in their dashboard.  
+> See [Audit Findings](#audit-findings--added-2026-04-28) section at bottom for full details.
 
 ---
 
@@ -230,3 +233,94 @@
 - **Untrusted store fix:** Cloudflare Universal SSL covers `*.upcart.online` automatically; for custom domains, the Custom Hostnames API triggers DV cert issuance — confirm `ssl_status = active` before going live
 - **Blackstar:** Audit current themes for any third-party IP before launch; replace with the new `base` template as the default
 - **Stripe Connect:** Do not allow live transactions until `charges_enabled = true` on the tenant's Connect account
+
+---
+
+## AUDIT FINDINGS — Added 2026-04-28
+
+> Branch audited: `claude/fix-deploy-stripe-setup-myYtq`  
+> Overall score: **42 / 100** — provisioning plumbing works, but three independent blockers prevent revenue + order flow from functioning.
+
+### P0 — Breaks every live merchant (ship immediately)
+
+#### A. Per-tenant Stripe webhook endpoint never registered
+- [ ] In `runProvisioning()` (after Worker deploy), call Stripe `POST /webhook_endpoints` with `url: https://${hostname}/webhooks/stripe` and events `["checkout.session.completed", "payment_intent.succeeded", "payment_intent.payment_failed"]`
+- [ ] Store `webhook_endpoint.id` on the tenant record for deprovisioning cleanup
+- [ ] Set the returned per-tenant webhook signing secret on the worker via `cf.setWorkerSecret(workerName, "STRIPE_WEBHOOK_SECRET", perTenantSecret)` (overrides the shared platform secret set earlier in the same flow)
+- [ ] **Without this fix:** customer purchases succeed (money collected) but `checkout.session.completed` is never delivered to the tenant worker → orders never created in D1 → merchant sees zero orders in dashboard forever
+
+#### B. R2 bucket public access not automated — product images 403 for every new store
+- [ ] **Short-term (manual script):** after provisioning, run `wrangler r2 bucket update <name> --public` or enable via Cloudflare dashboard; document this as a required deployment step
+- [ ] **Preferred long-term:** add a Worker route `/images/:key` on the tenant worker that streams from the private `IMAGES` R2 binding via `c.env.IMAGES.get(key)` — eliminate public buckets entirely, use signed or same-origin access
+- [ ] Update `R2_PUBLIC_URL` var to point to the Worker's `/images/` route instead of the `.r2.dev` public URL
+- [ ] Until fixed: every tenant's product images return HTTP 403; storefront renders with broken image placeholders
+
+#### C. `STRIPE_PRICE_ID` is empty — subscription / trial never created for any tenant
+- [ ] Set `STRIPE_PRICE_ID` in `provisioning-service/wrangler.toml` to a real recurring Stripe Price ID
+- [ ] Create the price in Stripe dashboard → Products → Add product → Add price (recurring, monthly, amount = plan cost, trial_period_days = 0 since we set trial_end at subscription creation)
+- [ ] Verify subscription creation step runs end-to-end after setting the price ID
+- [ ] Until fixed: no tenant gets a trial period or subscription; billing infrastructure is present but never activated; trial expiry cron has nothing to act on
+
+#### D. `store_settings` table is never seeded at provisioning
+- [ ] After `cf.runD1Migrations()`, insert initial `store_settings` rows via `cf.runD1Query()`:
+  - `key="store_name"` → `input.store.name`
+  - `key="theme"` → `input.store.theme`
+  - `key="country"` → `input.store.country`
+  - `key="currency"` → `input.store.currency`
+- [ ] Without this: theme selected at signup has no effect (all stores get hardcoded default), Connect onboarding form doesn't pre-fill store name/country, `GET /settings/public` returns empty
+
+### P1 — Security / correctness (ship before public beta)
+
+#### E. `ADMIN_PASSWORD_HASH` passed as `plain_text` var — visible in Cloudflare dashboard
+- [ ] Remove `ADMIN_PASSWORD_HASH` from the `vars` object in `provision.ts` (around line 267)
+- [ ] Add `await cf.setWorkerSecret(workerName, "ADMIN_PASSWORD_HASH", adminPasswordHash)` alongside `JWT_SECRET` and the Stripe secrets
+- [ ] Anyone with Cloudflare dashboard access can currently read the PBKDF2 hash and mount an offline attack
+
+#### F. `/debug` route publicly accessible on every tenant worker
+- [ ] `backend/src/index.ts`: move `app.route("/debug", debug)` to below the `adminAuthMiddleware()` block, or remove entirely for production builds
+- [ ] Currently exposes `ADMIN_USERNAME` (full, unmasked), Stripe publishable key hint, D1 row counts, R2 binding status to any anonymous HTTP request
+
+#### G. Stripe Connect account not created at provisioning — all revenue goes to platform
+- [ ] Add a step in `runProvisioning()` (after Worker secrets are set) to call `stripe.accounts.create({ type: "express", country, capabilities: { card_payments: { requested: true }, transfers: { requested: true } } })`
+- [ ] Store `acct.id` in `store_settings` (key=`stripe_connect_account_id`) via D1 query on the new tenant DB
+- [ ] Store `acct.id` on the provisioning tenant record via `tenantDB.updateConnectStatus()`
+- [ ] The merchant still needs to complete Express onboarding; send them the Account Link URL in the welcome email
+- [ ] Until fixed: checkout sessions run without `transfer_data.destination`; customer payments go to platform Stripe account; merchants receive zero payouts
+
+#### H. Two Stripe webhook endpoints — architecture conflict
+- [ ] Decide on one of two approaches and document it:
+  - **Option A (recommended):** Register per-tenant webhook endpoints (covered by item A above). Each tenant's `/webhooks/stripe` receives checkout events directly. Platform provisioning service `/webhooks/stripe` receives only subscription/Connect events.
+  - **Option B:** Route all events through the platform webhook. Add a checkout-event router to `provisioning-service/src/routes/webhooks.ts` that reads `metadata.tenant_id` from checkout events and POSTs to the correct `store_url/webhooks/stripe` (internal forwarding).
+- [ ] Neither approach is currently implemented; checkout events are silently dropped
+
+#### I. `STORE_MIGRATIONS` in `provision.ts` is disconnected from `backend/migrations/*.sql`
+- [ ] Add a CI step or pre-deploy script that diffs `STORE_MIGRATIONS` constant against the concatenated content of all `backend/migrations/*.sql` files and fails if they diverge
+- [ ] Alternatively, generate `STORE_MIGRATIONS` at build time by reading the migration files, so it can never drift
+
+### P2 — Quality / reliability (medium term)
+
+#### J. Theme selection not propagated from signup to storefront
+- [ ] `backend/build.mjs` overrides `config.js` with only `window.BST_API_BASE=""` — `window.STORE_THEME` is not set
+- [ ] Fix: after seeding `store_settings.theme` (item D above), have `theme.js` read the theme from `GET /settings/public` at page load rather than from `window.STORE_THEME`
+- [ ] This also makes the theme changeable from the dashboard without redeploying the worker
+
+#### K. Automate backend bundle upload in CI/CD
+- [ ] GitHub Actions: on push to `main` (or on new tag), run `cd backend && npm run build`, then `wrangler r2 object put upcart-worker-bundles/store-worker.js --file dist/index.js`
+- [ ] Add a `BUNDLE_VERSION` env var to provisioning service to select which bundle version to deploy (allows rollbacks)
+
+#### L. Race condition: store marked active before DNS propagates
+- [ ] After domain binding, add a brief poll (up to 60s, 5s intervals) probing `https://${hostname}/health` via the workers.dev URL before marking tenant active
+- [ ] If health check fails after timeout, leave status as `configuring_domain` — client continues polling; mark active once `/health` returns 200
+
+#### M. `CF_WORKERS_SUBDOMAIN` hardcoded in wrangler.toml
+- [ ] `provisioning-service/wrangler.toml`: move `CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"` out of `[vars]` (committed) into a secret or a separate `.env` file that is `.gitignore`d
+- [ ] Add a validation on startup: `if (!env.CF_WORKERS_SUBDOMAIN) throw new Error("CF_WORKERS_SUBDOMAIN must be set")`
+
+#### N. Remove test images committed to customer-store/
+- [ ] Delete `customer-store/IMG_1304.jpeg`, `IMG_1305.jpeg`, `IMG_1306.jpeg`, `IMG_1309.png` from the repo
+- [ ] Add `*.jpeg` / `*.png` (or `customer-store/*.jpeg`) to `.gitignore`
+
+#### O. `EASYPOST_API_KEY` never propagated to tenant workers
+- [ ] Add `EASYPOST_API_KEY` to provisioning-service secrets (optional, skip if empty)
+- [ ] In `runProvisioning()`, if `env.EASYPOST_API_KEY`, call `cf.setWorkerSecret(workerName, "EASYPOST_API_KEY", env.EASYPOST_API_KEY)`
+- [ ] Until fixed: `POST /admin/orders/:id/label` on every tenant worker returns a 503 regardless of plan
