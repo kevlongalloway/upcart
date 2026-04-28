@@ -392,6 +392,113 @@ debugRouter.get("/tenant", async (c) => {
   return c.json({ ok: allOk, steps });
 });
 
+// ── POST /debug/tenants/rebind-all ────────────────────────────────────────────
+// Re-binds the Custom Domain (+ Worker Route fallback) for every active tenant
+// whose subdomain does not currently resolve to a proxied DNS record.
+// Use this after a zone DNS reset, Custom Domain deletion, or any other event
+// that leaves stores reachable in Cloudflare but unreachable on the web.
+//
+// Returns a per-tenant report of what was fixed, skipped, or failed.
+debugRouter.post("/tenants/rebind-all", async (c) => {
+  const cf = new CloudflareAPI(c.env.CF_ACCOUNT_ID, c.env.CF_API_TOKEN);
+  const baseDomain = c.env.BASE_DOMAIN;
+
+  // Load all active tenants that have a worker deployed.
+  let tenantRows: Array<Record<string, unknown>>;
+  try {
+    const result = await c.env.DB
+      .prepare(
+        `SELECT id, subdomain, cf_worker_name, cf_custom_domain_id, cf_route_id, cf_dns_record_id
+         FROM tenants
+         WHERE status = 'active' AND cf_worker_name IS NOT NULL
+         ORDER BY created_at DESC`
+      )
+      .all<Record<string, unknown>>();
+    tenantRows = result.results ?? [];
+  } catch (e) {
+    return c.json({ ok: false, error: `D1 query failed: ${(e as Error).message}` }, 500);
+  }
+
+  const report: Array<{ subdomain: string; status: string; detail: string }> = [];
+
+  for (const row of tenantRows) {
+    const subdomain  = String(row["subdomain"]      ?? "");
+    const workerName = String(row["cf_worker_name"] ?? "");
+    const hostname   = `${subdomain}.${baseDomain}`;
+
+    // Check whether a proxied DNS record already exists.
+    let hasRecord = false;
+    try {
+      const records = await cf.listDnsRecords(c.env.CF_ZONE_ID, hostname);
+      hasRecord = records.some(r => r.name === hostname && r.proxied);
+    } catch {
+      // If we can't check, treat as missing and try to rebind.
+    }
+
+    if (hasRecord) {
+      report.push({ subdomain, status: "skipped", detail: "DNS record already present" });
+      continue;
+    }
+
+    // No DNS record found — attempt Custom Domain binding first, then Worker Route.
+    const tenantId = String(row["id"] ?? "");
+
+    try {
+      const customDomain = await cf.addWorkerCustomDomain(workerName, hostname, c.env.CF_ZONE_ID);
+      await c.env.DB
+        .prepare("UPDATE tenants SET cf_custom_domain_id = ?1, updated_at = ?2 WHERE id = ?3")
+        .bind(customDomain.id, new Date().toISOString(), tenantId)
+        .run();
+      report.push({ subdomain, status: "fixed", detail: `Custom Domain rebound (id: ${customDomain.id})` });
+    } catch (cdErr) {
+      // Custom Domain failed — fall back to explicit DNS + Worker Route.
+      try {
+        let dnsRecordId: string | null = null;
+        try {
+          const dnsRecord = await cf.createDnsRecord(c.env.CF_ZONE_ID, hostname);
+          dnsRecordId = dnsRecord.id;
+        } catch {
+          // Conflict — record may have just appeared; re-check.
+          const recheckRecords = await cf.listDnsRecords(c.env.CF_ZONE_ID, hostname).catch(() => []);
+          const recheckRec = recheckRecords.find(r => r.name === hostname && r.proxied);
+          if (recheckRec) dnsRecordId = recheckRec.id;
+        }
+
+        const route = await cf.addWorkerRoute(c.env.CF_ZONE_ID, `${hostname}/*`, workerName);
+
+        await c.env.DB
+          .prepare(
+            `UPDATE tenants SET cf_route_id = ?1, cf_dns_record_id = ?2, updated_at = ?3 WHERE id = ?4`
+          )
+          .bind(route.id, dnsRecordId ?? null, new Date().toISOString(), tenantId)
+          .run();
+
+        report.push({
+          subdomain,
+          status: "fixed",
+          detail: `Worker Route fallback added (Custom Domain failed: ${(cdErr as Error).message})`,
+        });
+      } catch (routeErr) {
+        report.push({
+          subdomain,
+          status: "failed",
+          detail: `Custom Domain: ${(cdErr as Error).message}; Worker Route: ${(routeErr as Error).message}`,
+        });
+      }
+    }
+  }
+
+  const fixed   = report.filter(r => r.status === "fixed").length;
+  const skipped = report.filter(r => r.status === "skipped").length;
+  const failed  = report.filter(r => r.status === "failed").length;
+
+  return c.json({
+    ok: failed === 0,
+    summary: { total: tenantRows.length, fixed, skipped, failed },
+    report,
+  });
+});
+
 // ── POST /debug/tenant/redeploy?email=<email> ──────────────────────────────────
 // Re-deploys a tenant's worker with the current R2 bundle, preserving all
 // existing bindings (plain_text vars + D1 + R2) fetched from the CF API.
