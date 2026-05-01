@@ -1,10 +1,12 @@
 # Upcart — Production Readiness TODO
 
-> Last updated: 2026-04-28  
+> Last updated: 2026-05-01  
 > **Audit completed on branch `claude/fix-deploy-stripe-setup-myYtq` — overall readiness: 42/100.**  
 > Core provisioning flow (D1, R2, Worker, DNS, auth) works. Three independent P0 blockers  
 > prevent any real merchant from receiving revenue or seeing orders in their dashboard.  
 > See [Audit Findings](#audit-findings--added-2026-04-28) section at bottom for full details.
+> 
+> **Session update (2026-05-01):** Consolidated admin dashboard tabs and removed ~1,250 lines of dead code (ThemeView, editor.js/html, invertFor helper). Renamed "Store Editor" → "Templates" for clarity. See [Session Updates](#session-updates--2026-05-01).
 
 ---
 
@@ -210,7 +212,8 @@
 - [ ] Manual approval gate for production deploys
 
 ### 23. Admin Dashboard Refactor
-- [ ] Split `admin-dashboard/public/app.js` (currently 3100+ lines) into view modules
+- [x] Remove dead code from `app.js` — deleted ThemeView (350+ lines), invertFor() helper, and unused editor.html/editor.js/editor.css
+- [ ] Continue splitting `admin-dashboard/public/app.js` into modular view components
 - [ ] Add moderation review panel
 - [ ] Add subscription/billing status view
 - [ ] Add tenant health monitoring (Worker errors, D1 query failures)
@@ -324,3 +327,34 @@
 - [ ] Add `EASYPOST_API_KEY` to provisioning-service secrets (optional, skip if empty)
 - [ ] In `runProvisioning()`, if `env.EASYPOST_API_KEY`, call `cf.setWorkerSecret(workerName, "EASYPOST_API_KEY", env.EASYPOST_API_KEY)`
 - [ ] Until fixed: `POST /admin/orders/:id/label` on every tenant worker returns a 503 regardless of plan
+
+---
+
+## SESSION UPDATES — 2026-05-01
+
+### Dashboard Tab Consolidation & Dead Code Removal
+**Branch:** `claude/fix-edit-consolidate-tabs-A4dAx`
+
+Consolidated admin dashboard UI and removed ~1,250 lines of redundant/superseded code:
+
+**Deleted Files:**
+- ✅ `admin-dashboard/public/editor.html` — old vanilla JS visual editor (superseded by React Store Editor)
+- ✅ `admin-dashboard/public/editor.js` — old editor logic
+- ✅ `admin-dashboard/public/editor.css` — old editor styles
+
+**Deleted Code from app.js:**
+- ✅ `ThemeView` class (350+ lines) — complete theme editor with render() and init() methods; was dead code (never wired to router or navigation)
+- ✅ `invertFor()` helper — used only by ThemeView
+
+**UI Changes:**
+- ✅ Renamed navigation label "Store Editor" → "Templates" (icon: `bi-layout-text-sidebar`)
+  - **Clarity:** Templates tab is now explicitly for visual page layout/section editing (visual builder)
+  - **Distinction:** Customize tab remains for brand identity settings (theme presets, colors, logo, hero text)
+- ✅ Added cross-link in Customize tab sidebar: "Templates →" button linking to `/store-editor/`
+  - **UX improvement:** Users can navigate directly from brand settings to layout editing without losing context
+
+**Net Result:**
+- Tab navigation: **Products | Orders | Discounts | Payouts | Customize | Templates**
+- No feature loss — React Store Editor at `/store-editor/` continues to power the Templates tab
+- Zero functional changes to Customize tab (theme presets still work as before)
+- Code quality: removed redundant, unmaintained editor code; reduced app.js surface area for future refactoring
