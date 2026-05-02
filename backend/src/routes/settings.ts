@@ -180,7 +180,25 @@ const updateSchema = z
   })
   .strict();
 
-adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
+adminSettings.put(
+  "/",
+  zValidator("json", updateSchema, (result, c) => {
+    if (!result.success) {
+      // Without an error hook, @hono/zod-validator returns the raw ZodError
+      // object as JSON, which the editor stringifies into "[object Object]".
+      // Flatten it into a human-readable message + machine-readable details.
+      const flat = result.error.flatten();
+      const fieldMessages = Object.entries(flat.fieldErrors)
+        .map(([k, v]) => `${k}: ${(v ?? []).join(", ")}`)
+        .join("; ");
+      const message =
+        flat.formErrors.join("; ") ||
+        fieldMessages ||
+        "Invalid request body.";
+      return c.json(err(message, flat), 400);
+    }
+  }),
+  async (c) => {
   const body = c.req.valid("json");
   const tenantId = c.env.TENANT_ID || "";
 

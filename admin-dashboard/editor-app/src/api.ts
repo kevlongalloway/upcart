@@ -29,10 +29,23 @@ export function getAuth(): AuthContext | null {
   };
 }
 
+function formatApiError(body: unknown, status: number): string {
+  if (body && typeof body === 'object') {
+    const obj = body as Record<string, unknown>;
+    if (typeof obj.error === 'string' && obj.error) return obj.error;
+    if (obj.error && typeof obj.error === 'object') {
+      try { return JSON.stringify(obj.error); } catch { /* fallthrough */ }
+    }
+    if (obj.message && typeof obj.message === 'string') return obj.message;
+    try { return JSON.stringify(obj); } catch { /* fallthrough */ }
+  }
+  return `HTTP ${status}`;
+}
+
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const auth = getAuth();
   if (!auth) throw new Error('Not authenticated');
-  const res  = await fetch(`${auth.workerUrl}${path}`, {
+  const res = await fetch(`${auth.workerUrl}${path}`, {
     ...opts,
     headers: {
       'Content-Type':  'application/json',
@@ -40,9 +53,11 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
       ...(opts.headers ?? {}),
     },
   });
-  const body = await res.json() as { ok: boolean; data?: T; error?: string };
-  if (!res.ok || !body.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-  return body.data as T;
+  let body: unknown = null;
+  try { body = await res.json(); } catch { /* non-JSON response */ }
+  const ok = (body as { ok?: boolean } | null)?.ok === true;
+  if (!res.ok || !ok) throw new Error(formatApiError(body, res.status));
+  return (body as { data: T }).data;
 }
 
 export async function loadSettings(): Promise<Record<string, string>> {
