@@ -100,6 +100,10 @@ async function writeSettings(
 export const publicSettings = new Hono<{ Bindings: Bindings }>();
 
 publicSettings.get("/", async (c) => {
+  // No caching: the storefront fetches this on every page load to pick up the
+  // latest editor save. A stale cache here means saved edits invisibly lag
+  // behind on customer browsers, which is exactly the bug we're avoiding.
+  c.header("Cache-Control", "no-store");
   try {
     const rows = await readSettings(c.env.DB, PUBLIC_KEYS);
     return c.json(ok({
