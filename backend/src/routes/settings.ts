@@ -176,7 +176,7 @@ const updateSchema = z
     hero_subtitle:     z.string().max(200).optional(),
     hero_cta:          z.string().max(50).optional(),
     // JSON-encoded page section layout saved by the Store Editor
-    page_sections:     z.string().max(32768).optional(),
+    page_sections:     z.string().max(524288).optional(),
   })
   .strict();
 

@@ -131,13 +131,20 @@
 
     'header': (sec) => {
       const s = sec.settings;
-      const links = (sec.blocks || []).filter(b => b.type === 'nav-link' && b.visible !== false)
-        .map(b => `<a href="${b.settings.url||'#'}" class="uc-nav-link" style="color:${s.linkColor||'inherit'};font-size:${s.linkSize||14}px">${b.settings.label||''}</a>`)
+      // Pull links from blocks (`nav-link`) if present, otherwise from settings.navLinks array.
+      const blockLinks = (sec.blocks || []).filter(b => b.type === 'nav-link' && b.visible !== false)
+        .map(b => ({ url: b.settings.url, label: b.settings.label }));
+      const settingLinks = Array.isArray(s.navLinks) ? s.navLinks : [];
+      const allLinks = blockLinks.length ? blockLinks : settingLinks;
+      const links = allLinks
+        .map(l => `<a href="${l.url||'#'}" class="uc-nav-link" style="color:${s.linkColor||s.textColor||'inherit'};font-size:${s.linkSize||14}px;text-decoration:none">${l.label||''}</a>`)
         .join('');
+      const storeName = s.storeName || s.logoAlt || 'My Store';
       return `<header class="uc-header" style="background:${s.backgroundColor||'var(--uc-bg)'};color:${s.textColor||'var(--uc-text)'};border-bottom:${s.borderBottom?'1px solid var(--uc-border)':'none'};position:${s.sticky?'sticky':'relative'};top:0;z-index:100;">
         <div class="uc-container uc-w-contained" style="display:flex;align-items:center;gap:24px;height:${s.height||64}px">
-          ${s.logoUrl ? `<img src="${s.logoUrl}" alt="${s.logoAlt||'Logo'}" style="height:${s.logoHeight||40}px;width:auto">` : `<span style="font-weight:700;font-size:20px">${s.logoAlt||'My Store'}</span>`}
+          ${s.logoUrl ? `<img src="${s.logoUrl}" alt="${storeName}" style="height:${s.logoHeight||40}px;width:auto">` : `<span style="font-weight:700;font-size:20px">${storeName}</span>`}
           <nav style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-left:auto">${links}</nav>
+          ${s.showCartIcon ? `<a href="/cart" aria-label="Cart" style="margin-left:12px;color:inherit;text-decoration:none;font-size:18px">🛒</a>` : ''}
         </div>
       </header>`;
     },
@@ -148,14 +155,18 @@
         ? `<video src="${s.videoUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0"></video>`
         : s.imageUrl ? `<img src="${s.imageUrl}" alt="${s.imageAlt||''}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0">` : '';
       const overlay = s.overlayOpacity > 0 ? `<div style="position:absolute;inset:0;background:${s.overlayColor||'#000'};opacity:${s.overlayOpacity||0};z-index:1"></div>` : '';
-      const btns = [s.primaryButton, s.secondaryButton].filter(Boolean).map(renderButton).join(' ');
-      return `<section class="uc-hero" style="position:relative;min-height:${s.minHeight||600}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
+      const heading    = s.heading    || s.headline    || 'Welcome';
+      const subheading = s.subheading || s.subheadline || '';
+      const showSecondary = s.showSecondaryButton !== false;
+      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
+      const align = s.textAlign || (sec.layout && sec.layout.contentAlign) || 'center';
+      return `<section class="uc-hero" style="position:relative;min-height:${s.minHeight||(sec.layout&&sec.layout.minHeight)||600}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
         ${mediaHtml}${overlay}
-        <div class="uc-container uc-w-contained" style="position:relative;z-index:2;text-align:${s.textAlign||'center'}">
+        <div class="uc-container uc-w-contained" style="position:relative;z-index:2;text-align:${align};max-width:${s.contentMaxWidth||'var(--uc-container-max)'}${typeof s.contentMaxWidth==='number'?'px':''}">
           ${s.eyebrow ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${s.eyebrow}</p>` : ''}
-          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px">${s.heading||'Welcome'}</h1>
-          ${s.subheading ? `<p style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${s.subheading}</p>` : ''}
-          ${btns ? `<div style="display:flex;gap:12px;justify-content:${s.textAlign||'center'};flex-wrap:wrap">${btns}</div>` : ''}
+          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px">${heading}</h1>
+          ${subheading ? `<p style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
+          ${btns ? `<div style="display:flex;gap:12px;justify-content:${align};flex-wrap:wrap">${btns}</div>` : ''}
         </div>
       </section>`;
     },
@@ -184,9 +195,9 @@
 
     'gallery': (sec) => {
       const s = sec.settings;
-      const items = (sec.blocks || []).filter(b => b.type === 'gallery-item' && b.visible !== false)
+      const items = (sec.blocks || []).filter(b => (b.type === 'gallery-image' || b.type === 'gallery-item') && b.visible !== false)
         .map(b => `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
-          <img src="${b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
+          <img src="${b.settings.url||b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
             style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
             onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
           ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
@@ -202,10 +213,10 @@
       const s = sec.settings;
       const items = (sec.blocks || []).filter(b => b.type === 'testimonial' && b.visible !== false)
         .map(b => `<div style="background:var(--uc-surface);padding:24px;border-radius:var(--uc-card-radius);border:1px solid var(--uc-border)">
-          <div style="color:var(--uc-accent);font-size:20px;margin-bottom:8px">${'★'.repeat(b.settings.rating||5)}</div>
-          <p style="font-size:15px;line-height:1.6;margin-bottom:16px">"${b.settings.text||''}"</p>
+          ${s.showRating !== false ? `<div style="color:var(--uc-accent);font-size:20px;margin-bottom:8px">${'★'.repeat(b.settings.rating||5)}</div>` : ''}
+          <p style="font-size:15px;line-height:1.6;margin-bottom:16px">${b.settings.quote||b.settings.text||''}</p>
           <div style="display:flex;align-items:center;gap:12px">
-            ${b.settings.avatarUrl ? `<img src="${b.settings.avatarUrl}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover">` : ''}
+            ${s.showAvatar !== false && b.settings.avatarUrl ? `<img src="${b.settings.avatarUrl}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover">` : ''}
             <div><p style="font-weight:600;font-size:13px">${b.settings.author||''}</p>
             <p style="font-size:12px;color:var(--uc-text-muted)">${b.settings.role||''}</p></div>
           </div>
@@ -219,17 +230,26 @@
 
     'info': (sec) => {
       const s = sec.settings;
-      const imgHtml = s.imageUrl ? `<img src="${s.imageUrl}" alt="${s.imageAlt||''}" style="width:100%;border-radius:var(--uc-card-radius)">` : '';
+      const imageSrc = s.image || s.imageUrl;
+      const imgStyle = `width:100%;border-radius:${s.imageRadius!=null?s.imageRadius+'px':'var(--uc-card-radius)'};${s.imageShadow?'box-shadow:0 8px 24px rgba(0,0,0,.15);':''}`;
+      const imgHtml = imageSrc ? `<img src="${imageSrc}" alt="${s.imageAlt||''}" style="${imgStyle}">` : '';
+      const button = s.ctaButton || s.button;
+      const showCta = s.showCta !== false;
       const textBlock = `<div>
         ${s.eyebrow ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--uc-accent);margin-bottom:8px">${s.eyebrow}</p>` : ''}
         <h2 style="font-size:${s.headingSize||36}px;font-weight:var(--uc-heading-weight);margin-bottom:16px">${s.heading||''}</h2>
-        <p style="font-size:${s.bodySize||16}px;line-height:1.7;color:var(--uc-text-muted);margin-bottom:24px">${s.body||''}</p>
-        ${s.button ? renderButton(s.button) : ''}
+        <div style="font-size:${s.bodySize||16}px;line-height:1.7;color:var(--uc-text-muted);margin-bottom:24px">${s.body||''}</div>
+        ${showCta && button ? renderButton(button) : ''}
       </div>`;
-      const reverse = s.imagePosition === 'right' ? '' : 'order:-1';
+      // Registry uses `layout` setting: 'image-right' | 'image-left' | 'image-top'.
+      // Older renderer used `imagePosition`. Support both.
+      const layoutKey = s.imagePosition || s.layout || 'image-right';
+      const stack = layoutKey === 'image-top';
+      const imgOrder = layoutKey === 'image-left' ? 'order:-1' : '';
+      const cols = stack ? '1fr' : 'repeat(auto-fit,minmax(300px,1fr))';
       return `<section class="uc-info">
-        ${wrapContainer(`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:48px;align-items:center">
-          <div style="${s.imagePosition === 'left' ? 'order:-1' : ''}">${imgHtml}</div>
+        ${wrapContainer(`<div style="display:grid;grid-template-columns:${cols};gap:48px;align-items:center">
+          <div style="${imgOrder}">${imgHtml}</div>
           ${textBlock}
         </div>`, sec.layout)}
       </section>`;
@@ -237,31 +257,51 @@
 
     'features': (sec) => {
       const s = sec.settings;
+      const cardBg = s.cardStyle === 'plain' ? 'transparent'
+                   : s.cardStyle === 'filled' ? 'var(--uc-surface)' : 'var(--uc-surface)';
+      const cardBorder = s.cardStyle === 'bordered' ? '1px solid var(--uc-border)' : 'none';
+      const cardShadow = s.cardStyle === 'shadow' ? 'box-shadow:0 4px 12px rgba(0,0,0,.08);' : '';
       const items = (sec.blocks || []).filter(b => b.type === 'feature' && b.visible !== false)
-        .map(b => `<div style="text-align:${s.cardAlign||'left'};padding:${s.cardPadding||24}px;background:var(--uc-surface);border-radius:var(--uc-card-radius);border:1px solid var(--uc-border)">
-          ${b.settings.iconUrl ? `<img src="${b.settings.iconUrl}" alt="" style="width:${s.iconSize||40}px;height:${s.iconSize||40}px;margin-bottom:12px">` :
-            b.settings.emoji ? `<div style="font-size:${s.iconSize||36}px;margin-bottom:12px">${b.settings.emoji}</div>` : ''}
-          <h3 style="font-size:${s.titleSize||18}px;font-weight:600;margin-bottom:8px">${b.settings.title||''}</h3>
-          <p style="font-size:${s.bodySize||14}px;line-height:1.6;color:var(--uc-text-muted)">${b.settings.description||''}</p>
-        </div>`).join('');
+        .map(b => {
+          // Registry block uses `icon` (Lucide name string), `heading`, `description`.
+          // Older renderer used `iconUrl`/`emoji` and `title`. Support both.
+          const iconHtml = b.settings.iconUrl
+            ? `<img src="${b.settings.iconUrl}" alt="" style="width:${s.iconSize||40}px;height:${s.iconSize||40}px;margin-bottom:12px">`
+            : b.settings.emoji
+            ? `<div style="font-size:${s.iconSize||36}px;margin-bottom:12px">${b.settings.emoji}</div>`
+            : b.settings.icon
+            ? `<div style="font-size:${(s.iconSize||40)*0.6}px;color:${s.iconColor||'var(--uc-accent)'};margin-bottom:12px;font-weight:600">${b.settings.icon}</div>`
+            : '';
+          const heading = b.settings.heading || b.settings.title || '';
+          return `<div style="text-align:${s.cardAlign||'left'};padding:${s.cardPadding||24}px;background:${cardBg};border-radius:var(--uc-card-radius);border:${cardBorder};${cardShadow}">
+            ${iconHtml}
+            <h3 style="font-size:${s.titleSize||18}px;font-weight:600;margin-bottom:8px">${heading}</h3>
+            <p style="font-size:${s.bodySize||14}px;line-height:1.6;color:var(--uc-text-muted)">${b.settings.description||''}</p>
+          </div>`;
+        }).join('');
       return `<section class="uc-features">
         ${wrapContainer(`
           ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
           ${s.subheading ? `<p class="uc-section-sub">${s.subheading}</p>` : ''}
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--uc-gap)">${items||''}</div>`, sec.layout)}
+          <div style="display:grid;grid-template-columns:repeat(${s.columns||'auto-fit'},${s.columns?'1fr':'minmax(220px,1fr)'});gap:var(--uc-gap)">${items||''}</div>`, sec.layout)}
       </section>`;
     },
 
     'categories': (sec) => {
       const s = sec.settings;
       const items = (sec.blocks || []).filter(b => b.type === 'category-card' && b.visible !== false)
-        .map(b => `<a href="${b.settings.url||'#'}" style="display:block;border-radius:var(--uc-card-radius);overflow:hidden;position:relative;text-decoration:none">
-          <img src="${b.settings.imageUrl||''}" alt="${b.settings.label||''}" loading="lazy"
-            style="width:100%;height:${s.cardHeight||240}px;object-fit:cover">
-          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),transparent);display:flex;align-items:flex-end;padding:16px">
-            <span style="color:#fff;font-weight:600;font-size:${s.labelSize||16}px">${b.settings.label||''}</span>
-          </div>
-        </a>`).join('');
+        .map(b => {
+          // Registry uses `name` and `linkUrl`; older renderer used `label` and `url`.
+          const label = b.settings.name || b.settings.label || '';
+          const link  = b.settings.linkUrl || b.settings.url || '#';
+          return `<a href="${link}" style="display:block;border-radius:${s.imageRadius!=null?s.imageRadius+'px':'var(--uc-card-radius)'};overflow:hidden;position:relative;text-decoration:none">
+            <img src="${b.settings.imageUrl||''}" alt="${label}" loading="lazy"
+              style="width:100%;height:${s.cardHeight||240}px;object-fit:cover;display:block">
+            ${s.overlayStyle !== 'none' ? `<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),transparent);display:flex;align-items:flex-end;padding:16px">
+              <span style="color:#fff;font-weight:600;font-size:${s.labelSize||16}px">${label}</span>
+            </div>` : `<div style="padding:12px"><span style="color:var(--uc-text);font-weight:600;font-size:${s.labelSize||16}px">${label}</span></div>`}
+          </a>`;
+        }).join('');
       return `<section class="uc-categories">
         ${wrapContainer(`
           ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
@@ -271,14 +311,18 @@
 
     'newsletter': (sec) => {
       const s = sec.settings;
+      // Registry uses `description` and `buttonText`; older renderer used `subheading` and `buttonLabel`.
+      const description = s.description || s.subheading || '';
+      const buttonText  = s.buttonText  || s.buttonLabel || 'Subscribe';
+      const inputRadius = s.inputRadius != null ? s.inputRadius + 'px' : 'var(--uc-radius)';
       return `<section class="uc-newsletter">
         ${wrapContainer(`<div style="text-align:center;max-width:560px;margin:0 auto">
           ${s.heading ? `<h2 style="font-size:${s.headingSize||32}px;font-weight:var(--uc-heading-weight);margin-bottom:12px">${s.heading}</h2>` : ''}
-          ${s.subheading ? `<p style="font-size:16px;color:var(--uc-text-muted);margin-bottom:24px">${s.subheading}</p>` : ''}
+          ${description ? `<p style="font-size:16px;color:var(--uc-text-muted);margin-bottom:24px">${description}</p>` : ''}
           <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <input type="email" placeholder="${s.placeholder||'Enter your email'}"
-              style="flex:1;min-width:200px;padding:12px 16px;border:1px solid var(--uc-border);border-radius:var(--uc-radius);background:var(--uc-surface);color:var(--uc-text);font-size:14px;outline:none">
-            <button type="submit" style="padding:12px 24px;background:var(--uc-primary);color:var(--uc-primary-text);border:none;border-radius:var(--uc-radius);font-weight:600;cursor:pointer;font-size:14px">${s.buttonLabel||'Subscribe'}</button>
+              style="flex:1;min-width:200px;padding:12px 16px;border:1px solid var(--uc-border);border-radius:${inputRadius};background:var(--uc-surface);color:var(--uc-text);font-size:14px;outline:none">
+            <button type="submit" style="padding:12px 24px;background:var(--uc-primary);color:var(--uc-primary-text);border:none;border-radius:${inputRadius};font-weight:600;cursor:pointer;font-size:14px">${buttonText}</button>
           </form>
           ${s.disclaimer ? `<p style="font-size:12px;color:var(--uc-text-muted);margin-top:12px">${s.disclaimer}</p>` : ''}
         </div>`, sec.layout)}
@@ -287,16 +331,19 @@
 
     'faq': (sec) => {
       const s = sec.settings;
+      const dividerColor = s.dividerColor || 'var(--uc-border)';
+      const defaultOpen  = typeof s.defaultOpen === 'number' ? s.defaultOpen : -1;
       const items = (sec.blocks || []).filter(b => b.type === 'faq-item' && b.visible !== false)
-        .map((b, i) => `<details style="border-bottom:1px solid var(--uc-border);padding:16px 0">
+        .map((b, i) => `<details${i === defaultOpen ? ' open' : ''} style="border-bottom:1px solid ${dividerColor};padding:16px 0">
           <summary style="font-weight:600;font-size:${s.questionSize||16}px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">
             ${b.settings.question||''}<span>+</span>
           </summary>
-          <p style="margin-top:12px;font-size:${s.answerSize||15}px;line-height:1.7;color:var(--uc-text-muted)">${b.settings.answer||''}</p>
+          <div style="margin-top:12px;font-size:${s.answerSize||15}px;line-height:1.7;color:var(--uc-text-muted)">${b.settings.answer||''}</div>
         </details>`).join('');
       return `<section class="uc-faq">
         ${wrapContainer(`
           ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
+          ${s.subheading ? `<p class="uc-section-sub">${s.subheading}</p>` : ''}
           <div style="max-width:720px;margin:0 auto">${items||''}</div>`, sec.layout)}
       </section>`;
     },
@@ -332,33 +379,56 @@
 
     'divider': (sec) => {
       const s = sec.settings;
-      return `<div class="uc-divider" style="padding:${s.paddingY||24}px 0">
-        <hr style="border:none;border-top:${s.thickness||1}px ${s.style||'solid'} ${s.color||'var(--uc-border)'};max-width:${s.width||'100%'};margin:0 auto">
+      // Registry `width` is a percentage number (10-100); legacy callers may pass a CSS string.
+      const width = typeof s.width === 'number' ? s.width + '%' : (s.width || '100%');
+      return `<div class="uc-divider" style="padding:${s.paddingY||0}px 0">
+        <hr style="border:none;border-top:${s.thickness||1}px ${s.style||'solid'} ${s.color||'var(--uc-border)'};width:${width};margin:0 auto">
       </div>`;
     },
 
     'footer': (sec) => {
       const s = sec.settings;
       const cols = (sec.blocks || []).filter(b => b.type === 'footer-column' && b.visible !== false)
-        .map(b => `<div>
-          <h4 style="font-weight:600;margin-bottom:12px;font-size:14px">${b.settings.heading||''}</h4>
-          <div style="font-size:13px;line-height:2;color:var(--uc-text-muted)">${b.settings.content||''}</div>
-        </div>`).join('');
+        .map(b => {
+          // Registry block stores `links` as an array of { label, url }.
+          // Older renderer expected an HTML string in `content`. Support both.
+          const linksHtml = Array.isArray(b.settings.links)
+            ? b.settings.links.map(l => `<a href="${l.url||'#'}" style="color:inherit;text-decoration:none;display:block">${l.label||''}</a>`).join('')
+            : (b.settings.content || '');
+          return `<div>
+            <h4 style="font-weight:600;margin-bottom:12px;font-size:14px">${b.settings.heading||''}</h4>
+            <div style="font-size:13px;line-height:2;color:var(--uc-text-muted)">${linksHtml}</div>
+          </div>`;
+        }).join('');
+      // About column from settings, if provided.
+      const aboutCol = s.aboutText ? `<div>
+        ${s.logoUrl ? `<img src="${s.logoUrl}" alt="" style="height:32px;margin-bottom:12px">` : ''}
+        <p style="font-size:13px;line-height:1.7;color:var(--uc-text-muted);max-width:280px">${s.aboutText}</p>
+      </div>` : '';
+      // Social icons.
+      const social = s.showSocial && s.socialLinks ? Object.entries(s.socialLinks)
+        .filter(([, url]) => !!url)
+        .map(([k, url]) => `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}" style="color:inherit;text-decoration:none;font-size:14px;text-transform:capitalize">${k}</a>`).join(' · ') : '';
+      const copyright = s.copyrightText || s.copyright || '';
       return `<footer class="uc-footer" style="background:${s.backgroundColor||'var(--uc-surface)'};color:${s.textColor||'var(--uc-text)'}">
-        <div class="uc-container uc-w-contained" style="padding-top:${s.paddingTop||64}px;padding-bottom:${s.paddingBottom||40}px">
-          ${cols ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px;margin-bottom:32px">${cols}</div>` : ''}
-          <div style="border-top:1px solid var(--uc-border);padding-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--uc-text-muted)">
-            <span>${s.copyright||''}</span>
-            ${s.showPaymentIcons ? '<span>Payments placeholder</span>' : ''}
+        <div class="uc-container uc-w-contained">
+          ${(aboutCol || cols) ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px;margin-bottom:32px">${aboutCol}${cols}</div>` : ''}
+          <div style="border-top:1px solid var(--uc-border);padding-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12px;color:${s.copyrightColor||'var(--uc-text-muted)'}">
+            <span>${copyright}</span>
+            ${social ? `<span>${social}</span>` : (s.showPaymentIcons ? '<span>Payments placeholder</span>' : '')}
           </div>
         </div>
       </footer>`;
     },
 
     'custom': (sec) => {
-      return `<div class="uc-custom">${sec.settings.html || ''}</div>`;
+      return `<div class="uc-custom">${sec.settings.html || sec.settings.htmlContent || ''}</div>`;
     },
   };
+
+  // Alias: a `nav` section renders identically to a header. Prevents
+  // "Unknown section type: nav" if a seeded schema or user input uses `nav`.
+  RENDERERS['nav'] = RENDERERS['header'];
 
   function extractYouTubeId(url) {
     const m = url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
@@ -470,6 +540,23 @@
   // Signal ready to parent
   if (window.parent !== window) {
     window.parent.postMessage({ type: 'bst:ready' }, '*');
+  }
+
+  // Standalone (non-editor) load: pull the saved schema from the public
+  // settings endpoint and render it. Editor mode (parent !== window) is
+  // already handled via the `bst:schema` postMessage above, so this branch
+  // only runs for real customers visiting the storefront directly.
+  if (window.parent === window) {
+    var apiBase = window.BST_API_BASE || '';
+    fetch(apiBase + '/settings/public', { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        var raw = body && body.ok && body.data && body.data.page_sections;
+        if (!raw) return;
+        try { applySchema(JSON.parse(raw)); }
+        catch (e) { console.error('Bad page_sections JSON:', e); }
+      })
+      .catch(function () { /* network error: leave canvas empty */ });
   }
 
 })();

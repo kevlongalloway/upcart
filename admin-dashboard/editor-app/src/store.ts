@@ -88,6 +88,34 @@ export interface EditorActions {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Seeded section types — every brand-new tenant lands in the editor with
+// these four sections already populated, in this exact order. Stable IDs let
+// us keep the seed reproducible across reloads without relying on nanoid().
+const DEFAULT_SECTION_SEEDS: Array<{ id: string; type: SectionType }> = [
+  { id: 'seed-header',  type: 'header'  },
+  { id: 'seed-hero',    type: 'hero'    },
+  { id: 'seed-gallery', type: 'gallery' },
+  { id: 'seed-footer',  type: 'footer'  },
+];
+
+function buildSeededSection(id: string, type: SectionType): Section {
+  const def = getSectionDef(type);
+  return {
+    id,
+    type,
+    label:         def.name,
+    visible:       true,
+    locked:        def.locked ?? false,
+    layout:        JSON.parse(JSON.stringify(def.defaultLayout)) as Section['layout'],
+    settings:      JSON.parse(JSON.stringify(def.defaultSettings)),
+    // Seed blocks get stable IDs derived from the section ID + index so
+    // re-seeding produces the same JSON byte-for-byte.
+    blocks:        def.defaultBlocks.map((b, i) => ({ ...JSON.parse(JSON.stringify(b)), id: `${id}-block-${i}` })),
+    customCSS:     '',
+    customClasses: '',
+  };
+}
+
 function makeDefaultSchema(): StoreSchema {
   return {
     version:     '2.0',
@@ -98,7 +126,7 @@ function makeDefaultSchema(): StoreSchema {
         name:     'Home',
         icon:     'Home',
         slug:     'index.html',
-        sections: [],
+        sections: DEFAULT_SECTION_SEEDS.map(s => buildSeededSection(s.id, s.type)),
       },
     },
   };
@@ -163,14 +191,24 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
     set({ isLoading: true, loadError: null });
     try {
       const settings = await loadSettings();
-      const raw = settings['store_schema'];
+      const raw = settings['page_sections'];
+      // Empty / missing / malformed → fall through to the seeded default
+      // schema (Header / Hero / Gallery / Footer). makeDefaultSchema() is
+      // already in state from the initial create() call, so we just clear
+      // the loading flag and leave it untouched.
       if (raw) {
-        const parsed = JSON.parse(raw) as StoreSchema;
-        const firstPageId = Object.keys(parsed.pages)[0] ?? 'index';
-        set({ schema: parsed, selectedPageId: firstPageId, isLoading: false, isDirty: false });
-      } else {
-        set({ isLoading: false });
+        try {
+          const parsed = JSON.parse(raw) as StoreSchema;
+          if (parsed && parsed.pages && typeof parsed.pages === 'object') {
+            const firstPageId = Object.keys(parsed.pages)[0] ?? 'index';
+            set({ schema: parsed, selectedPageId: firstPageId, isLoading: false, isDirty: false });
+            return;
+          }
+        } catch {
+          // fall through to defaults
+        }
       }
+      set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false, loadError: String(err) });
     }
@@ -432,7 +470,7 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
     if (s.isSaving) return;
     set({ isSaving: true });
     try {
-      await saveSettings({ store_schema: JSON.stringify(s.schema) });
+      await saveSettings({ page_sections: JSON.stringify(s.schema) });
       set({ isSaving: false, isDirty: false });
     } catch (err) {
       set({ isSaving: false });
