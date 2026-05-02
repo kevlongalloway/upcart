@@ -184,9 +184,9 @@
 
     'gallery': (sec) => {
       const s = sec.settings;
-      const items = (sec.blocks || []).filter(b => b.type === 'gallery-item' && b.visible !== false)
+      const items = (sec.blocks || []).filter(b => (b.type === 'gallery-image' || b.type === 'gallery-item') && b.visible !== false)
         .map(b => `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
-          <img src="${b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
+          <img src="${b.settings.url||b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
             style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
             onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
           ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
@@ -356,9 +356,13 @@
     },
 
     'custom': (sec) => {
-      return `<div class="uc-custom">${sec.settings.html || ''}</div>`;
+      return `<div class="uc-custom">${sec.settings.html || sec.settings.htmlContent || ''}</div>`;
     },
   };
+
+  // Alias: a `nav` section renders identically to a header. Prevents
+  // "Unknown section type: nav" if a seeded schema or user input uses `nav`.
+  RENDERERS['nav'] = RENDERERS['header'];
 
   function extractYouTubeId(url) {
     const m = url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
