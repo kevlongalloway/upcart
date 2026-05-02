@@ -302,110 +302,34 @@
 </head>
 <body>
 
-  <nav aria-label="Main navigation">
-    <a class="nav-logo" href="index.html" aria-label="Store home">
-      <img class="nav-logo-img" id="nav-logo-img" data-store-logo alt="">
-      <span class="nav-mark" data-store-name>Your Store</span>
-    </a>
-    <div class="nav-links">
-      <a href="products.html">Shop</a>
-      <a href="cart.html" class="nav-cart-btn cart-nav-link" aria-label="Cart">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-        Cart
-      </a>
-    </div>
-  </nav>
-
-  <section class="hero" aria-label="Store banner">
-    <div class="hero-content">
-      <h1 class="hero-title" data-hero-title>Your Store</h1>
-      <p class="hero-subtitle" data-hero-subtitle>Explore our curated collection</p>
-      <a href="products.html" class="hero-btn" data-hero-cta>Shop Now</a>
-    </div>
-  </section>
-
-  <section class="shop">
-    <div class="shop-header">
-      <div>
-        <p class="shop-label">Featured</p>
-        <h2 class="shop-title">New Arrivals</h2>
-      </div>
-      <a href="products.html" class="shop-all-link">View all →</a>
-    </div>
-
-    <div class="grid" id="products-grid"></div>
-
-    <div class="shop-cta">
-      <a href="products.html" class="shop-cta-btn">Browse All Products</a>
-    </div>
-  </section>
-
-  <footer>
-    <div class="footer-top">
-      <div>
-        <p class="footer-brand-name" data-store-name>Your Store</p>
-      </div>
-      <div class="footer-links">
-        <a href="#">Help</a>
-        <a href="#">Returns</a>
-        <a href="#">Contact</a>
-      </div>
-    </div>
-    <p class="footer-copy">© 2026 <span data-store-name>Your Store</span>. All rights reserved.</p>
-  </footer>
+  <!--
+    The storefront is now driven entirely by store-renderer.js. It reads the
+    saved schema (page_sections) from /settings/public and injects rendered
+    sections into the canvas div below. The previous hardcoded nav / hero /
+    shop / footer have been removed — they collided with the renderer output
+    and were not editable from the theme editor.
+  -->
+  <div id="uc-editor-canvas"></div>
 
   <script src="cart.js"></script>
   <script>
-    // Show payment success toast if redirected back from Stripe
+    // Stripe success toast — runs independently of any rendered section.
     (function checkPaymentSuccess() {
       const params = new URLSearchParams(location.search);
-      if (params.get('payment') === 'success') {
-        clearCart();
-        history.replaceState({}, '', location.pathname);
-        const toast = document.createElement('div');
-        toast.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);' +
-          'background:var(--color-footer-bg);color:var(--color-footer-text);' +
-          'font-family:var(--font-body);font-size:10px;letter-spacing:0.1em;' +
-          'text-transform:uppercase;padding:14px 28px;z-index:999;white-space:nowrap;' +
-          'transition:opacity 0.5s';
-        toast.textContent = 'Order confirmed — thank you!';
-        document.body.appendChild(toast);
-        setTimeout(() => { toast.style.opacity = '0'; }, 3500);
-        setTimeout(() => toast.remove(), 4200);
-      }
+      if (params.get('payment') !== 'success') return;
+      clearCart();
+      history.replaceState({}, '', location.pathname);
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);' +
+        'background:var(--color-footer-bg);color:var(--color-footer-text);' +
+        'font-family:var(--font-body);font-size:10px;letter-spacing:0.1em;' +
+        'text-transform:uppercase;padding:14px 28px;z-index:999;white-space:nowrap;' +
+        'transition:opacity 0.5s';
+      toast.textContent = 'Order confirmed — thank you!';
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; }, 3500);
+      setTimeout(() => toast.remove(), 4200);
     })();
-
-    async function loadProducts() {
-      const grid = document.getElementById('products-grid');
-      try {
-        const res  = await fetch(`${API_BASE}/products?limit=6`);
-        const body = await res.json();
-        if (!body.ok) throw new Error(body.error);
-        const products = body.data.slice(0, 6);
-        if (products.length === 0) {
-          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:0.5;">No products available.</p>';
-          return;
-        }
-        grid.innerHTML = products.map(product => {
-          const image = product.images && product.images[0] ? product.images[0] : null;
-          return `
-          <a href="product.html?id=${product.id}" class="card">
-            <div class="card-img">
-              ${image ? `<img src="${image}" alt="${product.name}" loading="lazy">` : ''}
-            </div>
-            <div class="card-info">
-              <span class="card-name">${product.name}</span>
-              <span class="card-price">${formatPrice(product.price, product.currency)}</span>
-            </div>
-          </a>`;
-        }).join('');
-      } catch (err) {
-        console.error('Failed to load products:', err.message);
-        grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:0.5;">Error loading products.</p>';
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', loadProducts);
   </script>
 
 </body>

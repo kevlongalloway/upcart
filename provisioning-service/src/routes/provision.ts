@@ -7,6 +7,7 @@ import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
 import { hashPassword } from "../password.js";
 import { generateOtpCode, sendEmailOtp, sendSmsOtp } from "../otp.js";
+import { DEFAULT_STORE_SCHEMA } from "../defaults/store-schema.js";
 
 // ─── Stripe helpers (raw fetch — no SDK needed in CF Workers) ────────────────
 
@@ -577,6 +578,20 @@ async function runProvisioning(
 
   // Apply all store schema migrations to the new database
   await cf.runD1Migrations(d1.uuid, STORE_MIGRATIONS);
+
+  // Seed the editor's default page sections (Header / Hero / Gallery / Footer)
+  // so a fresh tenant's storefront renders something on first visit, before
+  // the merchant has opened the editor. The editor's own makeDefaultSchema()
+  // produces an equivalent shape, so opening the editor and clicking Save
+  // is the natural way to upgrade this stub to the registry-driven full
+  // schema.
+  await cf.runD1Query(
+    d1.uuid,
+    `INSERT INTO store_settings (key, value, tenant_id, updated_at)
+     VALUES ('page_sections', ?, ?, datetime('now'))
+     ON CONFLICT(key) DO NOTHING`,
+    [JSON.stringify(DEFAULT_STORE_SCHEMA), tenantId],
+  );
 
   // ── Step 2: Create R2 bucket ──────────────────────────────────────────────
   await tenantDB.updateStatus(tenantId, "creating_storage");

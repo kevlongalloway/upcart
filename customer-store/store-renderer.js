@@ -542,4 +542,21 @@
     window.parent.postMessage({ type: 'bst:ready' }, '*');
   }
 
+  // Standalone (non-editor) load: pull the saved schema from the public
+  // settings endpoint and render it. Editor mode (parent !== window) is
+  // already handled via the `bst:schema` postMessage above, so this branch
+  // only runs for real customers visiting the storefront directly.
+  if (window.parent === window) {
+    var apiBase = window.BST_API_BASE || '';
+    fetch(apiBase + '/settings/public', { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        var raw = body && body.ok && body.data && body.data.page_sections;
+        if (!raw) return;
+        try { applySchema(JSON.parse(raw)); }
+        catch (e) { console.error('Bad page_sections JSON:', e); }
+      })
+      .catch(function () { /* network error: leave canvas empty */ });
+  }
+
 })();
