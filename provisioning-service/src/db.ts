@@ -157,6 +157,30 @@ export class TenantDB {
       .run();
   }
 
+  /**
+   * Hard-delete a tenant row. Used by the provisioning rollback so a failed
+   * sign-up does not leave behind a stale row that holds the subdomain or
+   * email reservation. Safe to call on a non-existent id (no-op).
+   */
+  async deleteTenant(id: string): Promise<void> {
+    await this.db
+      .prepare("DELETE FROM tenants WHERE id = ?1")
+      .bind(id)
+      .run();
+  }
+
+  /**
+   * Hard-delete a verification token. Used by the provisioning rollback so a
+   * failed sign-up does not leave a verified token sitting in the table tied
+   * to the merchant's email; the merchant will re-verify on retry.
+   */
+  async deleteVerificationToken(id: string): Promise<void> {
+    await this.db
+      .prepare("DELETE FROM verification_tokens WHERE id = ?1")
+      .bind(id)
+      .run();
+  }
+
   // ─── Verification token methods ─────────────────────────────────────────────
 
   async createVerificationToken(input: {

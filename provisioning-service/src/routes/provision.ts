@@ -470,15 +470,26 @@ provisionRouter.post("/", zValidator("json", provisionSchema), async (c) => {
 
   // ── Kick off async provisioning ───────────────────────────────────────────
   // Return the tenant_id immediately; the client polls /provision/:id/status.
+  // runProvisioning runs its own rollback on failure (Cloudflare resources +
+  // tenant row + verification token + $1 auth release); the .catch here is a
+  // last-resort log only.
   c.executionCtx.waitUntil(
     runProvisioning(
       c.env,
       tenant.id,
-      { store, admin, stripe_publishable_key: stripe_publishable_key ?? "", payment_intent_id },
+      {
+        store,
+        admin,
+        stripe_publishable_key: stripe_publishable_key ?? "",
+        payment_intent_id,
+        verification_token_id,
+      },
       tenantDB
-    ).catch(async (e) => {
-      console.error(`Provisioning failed for tenant ${tenant.id}:`, e);
-      await tenantDB.updateStatus(tenant.id, "failed", String(e?.message ?? e));
+    ).catch((e) => {
+      console.error(
+        `[provision] Unhandled error for tenant ${tenant.id} after rollback:`,
+        (e as Error)?.message ?? e
+      );
     })
   );
 
@@ -499,51 +510,173 @@ type Provisioned = {
   routeId?: string;
 };
 
+/** Run an async step up to `attempts` times, sleeping 500ms × attempt between tries. */
+async function withRetry<T>(
+  label: string,
+  attempts: number,
+  fn: () => Promise<T>
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      console.warn(`cleanup: ${label} attempt ${i}/${attempts} failed: ${(e as Error).message}`);
+      if (i < attempts) {
+        await new Promise(r => setTimeout(r, 500 * i));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 /**
- * Best-effort rollback of resources created so far. Runs when provisioning
- * fails partway through so the merchant's account (and ours) doesn't end up
- * with orphaned D1 databases, R2 buckets, Worker scripts, DNS records, or
- * bindings that nothing will ever reference again.
+ * Best-effort rollback of every artifact created during a failed provisioning
+ * run.  Runs when provisioning fails partway through so the merchant's account
+ * (and ours) doesn't end up with orphaned D1 databases, R2 buckets, Worker
+ * scripts, DNS records, bindings, or DB rows.
+ *
+ * What gets removed:
+ *   1. The $1 Stripe authorization hold (canceled if still uncaptured).
+ *   2. Worker Custom Domain binding.
+ *   3. Worker Route (fallback binding).
+ *   4. DNS record for the subdomain.
+ *   5. Worker script.
+ *   6. R2 bucket (always empty during rollback — no uploads have run).
+ *   7. D1 database.
+ *   8. Verification token row (so the merchant's email/OTP can be reused).
+ *   9. Tenant row (so the subdomain + email become available again).
  *
  * Deletions run in reverse order of creation so upstream bindings are removed
- * before the resources they reference. Each step is wrapped in its own
- * try/catch — a single failure can't block the rest, and the original
+ * before the resources they reference. Each step is wrapped in its own retry
+ * loop and try/catch — a single failure can't block the rest, and the original
  * provisioning error is always what bubbles up.
  */
 async function cleanupProvisioning(
   env: Bindings,
   cf: CloudflareAPI,
+  tenantDB: TenantDB,
+  tenantId: string,
+  verificationTokenId: string | null,
+  paymentIntentId: string | null,
   created: Provisioned
 ): Promise<void> {
-  const steps: Array<[string, () => Promise<void>]> = [];
-
-  if (created.customDomainId) {
-    steps.push(["custom_domain", () => cf.removeWorkerCustomDomain(created.customDomainId!)]);
-  }
-  if (created.routeId) {
-    steps.push(["worker_route", () => cf.deleteWorkerRoute(env.CF_ZONE_ID, created.routeId!)]);
-  }
-  if (created.dnsRecordId) {
-    steps.push(["dns_record", () => cf.deleteDnsRecord(env.CF_ZONE_ID, created.dnsRecordId!)]);
-  }
-  if (created.workerName) {
-    steps.push(["worker_script", () => cf.deleteWorkerScript(created.workerName!)]);
-  }
-  if (created.r2Bucket) {
-    steps.push(["r2_bucket", () => cf.deleteR2Bucket(created.r2Bucket!)]);
-  }
-  if (created.d1Id) {
-    steps.push(["d1_database", () => cf.deleteD1Database(created.d1Id!)]);
-  }
-
-  for (const [label, step] of steps) {
+  // ── 1. Cancel any uncaptured $1 authorization hold ───────────────────────
+  // The merchant's card is released as soon as the PaymentIntent is canceled;
+  // leaving it in `requires_capture` would tie up funds for ~7 days.
+  if (paymentIntentId && env.STRIPE_SECRET_KEY) {
     try {
-      await step();
-      console.log(`cleanup: deleted ${label}`);
+      await stripePost(
+        `/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`,
+        env.STRIPE_SECRET_KEY,
+        { cancellation_reason: "abandoned" }
+      );
+      console.log(`cleanup: canceled PaymentIntent ${paymentIntentId}`);
     } catch (e) {
-      console.error(`cleanup: failed to delete ${label}:`, (e as Error).message);
+      // Already-canceled or already-captured intents will throw — non-fatal.
+      console.warn(
+        `cleanup: could not cancel PaymentIntent ${paymentIntentId}: ${(e as Error).message}`
+      );
     }
   }
+
+  // ── 2-7. Cloudflare resources (reverse order of creation) ───────────────
+  const cfSteps: Array<[string, () => Promise<void>]> = [];
+
+  if (created.customDomainId) {
+    cfSteps.push(["custom_domain", () => cf.removeWorkerCustomDomain(created.customDomainId!)]);
+  }
+  if (created.routeId) {
+    cfSteps.push(["worker_route", () => cf.deleteWorkerRoute(env.CF_ZONE_ID, created.routeId!)]);
+  }
+  if (created.dnsRecordId) {
+    cfSteps.push(["dns_record", () => cf.deleteDnsRecord(env.CF_ZONE_ID, created.dnsRecordId!)]);
+  }
+  if (created.workerName) {
+    cfSteps.push(["worker_script", () => cf.deleteWorkerScript(created.workerName!)]);
+  }
+  if (created.r2Bucket) {
+    cfSteps.push(["r2_bucket", () => cf.deleteR2Bucket(created.r2Bucket!)]);
+  }
+  if (created.d1Id) {
+    cfSteps.push(["d1_database", () => cf.deleteD1Database(created.d1Id!)]);
+  }
+
+  for (const [label, step] of cfSteps) {
+    try {
+      await withRetry(label, 3, step);
+      console.log(`cleanup: deleted ${label}`);
+    } catch (e) {
+      console.error(`cleanup: failed to delete ${label} after retries:`, (e as Error).message);
+    }
+  }
+
+  // ── 8. Verification token (so the merchant can re-verify on retry) ───────
+  if (verificationTokenId) {
+    try {
+      await tenantDB.deleteVerificationToken(verificationTokenId);
+      console.log(`cleanup: deleted verification_token ${verificationTokenId}`);
+    } catch (e) {
+      console.error(
+        `cleanup: failed to delete verification_token ${verificationTokenId}:`,
+        (e as Error).message
+      );
+    }
+  }
+
+  // ── 9. Tenant row (so the subdomain + email become available again) ──────
+  // Done last so the row remains available for inspection if the Cloudflare
+  // cleanup steps above need to be retried out-of-band.
+  try {
+    await tenantDB.deleteTenant(tenantId);
+    console.log(`cleanup: deleted tenant row ${tenantId}`);
+  } catch (e) {
+    console.error(
+      `cleanup: failed to delete tenant row ${tenantId}:`,
+      (e as Error).message
+    );
+  }
+}
+
+/**
+ * Probe the freshly-deployed worker via its workers.dev URL until it returns
+ * a 200 from /health. Custom Domain DNS can take 30+ seconds to propagate but
+ * workers.dev routing is available immediately — use it as the source of
+ * truth for "the worker boots cleanly with the bindings we just gave it".
+ *
+ * Returns true if the worker became healthy within the budget; false otherwise.
+ */
+async function probeWorkerHealth(
+  workerName: string,
+  workersDevSubdomain: string,
+  attempts = 6,
+  perAttemptTimeoutMs = 8_000,
+  delayMs = 4_000
+): Promise<{ ok: boolean; lastStatus?: number; lastError?: string }> {
+  if (!workersDevSubdomain) {
+    return { ok: false, lastError: "CF_WORKERS_SUBDOMAIN not configured" };
+  }
+  const url = `https://${workerName}.${workersDevSubdomain}.workers.dev/health`;
+
+  let lastStatus: number | undefined;
+  let lastError: string | undefined;
+
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(perAttemptTimeoutMs) });
+      lastStatus = res.status;
+      if (res.ok) {
+        return { ok: true, lastStatus };
+      }
+    } catch (e) {
+      lastError = (e as Error).message;
+    }
+    if (i < attempts) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  return { ok: false, lastStatus, lastError };
 }
 
 async function runProvisioning(
@@ -554,6 +687,7 @@ async function runProvisioning(
     admin: z.infer<typeof provisionSchema>["admin"];
     stripe_publishable_key: string;
     payment_intent_id: string;
+    verification_token_id: string;
   },
   tenantDB: TenantDB
 ): Promise<void> {
@@ -828,15 +962,34 @@ async function runProvisioning(
     );
   }
 
-  // ── Step 5: Mark active ──────────────────────────────────────────────────
-  // Nothing left to do. The tenant worker boots itself from env vars:
+  // ── Step 5: Verify the worker boots cleanly ─────────────────────────────
+  // Probe the workers.dev URL until /health returns 200. Custom Domain DNS
+  // can take a while to propagate, but workers.dev routing is live as soon
+  // as deployWorker returns — so a healthy probe here proves the script
+  // initializes successfully with the bindings we just gave it. If it never
+  // becomes healthy, we treat that as a failed provision and roll back
+  // rather than leave the merchant with a tenant they can't actually log
+  // into.
+  await tenantDB.updateStatus(tenantId, "finalizing");
+
+  const probe = await probeWorkerHealth(workerName, env.CF_WORKERS_SUBDOMAIN);
+  if (!probe.ok) {
+    throw new Error(
+      `Worker ${workerName} did not pass /health probe (` +
+      `last_status=${probe.lastStatus ?? "n/a"}, last_error=${probe.lastError ?? "n/a"}` +
+      `). The deployed bundle is failing to boot.`
+    );
+  }
+  console.log(`Tenant ${tenantId}: /health probe passed (status ${probe.lastStatus}).`);
+
+  // ── Step 6: Mark active ──────────────────────────────────────────────────
+  // The tenant worker boots itself from env vars:
   //   - ADMIN_USERNAME + ADMIN_PASSWORD_HASH let /admin/login authenticate
   //     the merchant against backend/src/routes/adminLogin.ts's env-var
   //     code path without a /setup handoff.
   //   - STORE_NAME / DEFAULT_CURRENCY / STORE_COUNTRY drive the storefront.
-  // Custom Domain propagation catches up within seconds, so we don't
-  // probe /health — signups are usually live by the time the merchant
-  // finishes the landing page's step animation.
+  // Custom Domain propagation catches up within seconds; the storefront
+  // hostname will resolve shortly after this point.
   const storeUrl = `https://${hostname}`;
   const adminUrl = `https://dashboard.${baseDomain}`;
 
@@ -863,7 +1016,7 @@ async function runProvisioning(
     }
   }
 
-  // ── Step 6 (non-fatal): Create Stripe Customer + Subscription ────────────
+  // ── Step 7 (non-fatal): Create Stripe Customer + Subscription ────────────
   // Creates a 90-day trialing subscription immediately after the store is
   // live. Non-fatal: provisioning succeeds even if this step fails, and
   // the subscription can be created later via a separate admin flow.
@@ -919,10 +1072,33 @@ async function runProvisioning(
 
   console.log(`Tenant ${tenantId} (${hostname}) provisioned successfully.`);
   } catch (e) {
-    // A step failed. Best-effort cleanup of anything we already created, then
-    // re-throw so the outer waitUntil handler marks the tenant as "failed".
+    // A step failed. Mark the row "failed" first so any in-flight status poll
+    // sees a clear error message before the row is hard-deleted, then run the
+    // full rollback: Cloudflare resources + verification token + tenant row +
+    // $1 Stripe auth release. cleanupProvisioning swallows its own errors so
+    // we always reach the throw at the bottom and surface the original cause.
+    const errMsg = (e as Error)?.message ?? String(e);
     console.error(`Provisioning failed for tenant ${tenantId}; rolling back:`, e);
-    await cleanupProvisioning(env, cf, created);
+
+    try {
+      await tenantDB.updateStatus(tenantId, "failed", errMsg);
+    } catch (statusErr) {
+      console.warn(
+        `cleanup: could not record "failed" status for tenant ${tenantId}: ` +
+        `${(statusErr as Error).message}`
+      );
+    }
+
+    await cleanupProvisioning(
+      env,
+      cf,
+      tenantDB,
+      tenantId,
+      input.verification_token_id,
+      input.payment_intent_id,
+      created
+    );
+
     throw e;
   }
 }

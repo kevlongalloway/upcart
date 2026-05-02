@@ -24,7 +24,8 @@ export class CloudflareAPI {
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    opts: { ignore404?: boolean } = {}
   ): Promise<CfApiResult<T>> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiToken}`,
@@ -46,9 +47,27 @@ export class CloudflareAPI {
       body: bodyInit,
     });
 
+    // Treat 404 as success for idempotent deletes — if a resource is already
+    // gone, the rollback should still treat that step as cleared.
+    if (opts.ignore404 && res.status === 404) {
+      return { result: undefined as unknown as T, success: true, errors: [], messages: [] };
+    }
+
     const json = (await res.json()) as CfApiResult<T>;
 
     if (!res.ok || !json.success) {
+      // Cloudflare sometimes returns 200 with success=false for "already deleted".
+      if (opts.ignore404) {
+        const errs = json.errors ?? [];
+        const isMissing = errs.some(e =>
+          // 7000 / 7003 = record not found / no route, 10006 = script not found
+          [7000, 7003, 10006, 10007, 10008, 81044].includes(e.code) ||
+          /not found|does not exist|already (deleted|removed)/i.test(e.message ?? "")
+        );
+        if (isMissing) {
+          return { result: undefined as unknown as T, success: true, errors: [], messages: [] };
+        }
+      }
       const msg = json.errors?.[0]?.message ?? `HTTP ${res.status}`;
       throw new Error(`Cloudflare API error [${method} ${path}]: ${msg}`);
     }
@@ -108,11 +127,14 @@ export class CloudflareAPI {
   /**
    * Delete a DNS record by ID.
    * Called during deprovisioning or when rolling back a failed sign-up.
+   * Idempotent — a 404 (record already gone) is treated as success.
    */
   async deleteDnsRecord(zoneId: string, recordId: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/zones/${zoneId}/dns_records/${recordId}`
+      `/zones/${zoneId}/dns_records/${recordId}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
@@ -128,11 +150,16 @@ export class CloudflareAPI {
     return res.result;
   }
 
-  /** Delete a D1 database by UUID. Used for rollback on failed provisioning. */
+  /**
+   * Delete a D1 database by UUID. Used for rollback on failed provisioning.
+   * Idempotent — a 404 (database already gone) is treated as success.
+   */
   async deleteD1Database(databaseId: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/accounts/${this.accountId}/d1/database/${databaseId}`
+      `/accounts/${this.accountId}/d1/database/${databaseId}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
@@ -183,11 +210,14 @@ export class CloudflareAPI {
    * Delete an R2 bucket by name. The bucket must be empty — the Cloudflare API
    * rejects DELETE on a non-empty bucket. During provisioning rollback the
    * bucket is always empty because no uploads have happened yet.
+   * Idempotent — a 404 (bucket already gone) is treated as success.
    */
   async deleteR2Bucket(name: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/accounts/${this.accountId}/r2/buckets/${name}`
+      `/accounts/${this.accountId}/r2/buckets/${name}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
@@ -244,11 +274,16 @@ export class CloudflareAPI {
     return res.result;
   }
 
-  /** Delete a Worker script by name. Used for rollback on failed provisioning. */
+  /**
+   * Delete a Worker script by name. Used for rollback on failed provisioning.
+   * Idempotent — a 404 (script already gone) is treated as success.
+   */
   async deleteWorkerScript(scriptName: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/accounts/${this.accountId}/workers/scripts/${scriptName}`
+      `/accounts/${this.accountId}/workers/scripts/${scriptName}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
@@ -332,11 +367,14 @@ export class CloudflareAPI {
   /**
    * Remove a Custom Domain binding from a Worker.
    * Does NOT delete the underlying DNS record — call deleteDnsRecord separately.
+   * Idempotent — a 404 (binding already gone) is treated as success.
    */
   async removeWorkerCustomDomain(domainId: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/accounts/${this.accountId}/workers/domains/${domainId}`
+      `/accounts/${this.accountId}/workers/domains/${domainId}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
@@ -368,11 +406,16 @@ export class CloudflareAPI {
     return res.result;
   }
 
-  /** Delete a Worker route by ID. */
+  /**
+   * Delete a Worker route by ID.
+   * Idempotent — a 404 (route already gone) is treated as success.
+   */
   async deleteWorkerRoute(zoneId: string, routeId: string): Promise<void> {
     await this.request(
       "DELETE",
-      `/zones/${zoneId}/workers/routes/${routeId}`
+      `/zones/${zoneId}/workers/routes/${routeId}`,
+      undefined,
+      { ignore404: true }
     );
   }
 
