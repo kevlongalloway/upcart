@@ -305,6 +305,7 @@
 ### P. Customize view persistence is now end-to-end (verified working)
 - [x] Editor saves `page_sections` JSON to `/admin/settings`; storefront reads same key from `/settings/public` and renders via `store-renderer.js`. Verified after collapsing the duplicate legacy CustomizeView (2026-05-03).
 - [x] Cache-Control: no-store on `/settings/public` so saves are visible immediately.
+- [x] **Editor-rendered header / footer now apply to every storefront page (2026-05-03).** `store-renderer.js` recognises `#uc-storefront-header` / `#uc-storefront-footer` slot divs; `products.html`, `product.html`, `cart.html`, and `success.html` were updated to host those slots instead of hardcoded `<nav>` / `<footer>` blocks. A merchant editing the Header section's nav links / store name or the Footer's copyright in the dashboard now updates **all** customer-facing pages, not just the home page.
 
 ### Q. `success.html` cart-clear logic is duplicated in two places
 - [ ] `customer-store/index.html:317-332` clears the cart on `?payment=success`. `customer-store/success.html` is the actual Stripe redirect target. The redundant clear in `index.html` is dead code now.
@@ -323,6 +324,14 @@
 ---
 
 ## SESSION UPDATES
+
+### 2026-05-03 — Editor chrome now renders on every storefront page
+**Branch:** `claude/storefront-edit-functionality-KkVPm`
+
+- **Gap closed:** the editor's saved schema (`page_sections`) drove only `index.html`. Other pages (`products.html`, `product.html`, `cart.html`, `success.html`) shipped with hardcoded `<nav>` and `<footer>` blocks, so a merchant who edited their nav links or footer copyright in the dashboard saw the change on the home page but not anywhere else — the most jarring "I edited it but it didn't apply" failure mode left in the editor pipeline.
+- **Fix:** `store-renderer.js` now recognises two new slot ids — `#uc-storefront-header` and `#uc-storefront-footer` — in addition to the existing full-canvas `#uc-editor-canvas`. When a page hosts the slots, the renderer drops the chrome-typed sections (`announcement-bar`, `header`/`nav`, `footer`) into them and leaves the page body untouched. Each non-home page replaced its static `<nav>` / `<footer>` with the slot divs and now loads `store-renderer.js`.
+- **Defense in depth:** the renderer's full-body theme rule (`body { background: var(--uc-bg); … }`) is now gated on `#uc-editor-canvas` existing, so subpages keep their own static body styling and don't double-apply theme variables.
+- **Verified:** `grep '<nav>\\|<footer>' customer-store/*.html` returns zero matches outside `index.html`.
 
 ### 2026-05-03 — Store-editor consolidation
 **Branch:** `claude/fix-store-customization-0DQf8`
