@@ -39,6 +39,11 @@ const assignRoleSchema = z.object({
   role_id:  z.string().uuid().optional(),
 }).refine(o => o.role_key || o.role_id, "Provide role_key or role_id.");
 
+const grantPermissionSchema = z.object({
+  permission_key: z.string().min(1).max(120).optional(),
+  permission_id:  z.string().uuid().optional(),
+}).refine(o => o.permission_key || o.permission_id, "Provide permission_key or permission_id.");
+
 // ─── List users ───────────────────────────────────────────────────────────────
 
 usersRouter.get("/", requirePermissions("users.read"), async (c) => {
@@ -251,5 +256,88 @@ usersRouter.delete(
 
     const hydrated = await db.users.getWithAccess(userId);
     return c.json(ok(hydrated ?? { user_id: userId }));
+  },
+);
+
+// ─── Grant permission directly to a user ──────────────────────────────────────
+//
+// Direct grants stack on top of role-derived permissions (set union). Useful
+// when one staff member needs an extra capability (e.g. subscriptions.update
+// during an on-call rotation) without spinning up a bespoke role.
+
+usersRouter.post(
+  "/:id/permissions",
+  requirePermissions("users.assign_permission"),
+  zValidator("json", grantPermissionSchema, (r, c) => {
+    if (!r.success) return c.json(err("Validation failed", r.error.flatten()), 422);
+  }),
+  async (c) => {
+    const userId = c.req.param("id");
+    const body   = c.req.valid("json");
+    const db     = new AdminDB(c.env);
+    const actor  = c.get("user");
+
+    if (!(await db.users.getById(userId))) {
+      return c.json(err("User not found."), 404);
+    }
+
+    const perm = body.permission_id
+      ? await db.permissions.getById(body.permission_id)
+      : await db.permissions.getByKey(body.permission_key!);
+    if (!perm) return c.json(err("Permission not found."), 404);
+
+    await db.users.grantPermission(userId, perm.id, actor.id);
+    await audit(c, {
+      action: "user.permission_granted",
+      resource_type: "user",
+      resource_id: userId,
+      metadata: { permission_id: perm.id, permission_key: perm.key },
+    });
+
+    const hydrated = (await db.users.getWithAccess(userId))!;
+    return c.json(ok(hydrated));
+  },
+);
+
+// ─── Revoke a directly-granted permission ─────────────────────────────────────
+
+usersRouter.delete(
+  "/:id/permissions/:permission_id",
+  requirePermissions("users.assign_permission"),
+  async (c) => {
+    const userId       = c.req.param("id");
+    const permissionId = c.req.param("permission_id");
+    const db           = new AdminDB(c.env);
+
+    const removed = await db.users.revokePermission(userId, permissionId);
+    if (!removed) return c.json(err("Direct permission grant not found."), 404);
+
+    await audit(c, {
+      action: "user.permission_revoked",
+      resource_type: "user",
+      resource_id: userId,
+      metadata: { permission_id: permissionId },
+    });
+
+    const hydrated = await db.users.getWithAccess(userId);
+    return c.json(ok(hydrated ?? { user_id: userId }));
+  },
+);
+
+// ─── List a user's direct (non-role) permissions ──────────────────────────────
+
+usersRouter.get(
+  "/:id/permissions",
+  requirePermissions("users.read"),
+  async (c) => {
+    const userId = c.req.param("id");
+    const db     = new AdminDB(c.env);
+
+    if (!(await db.users.getById(userId))) {
+      return c.json(err("User not found."), 404);
+    }
+
+    const items = await db.users.directPermissionsForUser(userId);
+    return c.json(ok({ items }));
   },
 );

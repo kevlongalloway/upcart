@@ -9,6 +9,8 @@ import { RolesDB } from "./roles.js";
 import { PermissionsDB } from "./permissions.js";
 import { AuditDB } from "./audit.js";
 import { ProvisionsDB } from "./provisions.js";
+import { PlansDB } from "./plans.js";
+import { SubscriptionsDB } from "./subscriptions.js";
 
 export class AdminDB {
   readonly users: UsersDB;
@@ -16,14 +18,21 @@ export class AdminDB {
   readonly permissions: PermissionsDB;
   readonly audit: AuditDB;
   readonly provisions: ProvisionsDB;
+  readonly plans: PlansDB;
+  readonly subscriptions: SubscriptionsDB;
 
   constructor(env: Pick<Bindings, "DB" | "PROVISIONING_DB">) {
-    this.users       = new UsersDB(env.DB);
-    this.roles       = new RolesDB(env.DB);
-    this.permissions = new PermissionsDB(env.DB);
-    this.audit       = new AuditDB(env.DB);
-    this.provisions  = new ProvisionsDB(env.PROVISIONING_DB);
+    this.users         = new UsersDB(env.DB);
+    this.roles         = new RolesDB(env.DB);
+    this.permissions   = new PermissionsDB(env.DB);
+    this.audit         = new AuditDB(env.DB);
+    this.provisions    = new ProvisionsDB(env.PROVISIONING_DB);
+    this.plans         = new PlansDB(env.PROVISIONING_DB);
+    this.subscriptions = new SubscriptionsDB(env.PROVISIONING_DB);
   }
 }
 
-export { UsersDB, RolesDB, PermissionsDB, AuditDB, ProvisionsDB };
+export {
+  UsersDB, RolesDB, PermissionsDB, AuditDB, ProvisionsDB,
+  PlansDB, SubscriptionsDB,
+};

@@ -210,13 +210,22 @@ export class UsersDB {
       updated_at:   r.updated_at,
     }));
 
+    // Effective permission set = (permissions inherited from roles)
+    //                          ∪ (permissions granted directly via user_permissions)
     const permRows = await this.db
       .prepare(
-        `SELECT DISTINCT p.key
-         FROM user_roles ur
-         JOIN role_permissions rp ON rp.role_id = ur.role_id
-         JOIN permissions p       ON p.id       = rp.permission_id
-         WHERE ur.user_id = ?1`
+        `SELECT DISTINCT key FROM (
+           SELECT p.key
+           FROM user_roles ur
+           JOIN role_permissions rp ON rp.role_id = ur.role_id
+           JOIN permissions p       ON p.id       = rp.permission_id
+           WHERE ur.user_id = ?1
+           UNION
+           SELECT p.key
+           FROM user_permissions up
+           JOIN permissions p ON p.id = up.permission_id
+           WHERE up.user_id = ?1
+         )`
       )
       .bind(id)
       .all<{ key: string }>();
@@ -224,6 +233,56 @@ export class UsersDB {
     const permissions = (permRows.results ?? []).map(p => p.key);
 
     return { ...user, roles, permissions };
+  }
+
+  // ── Direct user → permission grants ───────────────────────────────────────
+
+  async grantPermission(
+    userId: string,
+    permissionId: string,
+    grantedBy: string | null,
+  ): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT OR IGNORE INTO user_permissions (user_id, permission_id, granted_by, granted_at)
+         VALUES (?1, ?2, ?3, ?4)`
+      )
+      .bind(userId, permissionId, grantedBy, new Date().toISOString())
+      .run();
+  }
+
+  async revokePermission(userId: string, permissionId: string): Promise<boolean> {
+    const res = await this.db
+      .prepare("DELETE FROM user_permissions WHERE user_id = ?1 AND permission_id = ?2")
+      .bind(userId, permissionId)
+      .run();
+    return (res.meta?.changes ?? 0) > 0;
+  }
+
+  async directPermissionsForUser(userId: string): Promise<Permission[]> {
+    const rows = await this.db
+      .prepare(
+        `SELECT p.id, p.key, p.display_name, p.description, p.category, p.is_system, p.created_at
+         FROM user_permissions up
+         JOIN permissions p ON p.id = up.permission_id
+         WHERE up.user_id = ?1
+         ORDER BY p.category ASC, p.key ASC`
+      )
+      .bind(userId)
+      .all<{
+        id: string; key: string; display_name: string;
+        description: string | null; category: string;
+        is_system: number; created_at: string;
+      }>();
+    return (rows.results ?? []).map(r => ({
+      id:           r.id,
+      key:          r.key,
+      display_name: r.display_name,
+      description:  r.description,
+      category:     r.category,
+      is_system:    r.is_system === 1,
+      created_at:   r.created_at,
+    }));
   }
 }
 
