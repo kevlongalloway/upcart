@@ -25,5 +25,11 @@ CF_ZONE_ID=your-zone-id
 BOOTSTRAP_EMAIL=root@upcart.online
 BOOTSTRAP_PASSWORD_HASH=
 
+# ── Stripe (subscription + plan management) ─────────────────────────────────
+# Same platform Stripe key the provisioning-service uses.
+# Required by /subscriptions endpoints (change plan, cancel, reactivate)
+# and used by /plans to autofill amount/currency/interval from a price ID.
+STRIPE_SECRET_KEY=sk_test_YOUR_PLATFORM_TEST_KEY
+
 # ── Optional: outbound email for admin-created stores ───────────────────────
 RESEND_API_KEY=

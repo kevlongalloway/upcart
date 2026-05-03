@@ -25,11 +25,12 @@ export const SYSTEM_PERMISSIONS = [
     description: "Bypasses every permission check, including future ones." },
 
   // ── Users (admin staff) ──────────────────────────────────────────────────
-  { key: "users.read",        display_name: "View admin users",      category: "users" },
-  { key: "users.create",      display_name: "Create admin users",    category: "users" },
-  { key: "users.update",      display_name: "Update admin users",    category: "users" },
-  { key: "users.delete",      display_name: "Delete admin users",    category: "users" },
-  { key: "users.assign_role", display_name: "Assign roles to users", category: "users" },
+  { key: "users.read",              display_name: "View admin users",            category: "users" },
+  { key: "users.create",            display_name: "Create admin users",          category: "users" },
+  { key: "users.update",            display_name: "Update admin users",          category: "users" },
+  { key: "users.delete",            display_name: "Delete admin users",          category: "users" },
+  { key: "users.assign_role",       display_name: "Assign roles to users",       category: "users" },
+  { key: "users.assign_permission", display_name: "Grant permissions directly to users", category: "users" },
 
   // ── Roles ────────────────────────────────────────────────────────────────
   { key: "roles.read",              display_name: "View roles",                 category: "roles" },
@@ -49,6 +50,17 @@ export const SYSTEM_PERMISSIONS = [
   { key: "provisions.create", display_name: "Create tenant provisions", category: "provisions" },
   { key: "provisions.update", display_name: "Update tenant provisions", category: "provisions" },
   { key: "provisions.delete", display_name: "Delete tenant provisions", category: "provisions" },
+
+  // ── Subscription plans (Stripe-backed catalogue) ────────────────────────
+  { key: "plans.read",   display_name: "View subscription plans",   category: "plans" },
+  { key: "plans.create", display_name: "Create subscription plans", category: "plans" },
+  { key: "plans.update", display_name: "Update subscription plans", category: "plans" },
+  { key: "plans.delete", display_name: "Delete subscription plans", category: "plans" },
+
+  // ── Subscriptions (per-tenant Stripe subscription state) ────────────────
+  { key: "subscriptions.read",   display_name: "View tenant subscriptions",            category: "subscriptions" },
+  { key: "subscriptions.update", display_name: "Change a tenant's subscription plan",  category: "subscriptions" },
+  { key: "subscriptions.cancel", display_name: "Cancel/reactivate tenant subscriptions", category: "subscriptions" },
 
   // ── Audit log ────────────────────────────────────────────────────────────
   { key: "audit.read", display_name: "View audit log", category: "audit" },
@@ -82,6 +94,8 @@ const SYSTEM_ROLES: Array<{
       "roles.read",
       "permissions.read",
       "provisions.read",
+      "plans.read",
+      "subscriptions.read",
       "audit.read",
     ],
   },

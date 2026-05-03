@@ -39,6 +39,11 @@ export type Bindings = {
   CORS_ORIGINS: string;           // comma-separated allowlist or "*"
   CF_WORKERS_SUBDOMAIN: string;   // for workers.dev probes during admin-create
 
+  // ── Stripe (subscription management) ───────────────────────────────────
+  // Same platform Stripe account the provisioning-service uses. Required
+  // for /subscriptions endpoints; if unset those endpoints return 503.
+  STRIPE_SECRET_KEY?: string;
+
   // ── Optional outbound email ────────────────────────────────────────────
   RESEND_API_KEY?: string;
 };
@@ -88,6 +93,51 @@ export type AdminUserWithAccess = AdminUser & {
 /** A role enriched with the keys of every permission attached to it. */
 export type RoleWithPermissions = Role & {
   permissions: Permission[];
+};
+
+// ─── Subscription plans + subscriptions ──────────────────────────────────────
+
+export type BillingInterval = "day" | "week" | "month" | "year";
+
+export type SubscriptionPlan = {
+  id: string;
+  key: string;                   // matches Tenant.plan
+  display_name: string;
+  description: string | null;
+  stripe_price_id: string;
+  stripe_product_id: string | null;
+  amount_cents: number;
+  currency: string;
+  interval: BillingInterval;
+  interval_count: number;
+  active: boolean;
+  is_default: boolean;
+  trial_days: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "payment_failed"
+  | "suspended"
+  | "cancelled";
+
+export type Subscription = {
+  id: string;
+  tenant_id: string;
+  plan: TenantPlan;
+  status: SubscriptionStatus;
+  trial_ends_at: string;
+  current_period_end: string | null;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  payment_failed_at: string | null;
+  payment_failed_count: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AuditLogEntry = {

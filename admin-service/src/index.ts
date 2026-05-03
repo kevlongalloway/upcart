@@ -10,6 +10,8 @@ import { usersRouter } from "./routes/users.js";
 import { rolesRouter } from "./routes/roles.js";
 import { permissionsRouter } from "./routes/permissions.js";
 import { provisionsRouter } from "./routes/provisions.js";
+import { plansRouter } from "./routes/plans.js";
+import { subscriptionsRouter } from "./routes/subscriptions.js";
 import { auditRouter } from "./routes/audit.js";
 import { debugRouter } from "./routes/debug.js";
 import { seedSystemRolesAndPermissions } from "./seed.js";
@@ -62,19 +64,23 @@ app.route("/auth", authRouter);
 // Everything below requires a valid JWT. Permission gating happens per-route
 // inside the sub-routers via requirePermissions(...).
 
-app.use("/users/*",       authMiddleware());
-app.use("/roles/*",       authMiddleware());
-app.use("/permissions/*", authMiddleware());
-app.use("/provisions/*",  authMiddleware());
-app.use("/audit/*",       authMiddleware());
-app.use("/debug/*",       authMiddleware());
+app.use("/users/*",         authMiddleware());
+app.use("/roles/*",         authMiddleware());
+app.use("/permissions/*",   authMiddleware());
+app.use("/provisions/*",    authMiddleware());
+app.use("/plans/*",         authMiddleware());
+app.use("/subscriptions/*", authMiddleware());
+app.use("/audit/*",         authMiddleware());
+app.use("/debug/*",         authMiddleware());
 
-app.route("/users",       usersRouter);
-app.route("/roles",       rolesRouter);
-app.route("/permissions", permissionsRouter);
-app.route("/provisions",  provisionsRouter);
-app.route("/audit",       auditRouter);
-app.route("/debug",       debugRouter);
+app.route("/users",         usersRouter);
+app.route("/roles",         rolesRouter);
+app.route("/permissions",   permissionsRouter);
+app.route("/provisions",    provisionsRouter);
+app.route("/plans",         plansRouter);
+app.route("/subscriptions", subscriptionsRouter);
+app.route("/audit",         auditRouter);
+app.route("/debug",         debugRouter);
 
 // ─── 404 / error handlers ─────────────────────────────────────────────────────
 

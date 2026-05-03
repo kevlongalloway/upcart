@@ -38,8 +38,9 @@ admin-service/
   `provisions.delete`).
 - **Roles** group permissions and can be created/edited at runtime from the
   portal.
-- **Users** can hold multiple roles; the effective permission set is the
-  union.
+- **Users** can hold multiple roles; the effective permission set is
+  `union(role_permissions, user_permissions)` — i.e. roles **plus** any
+  permissions granted directly to the user via `POST /users/:id/permissions`.
 - The wildcard permission `*` short-circuits every check. Only the seeded
   `superadmin` role holds it; deletion of `*` from `superadmin` is refused
   by the API.
@@ -75,6 +76,9 @@ No schema migration is required.
 | DELETE | `/users/:id`                       | `users.delete` |
 | POST   | `/users/:id/roles`                 | `users.assign_role` |
 | DELETE | `/users/:id/roles/:role_id`        | `users.assign_role` |
+| GET    | `/users/:id/permissions`           | `users.read` |
+| POST   | `/users/:id/permissions`           | `users.assign_permission` |
+| DELETE | `/users/:id/permissions/:perm_id`  | `users.assign_permission` |
 | GET    | `/roles`                           | `roles.read` |
 | GET    | `/roles/:id`                       | `roles.read` |
 | POST   | `/roles`                           | `roles.create` |
@@ -91,6 +95,17 @@ No schema migration is required.
 | POST   | `/provisions`                      | `provisions.create` |
 | PATCH  | `/provisions/:tenant_id`           | `provisions.update` |
 | DELETE | `/provisions/:tenant_id`           | `provisions.delete` |
+| GET    | `/plans`                                | `plans.read` |
+| GET    | `/plans/:id`                            | `plans.read` |
+| POST   | `/plans`                                | `plans.create` |
+| PATCH  | `/plans/:id`                            | `plans.update` |
+| DELETE | `/plans/:id`                            | `plans.delete` |
+| GET    | `/subscriptions`                        | `subscriptions.read` |
+| GET    | `/subscriptions/:id`                    | `subscriptions.read` |
+| GET    | `/subscriptions/by-tenant/:tenant_id`   | `subscriptions.read` |
+| POST   | `/subscriptions/:id/change-plan`        | `subscriptions.update` |
+| POST   | `/subscriptions/:id/cancel`             | `subscriptions.cancel` |
+| POST   | `/subscriptions/:id/reactivate`         | `subscriptions.cancel` |
 | GET    | `/audit`                           | `audit.read` |
 | GET    | `/debug`                           | `*` (superadmin) |
 | POST   | `/debug/seed`                      | `*` (superadmin) |
@@ -148,6 +163,34 @@ Once a superadmin exists the bootstrap branch is unreachable — rotate or
 remove `BOOTSTRAP_PASSWORD_HASH` afterwards.
 
 ---
+
+## Subscription plans (Stripe-backed)
+
+The platform's plan catalogue lives in `subscription_plans` inside
+`upcart-provisioning-db` (migration
+`provisioning-service/migrations/0010_create_subscription_plans.sql`). Each
+row maps an internal plan key (matching `tenants.plan`) to a Stripe Price
+ID, with denormalised amount/currency/interval for display.
+
+Add a plan from the portal:
+
+```http
+POST /plans
+{
+  "key": "pro",
+  "display_name": "Pro",
+  "stripe_price_id": "price_1Abc..."
+}
+```
+
+If `STRIPE_SECRET_KEY` is configured, amount/currency/interval are
+auto-filled from Stripe. Changing the plan on a tenant's subscription
+(`POST /subscriptions/:id/change-plan`) calls Stripe to swap the
+subscription item to the new price and updates the local cache.
+
+`provisioning-service` continues to use its `STRIPE_PRICE_ID` env var as
+the default plan at signup; it can be migrated to look up plans from this
+table whenever convenient — no breaking change is required today.
 
 ## Cross-service integration
 

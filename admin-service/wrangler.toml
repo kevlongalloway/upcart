@@ -74,6 +74,11 @@ JWT_TTL_SECONDS = "28800"
 #   wrangler secret put BOOTSTRAP_EMAIL
 #   wrangler secret put BOOTSTRAP_PASSWORD_HASH
 #
+#   # Stripe — required for /subscriptions endpoints (change plan, cancel,
+#   # reactivate) and for /plans endpoints to denormalise amount/currency/
+#   # interval from a Stripe Price ID. Same key the provisioning-service uses.
+#   wrangler secret put STRIPE_SECRET_KEY
+#
 #   # Identity providers used when admin-create issues store credentials by
 #   # email (optional — leave blank to skip).
 #   wrangler secret put RESEND_API_KEY
