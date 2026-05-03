@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product — Demo Store</title>
-  <!-- theme.js must run before styles to inject CSS vars with zero FOUC -->
+  <!-- theme.js must run before styles to inject CSS vars with zero FOUC.
+       store-renderer.js fills the header / footer slots from the schema the
+       editor saves so a merchant's nav/footer edits propagate to every page. -->
   <script src="config.js"></script>
   <script src="theme.js"></script>
+  <script src="store-renderer.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -17,45 +20,13 @@
       min-height: 100vh;
     }
 
-    /* Nav */
-    nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      padding: 28px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    @media (min-width: 640px) { nav { padding: 28px 40px; } }
-
-    .nav-mark {
-      font-family: var(--font-body);
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-decoration: none;
-      color: var(--color-text);
-    }
-    .nav-links { display: flex; gap: 32px; }
-    .nav-links a {
-      font-size: 10px;
-      color: var(--color-text);
-      text-decoration: none;
-      letter-spacing: 0.1em;
-      opacity: 0.6;
-      text-transform: uppercase;
-      transition: opacity 0.2s;
-    }
-    .nav-links a:hover { opacity: 1; }
-
     /* Layout */
     .product-page {
-      padding: 120px 24px 80px;
+      padding: 48px 24px 80px;
       max-width: 1100px;
       margin: 0 auto;
     }
-    @media (min-width: 640px) { .product-page { padding: 120px 40px 80px; } }
+    @media (min-width: 640px) { .product-page { padding: 56px 40px 80px; } }
     @media (min-width: 768px) {
       .product-layout {
         display: grid;
@@ -307,13 +278,7 @@
 </head>
 <body>
 
-  <nav>
-    <a class="nav-mark" href="index.html">Store</a>
-    <div class="nav-links">
-      <a href="products.html">Shop</a>
-      <a href="cart.html" class="cart-nav-link">Cart</a>
-    </div>
-  </nav>
+  <div id="uc-storefront-header"></div>
 
   <div class="product-page" id="product-page">
     <p class="state-msg" id="state">Loading...</p>
@@ -321,19 +286,7 @@
 
   <div class="toast" id="toast"></div>
 
-  <footer>
-    <div class="footer-top">
-      <div>
-        <p class="footer-brand-name" data-store-name>Your Store</p>
-      </div>
-      <div class="footer-links">
-        <a href="#">Help</a>
-        <a href="#">Returns</a>
-        <a href="#">Contact</a>
-      </div>
-    </div>
-    <p class="footer-copy">© 2026 <span data-store-name>Your Store</span>. All rights reserved.</p>
-  </footer>
+  <div id="uc-storefront-footer"></div>
 
   <script src="cart.js"></script>
   <script>

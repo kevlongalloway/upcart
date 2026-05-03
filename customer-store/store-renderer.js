@@ -445,6 +445,32 @@
   let styleEl = null;
   let mainEl  = null;
 
+  // Section types that count as page chrome — rendered into the
+  // `#uc-storefront-header` slot on subpages so the merchant's edits in the
+  // dashboard cover every page, not just the home page.
+  const HEADER_SECTION_TYPES = ['announcement-bar', 'header', 'nav'];
+  const FOOTER_SECTION_TYPES = ['footer'];
+
+  function renderSectionWrapper(sec) {
+    const renderer = RENDERERS[sec.type];
+    if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
+
+    // Apply section layout background, padding, min-height
+    const layout   = sec.layout || {};
+    const bg       = layout.background ? bgToCss(layout.background) : '';
+    const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
+    const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
+    const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
+    const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
+
+    const inner = renderer(sec);
+    const customCSS = sec.customCSS
+      ? `<style>[data-sec="${sec.id}"] { ${sec.customCSS} }</style>`
+      : '';
+
+    return `<div data-sec="${sec.id}" data-type="${sec.type}" style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
+  }
+
   function applySchema(schema) {
     currentSchema = schema;
 
@@ -455,8 +481,18 @@
       document.head.appendChild(styleEl);
     }
     const theme = schema.globalTheme;
+    // Only let `body { background, color, font-family, … }` apply on pages
+    // that actually delegate the full body to the renderer. Subpages
+    // (products / cart / etc.) only host the header + footer slots and have
+    // their own static CSS; replacing their body styles would cause a flash
+    // of mismatched theme. The full-body rule is therefore gated on the
+    // canvas slot existing.
+    const hasFullCanvas = !!document.getElementById('uc-editor-canvas');
+    const bodyRule = hasFullCanvas
+      ? `body { background: var(--uc-bg); color: var(--uc-text); font-family: var(--uc-body-font); font-size: var(--uc-base-font-size); line-height: var(--uc-line-height); }\n`
+      : '';
     styleEl.textContent = `:root { ${themeToCssVars(theme)} }\n` +
-      `body { background: var(--uc-bg); color: var(--uc-text); font-family: var(--uc-body-font); font-size: var(--uc-base-font-size); line-height: var(--uc-line-height); }\n` +
+      bodyRule +
       `h1,h2,h3,h4,h5,h6 { font-family: var(--uc-heading-font); font-weight: var(--uc-heading-weight); }\n` +
       `.uc-container { width: 100%; margin: 0 auto; padding: 0 24px; }\n` +
       `.uc-w-full  { max-width: 100%; padding: 0; }\n` +
@@ -479,41 +515,40 @@
     const page   = schema.pages[pageId];
     if (!page) return;
 
-    // Find or create main content area
-    if (!mainEl) {
-      // Try to find existing content area or use body
-      mainEl = document.getElementById('uc-editor-canvas');
-      if (!mainEl) {
-        mainEl = document.createElement('div');
-        mainEl.id = 'uc-editor-canvas';
-        document.body.appendChild(mainEl);
-      }
+    const visibleSections = page.sections.filter(sec => sec.visible !== false);
+
+    // Full-page canvas (home page + editor preview iframe). Only auto-create
+    // a canvas if there are no chrome slots present — subpages opt-out of
+    // full rendering by providing #uc-storefront-header / -footer instead.
+    const headerSlot = document.getElementById('uc-storefront-header');
+    const footerSlot = document.getElementById('uc-storefront-footer');
+    const hasChromeSlots = !!(headerSlot || footerSlot);
+
+    if (!mainEl) mainEl = document.getElementById('uc-editor-canvas');
+    if (!mainEl && !hasChromeSlots) {
+      // Editor preview: no slots at all → fall back to creating a canvas so
+      // the iframe still has somewhere to render the schema.
+      mainEl = document.createElement('div');
+      mainEl.id = 'uc-editor-canvas';
+      document.body.appendChild(mainEl);
     }
 
-    const html = page.sections
-      .filter(sec => sec.visible !== false)
-      .map(sec => {
-        const renderer = RENDERERS[sec.type];
-        if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
+    if (mainEl) {
+      mainEl.innerHTML = visibleSections.map(renderSectionWrapper).join('\n');
+    }
 
-        // Apply section layout background, padding, min-height
-        const layout   = sec.layout || {};
-        const bg       = layout.background ? bgToCss(layout.background) : '';
-        const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
-        const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
-        const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
-        const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
+    // Header slot: render every chrome-typed section in declaration order
+    // (e.g. announcement-bar, then header).
+    if (headerSlot) {
+      const head = visibleSections.filter(s => HEADER_SECTION_TYPES.indexOf(s.type) !== -1);
+      headerSlot.innerHTML = head.map(renderSectionWrapper).join('\n');
+    }
 
-        const inner = renderer(sec);
-        const customCSS = sec.customCSS
-          ? `<style>[data-sec="${sec.id}"] { ${sec.customCSS} }</style>`
-          : '';
-
-        return `<div data-sec="${sec.id}" data-type="${sec.type}" style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
-      })
-      .join('\n');
-
-    mainEl.innerHTML = html;
+    // Footer slot: just the first matching footer section.
+    if (footerSlot) {
+      const foot = visibleSections.filter(s => FOOTER_SECTION_TYPES.indexOf(s.type) !== -1);
+      footerSlot.innerHTML = foot.map(renderSectionWrapper).join('\n');
+    }
   }
 
   /* ── postMessage bridge ───────────────────────────────────────────────── */
