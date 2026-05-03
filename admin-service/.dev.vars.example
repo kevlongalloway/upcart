@@ -1,0 +1,29 @@
+# Copy this file to `.dev.vars` for local development secrets.
+# This file is safe to commit. `.dev.vars` is gitignored.
+#
+# Wrangler automatically loads `.dev.vars` when running `wrangler dev`.
+# For production, push secrets with `wrangler secret put <NAME>`.
+
+# ── JWT signing secret ──────────────────────────────────────────────────────
+# Generate with: openssl rand -hex 32
+JWT_SECRET=replace-with-openssl-rand-hex-32
+
+# ── Cloudflare account ──────────────────────────────────────────────────────
+# Same scopes as provisioning-service: Workers Scripts:Edit, D1:Edit,
+# R2:Edit, Workers Custom Domains:Edit, Zone DNS:Edit, Workers Routes:Edit.
+CF_ACCOUNT_ID=your-cloudflare-account-id
+CF_API_TOKEN=your-cloudflare-api-token
+CF_ZONE_ID=your-zone-id
+
+# ── First-superadmin bootstrap ──────────────────────────────────────────────
+# Used once, only when admin_users is empty. After the first superadmin is
+# created these can be cleared.
+#
+# Generate the hash by running:
+#   node -e "import('./src/password.ts').then(m => m.hashPassword(process.argv[1]).then(h => console.log(h)))" 'YourPassword'
+# (or use the helper printed by `wrangler dev` on first boot.)
+BOOTSTRAP_EMAIL=root@upcart.online
+BOOTSTRAP_PASSWORD_HASH=
+
+# ── Optional: outbound email for admin-created stores ───────────────────────
+RESEND_API_KEY=

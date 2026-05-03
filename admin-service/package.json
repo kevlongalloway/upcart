@@ -1,0 +1,23 @@
+{
+  "name": "upcart-admin-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Upcart admin/superadmin service — RBAC, tenant provision management, and the future home for support/moderation tools that power the employee portal.",
+  "scripts": {
+    "dev":              "wrangler dev",
+    "deploy":           "wrangler deploy",
+    "db:create":        "wrangler d1 create upcart-admin-db",
+    "db:migrate":       "wrangler d1 migrations apply upcart-admin-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply upcart-admin-db --local"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "@hono/zod-validator": "^0.4.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^3.99.0"
+  }
+}
