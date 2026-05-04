@@ -84,13 +84,21 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   header: {
     type:        'header',
     name:        'Header',
-    description: 'Navigation bar with logo, links, and cart.',
+    description: 'Navigation bar with logo, links, and shop icons.',
     icon:        'PanelTop',
     category:    'structure',
     defaultSettings: {
       storeName:       'My Store',
       logoUrl:         '',
+      // The header ships with a basic system-font wordmark by default. Merchants
+      // pick a display font from the global theme; they shouldn't need to fight
+      // a stylized default to get a plain logo.
+      logoFont:        'system',           // 'system' | 'display'
       showCartIcon:    true,
+      showSearchIcon:  true,
+      showAccountIcon: false,
+      showWishlistIcon: false,
+      showHamburger:   true,               // mobile-only menu toggle
       navLinks:        [
         { label: 'Shop',  url: '/products' },
         { label: 'About', url: '#'         },
@@ -108,9 +116,19 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     settingsFields: [
       { key: 'storeName',    label: 'Store name',    type: 'text'   },
       { key: 'logoUrl',      label: 'Logo image',    type: 'image'  },
+      { key: 'logoFont',     label: 'Logo font',     type: 'select',
+        options: [
+          { value: 'system',  label: 'System (basic)' },
+          { value: 'display', label: 'Display font'   },
+        ] },
       { key: 'textColor',    label: 'Nav text color', type: 'color' },
       { key: 'sticky',       label: 'Sticky header', type: 'toggle' },
       { key: 'transparent',  label: 'Transparent on page top', type: 'toggle' },
+      { key: 'showSearchIcon',   label: 'Show search icon',   type: 'toggle' },
+      { key: 'showAccountIcon',  label: 'Show account icon',  type: 'toggle' },
+      { key: 'showWishlistIcon', label: 'Show wishlist icon', type: 'toggle' },
+      { key: 'showCartIcon',     label: 'Show cart icon',     type: 'toggle' },
+      { key: 'showHamburger',    label: 'Show mobile menu',   type: 'toggle' },
       { key: 'layout__background', label: 'Background', type: 'background', group: 'Layout' },
       { key: 'customCSS',    label: 'Custom CSS', type: 'custom-css', group: 'Advanced' },
     ],
@@ -149,6 +167,9 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     defaultLayout: {
       width:      'full',
       padding:    { top: 120, right: 40, bottom: 120, left: 40 },
+      // Default is a clean dark surface — no remote image URL so the base
+      // theme never ships with a broken hot-linked image. Merchants opt in
+      // to a hero photo via the editor.
       background: {
         ...BG, type: 'color', color: '#1a1a1a',
       },
@@ -256,6 +277,58 @@ const REGISTRY: Record<SectionType, SectionDef> = {
           { value: '3/4', label: 'Portrait' },
           { value: '4/3', label: 'Landscape'},
         ] },
+      ...LAYOUT_FIELDS,
+    ],
+  },
+
+  // ── Filterable Product Grid ──────────────────────────────────────────
+  // Shop page section: products on the right, filter sidebar on the left.
+  // Loads live products from the backend, supports search/sort/grid-vs-list,
+  // and uses the global cart drawer for add-to-cart + checkout.
+  'filter-product-grid': {
+    type:        'filter-product-grid',
+    name:        'Filterable Product Grid',
+    description: 'Shop view with filter sidebar, search, sort and add-to-cart.',
+    icon:        'SlidersHorizontal',
+    category:    'commerce',
+    defaultSettings: {
+      heading:        'Shop',
+      collection:     '',         // optional collection slug to scope the query
+      limit:          48,
+      columns:        4,
+      showFilters:    true,
+      showSearch:     true,
+      showSort:       true,
+      showViewToggle: true,
+      showAddToCart:  true,
+      defaultView:    'grid',     // 'grid' | 'list'
+      categories:     ['All Items', 'Outerwear', 'Knitwear', 'Trousers', 'Footwear', 'Accessories'],
+      sizes:          ['XS', 'S', 'M', 'L', 'XL'],
+      priceMin:       0,
+      priceMax:       1000,
+    },
+    defaultLayout: {
+      padding:    sectionPad(40),
+      background: { ...whiteBg },
+    },
+    defaultBlocks:  [],
+    settingsFields: [
+      { key: 'heading',        label: 'Heading',          type: 'text' },
+      { key: 'collection',     label: 'Collection (optional)', type: 'text', placeholder: 'e.g. summer-2026' },
+      { key: 'limit',          label: 'Products to load', type: 'slider', min: 8, max: 100, step: 4 },
+      { key: 'columns',        label: 'Grid columns',     type: 'slider', min: 2, max: 5 },
+      { key: 'defaultView',    label: 'Default view',     type: 'select',
+        options: [
+          { value: 'grid', label: 'Grid' },
+          { value: 'list', label: 'List' },
+        ] },
+      { key: 'showFilters',    label: 'Show filter sidebar', type: 'toggle' },
+      { key: 'showSearch',     label: 'Show search bar',     type: 'toggle' },
+      { key: 'showSort',       label: 'Show sort dropdown',  type: 'toggle' },
+      { key: 'showViewToggle', label: 'Show grid/list toggle', type: 'toggle' },
+      { key: 'showAddToCart',  label: 'Show "Add to bag" on hover', type: 'toggle' },
+      { key: 'priceMin',       label: 'Price filter min', type: 'number', min: 0, group: 'Filters' },
+      { key: 'priceMax',       label: 'Price filter max', type: 'number', min: 0, group: 'Filters' },
       ...LAYOUT_FIELDS,
     ],
   },
@@ -860,7 +933,7 @@ export function getAllSectionDefs(): SectionDef[] {
 export const SECTION_CATEGORIES = {
   structure:  ['announcement-bar', 'header', 'footer'],
   content:    ['hero', 'info', 'features', 'rich-text', 'faq'],
-  commerce:   ['product-grid', 'product-carousel', 'categories'],
+  commerce:   ['product-grid', 'product-carousel', 'filter-product-grid', 'categories'],
   media:      ['gallery', 'video'],
   engagement: ['testimonials', 'newsletter'],
   advanced:   ['spacer', 'divider', 'custom'],

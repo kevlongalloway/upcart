@@ -14,7 +14,9 @@
   var THEMES = {
 
     // ── Base ──────────────────────────────────────────────────────────────────
-    // Default Shopify-style theme. System fonts only — zero external deps.
+    // Default theme. System fonts only — zero external deps, no broken-network
+    // FOUC. Designed as the neutral starting point that merchants customize on
+    // top of via the editor (colors, fonts, sections). Keep this minimal.
     base: {
       fonts: null,
       vars: [
@@ -23,10 +25,14 @@
         '--font-hero:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
         '--color-bg:#ffffff',
         '--color-text:#111111',
+        '--color-muted:#6b6b6b',
         '--color-surface:#f5f5f5',
         '--color-surface-border:#e8e8e8',
         '--color-border:rgba(0,0,0,0.08)',
         '--color-border-mid:rgba(0,0,0,0.14)',
+        '--color-accent:#111111',
+        '--color-accent-soft:rgba(17,17,17,0.08)',
+        '--color-danger:#b84c4c',
         '--color-ticker-bg:#111111',
         '--color-ticker-text:#ffffff',
         '--color-footer-bg:#111111',
