@@ -923,11 +923,19 @@
     const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
 
     const inner = renderer(sec);
-    const customCSS = sec.customCSS
-      ? `<style>[data-sec="${sec.id}"] { ${sec.customCSS} }</style>`
+    // The editor hints that `.section` targets the wrapper, but the wrapper
+    // has no `.section` class — so we resolve `.section` to the section's
+    // unique `[data-sec="…"]` selector and inject the rules verbatim. (The
+    // previous outer `[data-sec="…"] { ${customCSS} }` wrap relied on CSS
+    // nesting and silently dropped any rule whose selector wasn't a
+    // descendant of the wrapper.)
+    const scopedCSS = sec.customCSS
+      ? sec.customCSS.replace(/\.section\b/g, `[data-sec="${sec.id}"]`)
       : '';
+    const customCSS = scopedCSS ? `<style>${scopedCSS}</style>` : '';
+    const classAttr = sec.customClasses ? ` class="${sec.customClasses}"` : '';
 
-    return `<div data-sec="${sec.id}" data-type="${sec.type}" style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
+    return `<div data-sec="${sec.id}" data-type="${sec.type}"${classAttr} style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
   }
 
   function applySchema(schema) {
