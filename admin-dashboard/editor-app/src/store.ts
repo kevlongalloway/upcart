@@ -98,8 +98,44 @@ const DEFAULT_SECTION_SEEDS: Array<{ id: string; type: SectionType }> = [
   { id: 'seed-footer',  type: 'footer'  },
 ];
 
+// Per-type setting overrides applied on top of the registry's defaultSettings.
+// These give a fresh tenant ARCH-flavored copy out of the box (matching the
+// strings hardcoded in customer-store/index.html) so the editor's sidebar
+// looks populated and the live storefront renders the same content.
+const ARCH_SETTING_OVERRIDES: Partial<Record<SectionType, Record<string, unknown>>> = {
+  header: {
+    storeName:    'ARCH',
+    showCartIcon: true,
+    sticky:       true,
+    navLinks: [
+      { label: 'Women',       url: '/products?cat=women'   },
+      { label: 'Men',         url: '/products?cat=men'     },
+      { label: 'Collections', url: '/products?cat=new'     },
+      { label: 'Sale',        url: '/products?cat=sale'    },
+      { label: 'About',       url: '/about'                },
+    ],
+  },
+  hero: {
+    subheadline:   'New Season Arrivals',
+    headline:      'The Coat Issue.',
+    season:        'SS 26',
+    image:         'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=85&auto=format&fit=crop',
+    primaryButton: { label: 'Shop Outerwear', url: '/products' },
+    stats: [
+      { value: '47',   label: 'New Arrivals'        },
+      { value: 'Free', label: 'Shipping Over $200'  },
+      { value: '30d',  label: 'Returns'             },
+    ],
+  },
+  footer: {
+    aboutText:     'Considered clothing for the discerning mind. Crafted with precision, worn with intention.',
+    copyrightText: '© 2026 ARCH. All rights reserved.',
+  },
+};
+
 function buildSeededSection(id: string, type: SectionType): Section {
-  const def = getSectionDef(type);
+  const def       = getSectionDef(type);
+  const overrides = ARCH_SETTING_OVERRIDES[type] ?? {};
   return {
     id,
     type,
@@ -107,7 +143,7 @@ function buildSeededSection(id: string, type: SectionType): Section {
     visible:       true,
     locked:        def.locked ?? false,
     layout:        JSON.parse(JSON.stringify(def.defaultLayout)) as Section['layout'],
-    settings:      JSON.parse(JSON.stringify(def.defaultSettings)),
+    settings:      { ...JSON.parse(JSON.stringify(def.defaultSettings)), ...overrides },
     // Seed blocks get stable IDs derived from the section ID + index so
     // re-seeding produces the same JSON byte-for-byte.
     blocks:        def.defaultBlocks.map((b, i) => ({ ...JSON.parse(JSON.stringify(b)), id: `${id}-block-${i}` })),

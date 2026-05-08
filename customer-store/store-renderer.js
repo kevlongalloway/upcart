@@ -445,75 +445,258 @@
   let styleEl = null;
   let mainEl  = null;
 
+  /* ── ARCH theme slot patchers ──────────────────────────────────────────
+     The base storefront template (customer-store/index.html) ships with
+     pre-built ARCH-styled markup for the four "core" section types
+     (header, hero, footer, product-grid). When the editor saves a schema,
+     we patch the existing DOM in-place instead of replacing it, so the
+     rich CSS / interactions keep working. Section types without an ARCH
+     slot fall through to the legacy RENDERERS map below and get appended
+     to #uc-extra-sections. */
+
+  // Set element text only when it actually changed — prevents the layout
+  // from flickering on every postMessage during typing.
+  function setText(el, value) {
+    if (!el) return;
+    var v = value == null ? '' : String(value);
+    if (el.textContent !== v) el.textContent = v;
+  }
+
+  function setAttr(el, attr, value) {
+    if (!el) return;
+    if (value == null || value === '') el.removeAttribute(attr);
+    else if (el.getAttribute(attr) !== value) el.setAttribute(attr, value);
+  }
+
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible === false ? 'none' : '';
+  }
+
+  // ── header (data-uc-section="header") ──
+  function patchHeader(sec) {
+    var root = document.querySelector('[data-uc-section="header"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Logo / store name — both in the nav and the footer
+    var name = s.storeName || s.logo || 'Store';
+    document.querySelectorAll('[data-store-name]').forEach(function (n) { setText(n, name); });
+
+    // Optional nav links (settings.navLinks: Array<{label, url}>). When
+    // provided, the left list is the first half and the right list is
+    // the rest — keeps the centered logo balanced.
+    if (Array.isArray(s.navLinks)) {
+      var leftHost  = root.querySelector('[data-uc-bind="header.navLinks.left"]');
+      var rightHost = root.querySelector('[data-uc-bind="header.navLinks.right"]');
+      var mid = Math.ceil(s.navLinks.length / 2);
+      var leftLinks  = s.navLinks.slice(0, mid);
+      var rightLinks = s.navLinks.slice(mid);
+      var renderLink = function (l) {
+        return '<a href="' + (l.url || '#') + '" class="nav-link">' + escapeHtml(l.label || '') + '</a>';
+      };
+      if (leftHost)  leftHost.innerHTML  = leftLinks.map(renderLink).join('');
+      if (rightHost) rightHost.innerHTML = rightLinks.map(renderLink).join('');
+    }
+
+    // Cart icon visibility
+    var cartBtn = root.querySelector('[data-uc-bind="header.cartIcon"]');
+    if (cartBtn && s.showCartIcon === false) cartBtn.style.display = 'none';
+    else if (cartBtn) cartBtn.style.display = '';
+  }
+
+  // ── hero (data-uc-section="hero") ──
+  function patchHero(sec) {
+    var root = document.querySelector('[data-uc-section="hero"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Kicker / subhead
+    var kicker = root.querySelector('[data-uc-bind="hero.kicker"]');
+    setText(kicker, s.subheadline || s.subheading || s.kicker || 'New Season Arrivals');
+
+    // Headline — split on a period or use accent setting
+    var titleMain   = root.querySelector('[data-uc-bind="hero.titleMain"]');
+    var titleAccent = root.querySelector('[data-uc-bind="hero.titleAccent"]');
+    var rawTitle    = s.headline || s.heading || '';
+    if (s.titleAccent) {
+      setText(titleMain, s.titleMain || rawTitle);
+      setText(titleAccent, s.titleAccent);
+    } else if (rawTitle.indexOf('.') !== -1) {
+      var idx = rawTitle.indexOf('.');
+      setText(titleMain, rawTitle.slice(0, idx).trim());
+      setText(titleAccent, rawTitle.slice(idx).trim());
+    } else {
+      setText(titleMain, rawTitle);
+      setText(titleAccent, '');
+    }
+
+    // CTA button
+    var ctaWrap  = root.querySelector('[data-uc-bind="hero.cta"]');
+    var ctaLabel = ctaWrap && ctaWrap.querySelector('span');
+    var btn = s.primaryButton || s.cta || {};
+    setText(ctaLabel, btn.label || btn.text || s.ctaLabel || 'Shop Now');
+    if (ctaWrap) setAttr(ctaWrap, 'href', btn.url || s.ctaUrl || '/products');
+
+    // Hero image
+    var img = root.querySelector('[data-uc-bind="hero.image"]');
+    if (img && s.image) setAttr(img, 'src', s.image);
+
+    // Season marker (small vertical text on right edge)
+    var heroText = root.querySelector('[data-uc-bind="hero.text"]');
+    if (heroText && s.season) setAttr(heroText, 'data-season', s.season);
+
+    // Stats strip — Array<{value, label}>; hide if empty array provided
+    if (Array.isArray(s.stats)) {
+      var statsHost = root.querySelector('[data-uc-bind="hero.stats"]');
+      if (statsHost) {
+        if (!s.stats.length) statsHost.style.display = 'none';
+        else {
+          statsHost.style.display = '';
+          statsHost.innerHTML = s.stats.map(function (st) {
+            return '<div class="hero-stat"><strong>' + escapeHtml(st.value || '') + '</strong>' + escapeHtml(st.label || '') + '</div>';
+          }).join('');
+        }
+      }
+    }
+  }
+
+  // ── footer (data-uc-section="footer") ──
+  function patchFooter(sec) {
+    var root = document.querySelector('[data-uc-section="footer"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Tagline / about
+    var tagline = root.querySelector('[data-uc-bind="footer.tagline"]');
+    setText(tagline, s.aboutText || s.tagline || s.description || '');
+
+    // Copyright (preserve store-name span if present in the original copy)
+    var copy = root.querySelector('[data-uc-bind="footer.copyright"]');
+    if (copy && (s.copyrightText || s.copyright)) {
+      copy.textContent = s.copyrightText || s.copyright;
+    }
+
+    // Footer columns from blocks (footer-column blocks). Each block has
+    // settings.title and settings.links: Array<{label, url}>.
+    var blocks = (sec.blocks || []).filter(function (b) {
+      return b.visible !== false && b.type === 'footer-column';
+    });
+    if (blocks.length) {
+      // Map columns 1..3 (the first column is reserved for logo + tagline).
+      blocks.slice(0, 3).forEach(function (b, i) {
+        var col = root.querySelector('[data-uc-bind="footer.col' + (i + 1) + '"]');
+        if (!col) return;
+        var bs = b.settings || {};
+        var links = Array.isArray(bs.links) ? bs.links : [];
+        col.innerHTML =
+          '<div class="footer-col-title">' + escapeHtml(bs.title || '') + '</div>' +
+          '<div class="footer-links">' +
+            links.map(function (l) {
+              return '<a class="footer-link" href="' + (l.url || '#') + '">' + escapeHtml(l.label || '') + '</a>';
+            }).join('') +
+          '</div>';
+      });
+    }
+  }
+
+  // ── product-grid (data-uc-section="product-grid") ──
+  function patchProductGrid(sec) {
+    var root = document.querySelector('[data-uc-section="product-grid"]');
+    if (!root) return;
+    setVisible(root, sec.visible !== false);
+    // Heading / sort defaults / pagination tuning belongs here when wired.
+    // Today the storefront's inline JS handles all data + UI for the grid.
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  // Map of section type → patcher. Sections not listed here fall through
+  // to the legacy RENDERERS path and get appended to #uc-extra-sections.
+  var ARCH_PATCHERS = {
+    'header':       patchHeader,
+    'nav':          patchHeader,
+    'hero':         patchHero,
+    'footer':       patchFooter,
+    'product-grid': patchProductGrid,
+  };
+
   function applySchema(schema) {
     currentSchema = schema;
 
-    // ── Global CSS vars ────────────────────────────────────────────────
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = 'uc-theme-vars';
-      document.head.appendChild(styleEl);
+    // ── Global CSS vars (editor theme presets — co-exist with ARCH's
+    //     own --bg/--ink/--accent in index.html). ──
+    var theme = schema && schema.globalTheme;
+    if (theme && theme.colors && theme.typography && theme.spacing) {
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'uc-theme-vars';
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent =
+        ':root { ' + themeToCssVars(theme) + ' }\n' +
+        (theme.customCSS || '');
+      if (theme.typography.headingFont) loadGoogleFont(theme.typography.headingFont);
+      if (theme.typography.bodyFont)    loadGoogleFont(theme.typography.bodyFont);
     }
-    const theme = schema.globalTheme;
-    styleEl.textContent = `:root { ${themeToCssVars(theme)} }\n` +
-      `body { background: var(--uc-bg); color: var(--uc-text); font-family: var(--uc-body-font); font-size: var(--uc-base-font-size); line-height: var(--uc-line-height); }\n` +
-      `h1,h2,h3,h4,h5,h6 { font-family: var(--uc-heading-font); font-weight: var(--uc-heading-weight); }\n` +
-      `.uc-container { width: 100%; margin: 0 auto; padding: 0 24px; }\n` +
-      `.uc-w-full  { max-width: 100%; padding: 0; }\n` +
-      `.uc-w-wide  { max-width: 1440px; }\n` +
-      `.uc-w-contained { max-width: var(--uc-container-max); }\n` +
-      `.uc-w-narrow { max-width: 720px; }\n` +
-      `.uc-section-title { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: var(--uc-heading-weight); margin-bottom: 12px; }\n` +
-      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; }\n` +
-      `.uc-prose { font-size: var(--uc-base-font-size); line-height: 1.8; }\n` +
-      `.uc-prose h2 { font-size: 1.5em; margin: 1.5em 0 .5em; }\n` +
-      `.uc-prose p { margin: 0 0 1em; }\n` +
-      (theme.customCSS || '');
 
-    // Load Google Fonts
-    loadGoogleFont(theme.typography.headingFont);
-    loadGoogleFont(theme.typography.bodyFont);
+    if (!schema || !schema.pages) return;
+    var pageId = Object.keys(schema.pages)[0] || 'index';
+    var page   = schema.pages[pageId];
+    if (!page || !Array.isArray(page.sections)) return;
 
-    // ── Render page sections ───────────────────────────────────────────
-    const pageId = Object.keys(schema.pages)[0] || 'index';
-    const page   = schema.pages[pageId];
-    if (!page) return;
+    // ── Pass 1: patch ARCH slots in declaration order. ──
+    // ── Pass 2: render any sections without an ARCH slot into the
+    //     #uc-extra-sections container, in their schema order. ──
+    var extras = [];
+    page.sections.forEach(function (sec) {
+      if (!sec || sec.visible === false) return;
+      var patcher = ARCH_PATCHERS[sec.type];
+      if (patcher) {
+        try { patcher(sec); }
+        catch (e) { console.error('Patch failed for ' + sec.type + ':', e); }
+      } else {
+        extras.push(sec);
+      }
+    });
 
-    // Find or create main content area
-    if (!mainEl) {
-      // Try to find existing content area or use body
-      mainEl = document.getElementById('uc-editor-canvas');
-      if (!mainEl) {
-        mainEl = document.createElement('div');
-        mainEl.id = 'uc-editor-canvas';
-        document.body.appendChild(mainEl);
+    var extrasEl = document.getElementById('uc-extra-sections');
+    if (!extrasEl) {
+      // Standalone preview / legacy index: build a canvas if nothing exists.
+      extrasEl = document.getElementById('uc-editor-canvas');
+      if (!extrasEl) {
+        extrasEl = document.createElement('div');
+        extrasEl.id = 'uc-editor-canvas';
+        document.body.appendChild(extrasEl);
       }
     }
+    if (mainEl !== extrasEl) mainEl = extrasEl;
 
-    const html = page.sections
-      .filter(sec => sec.visible !== false)
-      .map(sec => {
-        const renderer = RENDERERS[sec.type];
-        if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
+    extrasEl.innerHTML = extras.map(function (sec) {
+      var renderer = RENDERERS[sec.type];
+      if (!renderer) return '<!-- Unknown section type: ' + sec.type + ' -->';
 
-        // Apply section layout background, padding, min-height
-        const layout   = sec.layout || {};
-        const bg       = layout.background ? bgToCss(layout.background) : '';
-        const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
-        const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
-        const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
-        const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
+      var layout = sec.layout || {};
+      var parts  = [
+        layout.background ? bgToCss(layout.background)         : '',
+        layout.padding    ? spacingToCss(layout.padding, 'padding') : '',
+        layout.margin     ? spacingToCss(layout.margin,  'margin')  : '',
+        layout.minHeight  ? 'min-height:' + layout.minHeight + 'px;' : '',
+      ].filter(Boolean).join(' ');
 
-        const inner = renderer(sec);
-        const customCSS = sec.customCSS
-          ? `<style>[data-sec="${sec.id}"] { ${sec.customCSS} }</style>`
-          : '';
-
-        return `<div data-sec="${sec.id}" data-type="${sec.type}" style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
-      })
-      .join('\n');
-
-    mainEl.innerHTML = html;
+      var inner     = renderer(sec);
+      var customCSS = sec.customCSS
+        ? '<style>[data-sec="' + sec.id + '"] { ' + sec.customCSS + ' }</style>'
+        : '';
+      return '<div data-sec="' + sec.id + '" data-type="' + sec.type + '" style="' + parts.replace(/\n/g, ' ') + '">' + customCSS + inner + '</div>';
+    }).join('\n');
   }
 
   /* ── postMessage bridge ───────────────────────────────────────────────── */
