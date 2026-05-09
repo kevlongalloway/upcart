@@ -136,20 +136,30 @@
         .map(b => ({ url: b.settings.url, label: b.settings.label }));
       const settingLinks = Array.isArray(s.navLinks) ? s.navLinks : [];
       const allLinks = blockLinks.length ? blockLinks : settingLinks;
-      const links = allLinks
-        .map(l => `<a href="${l.url||'#'}" class="uc-nav-link" style="color:${s.linkColor||s.textColor||'inherit'};font-size:${s.linkSize||13}px;letter-spacing:.04em;text-decoration:none;opacity:.8">${l.label||''}</a>`)
+      // ARCH puts a couple of "About" / utility links on the right side; if a
+      // merchant doesn't supply navLinksRight we fall back to none and use
+      // navLinks on the left.
+      const rightLinks = Array.isArray(s.navLinksRight) ? s.navLinksRight : [];
+      const linkColor = s.linkColor || 'var(--uc-text-muted)';
+      const renderLinks = (arr) => arr
+        .map(l => `<a href="${l.url||'#'}" class="uc-nav-link" data-store-href style="color:${linkColor};font-size:${s.linkSize||11}px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;white-space:nowrap;transition:color .2s">${l.label||''}</a>`)
         .join('');
-      const storeName = s.storeName || s.logoAlt || 'My Store';
-      // The base theme uses a system-font wordmark by default — switch to the
-      // global display font only when the merchant opts in.
-      const useDisplay = s.logoFont === 'display';
+      const leftLinksHtml  = renderLinks(allLinks);
+      const rightLinksHtml = renderLinks(rightLinks);
+
+      const storeName = s.storeName || s.logoAlt || 'STORE';
+      // ARCH defaults to a centered display-serif wordmark; merchants can flip
+      // back to a left-aligned system-font wordmark via the editor.
+      const layout    = s.logoLayout === 'centered' ? 'centered' : (rightLinks.length ? 'centered' : 'left');
+      const useDisplay = s.logoFont !== 'system';
       const logoFont   = useDisplay ? 'var(--uc-heading-font)' : 'var(--uc-body-font)';
       const logoWeight = useDisplay ? 600 : 700;
-      const logoSize   = s.logoSize || 18;
-      const logoSpacing = useDisplay ? '.04em' : '.01em';
+      const logoSize   = s.logoSize || 22;
+      const logoSpacing = s.logoSpacing || (useDisplay ? '.12em' : '.02em');
+      const logoTextTransform = useDisplay ? 'uppercase' : 'none';
       const logoHtml = s.logoUrl
-        ? `<img src="${s.logoUrl}" alt="${storeName}" style="height:${s.logoHeight||32}px;width:auto" onerror="this.style.display='none'">`
-        : `<span style="font-family:${logoFont};font-weight:${logoWeight};font-size:${logoSize}px;letter-spacing:${logoSpacing}">${storeName}</span>`;
+        ? `<img src="${s.logoUrl}" alt="${storeName}" data-store-logo class="has-logo" style="height:${s.logoHeight||32}px;width:auto" onerror="this.style.display='none'">`
+        : `<span data-store-name style="font-family:${logoFont};font-weight:${logoWeight};font-size:${logoSize}px;letter-spacing:${logoSpacing};text-transform:${logoTextTransform}">${storeName}</span>`;
 
       const iconBtn = (label, svg, onclick) =>
         `<button type="button" aria-label="${label}" onclick="${onclick}" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${svg}</button>`;
@@ -162,51 +172,114 @@
         menu:     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
       };
 
+      const cartBadgeHtml = `<span class="uc-cart-badge" data-uc-cart-badge style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:50%;background:var(--uc-accent);color:var(--uc-primary-text);font-size:9px;font-weight:500;display:none;align-items:center;justify-content:center;padding:0 4px">0</span>`;
+
       const icons = [
         s.showSearchIcon   ? iconBtn('Search',   SVG.search,   "window.UC&&UC.focusSearch&&UC.focusSearch()") : '',
         s.showAccountIcon  ? iconBtn('Account',  SVG.account,  "window.location.href='/account'")          : '',
         s.showWishlistIcon ? iconBtn('Wishlist', SVG.wishlist, "window.location.href='/wishlist'")          : '',
-        s.showCartIcon ? `<button type="button" aria-label="Cart" onclick="window.UC&&UC.openCart&&UC.openCart()" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${SVG.cart}<span class="uc-cart-badge" data-uc-cart-badge style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:50%;background:var(--uc-primary);color:var(--uc-primary-text);font-size:10px;font-weight:600;display:none;align-items:center;justify-content:center;padding:0 4px">0</span></button>` : '',
+        s.showCartIcon ? `<button type="button" aria-label="Cart" onclick="window.UC&&UC.openCart&&UC.openCart()" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${SVG.cart}${cartBadgeHtml}</button>` : '',
       ].filter(Boolean).join('');
 
       const hamburger = s.showHamburger
-        ? `<button type="button" aria-label="Menu" class="uc-header-hamburger" onclick="window.UC&&UC.openSidebar&&UC.openSidebar()" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:none;align-items:center">${SVG.menu}</button>`
+        ? `<button type="button" aria-label="Menu" class="uc-header-hamburger" onclick="window.UC&&UC.openSidebar&&UC.openSidebar()" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;align-items:center">${SVG.menu}</button>`
         : '';
 
-      return `<header class="uc-header" style="background:${s.backgroundColor||'var(--uc-bg)'};color:${s.textColor||'var(--uc-text)'};border-bottom:1px solid var(--uc-border);position:${s.sticky?'sticky':'relative'};top:0;z-index:80;">
-        <div class="uc-container uc-w-contained" style="display:flex;align-items:center;gap:16px;height:${s.height||64}px">
-          ${hamburger}
-          <a href="/" style="display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
-          <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-left:24px">${links}</nav>
-          <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px;margin-left:auto">${icons}</div>
-        </div>
+      // Centered logo: 3-column grid (left links / wordmark / right links + icons).
+      // Left logo: flex row.
+      const isCentered = layout === 'centered';
+      const innerHtml = isCentered
+        ? `<div class="uc-header-row uc-header-centered" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;height:${s.height||64}px">
+            <div class="uc-header-left" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px">
+              ${hamburger}
+              <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px">${leftLinksHtml}</nav>
+            </div>
+            <a href="/" class="uc-header-logo" style="justify-self:center;display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
+            <div class="uc-header-right" style="display:flex;align-items:center;justify-content:flex-end;gap:${(s.linkSpacing||24) - 4}px">
+              <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-right:8px">${rightLinksHtml}</nav>
+              <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px">${icons}</div>
+            </div>
+          </div>`
+        : `<div class="uc-header-row" style="display:flex;align-items:center;gap:16px;height:${s.height||64}px">
+            ${hamburger}
+            <a href="/" class="uc-header-logo" style="display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
+            <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-left:24px">${leftLinksHtml}</nav>
+            <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px;margin-left:auto">${icons}</div>
+          </div>`;
+
+      return `<header class="uc-header" style="background:${s.backgroundColor||'var(--uc-surface)'};color:${s.textColor||'var(--uc-text)'};border-bottom:1px solid var(--uc-border);position:${s.sticky?'sticky':'relative'};top:0;z-index:80;">
+        <div class="uc-container uc-w-wide" style="padding:0 32px">${innerHtml}</div>
       </header>`;
     },
 
     'hero': (sec) => {
       const s = sec.settings;
-      // Only render an <img>/<video> when the merchant actually supplied a URL.
-      // The base theme falls back to the section's background color so an
-      // unconfigured hero never shows a broken-image icon. The onerror handler
-      // hides any image that fails to load (e.g. expired remote URL) so the
-      // colored background still shows through cleanly.
+      const heading      = s.heading    || s.headline    || '';
+      const headingItal  = s.headlineItalic || s.headingItalic || '';
+      const subheading   = s.subheading || s.subheadline || '';
+      const kicker       = s.kicker     || s.eyebrow     || '';
+      const seasonMarker = s.seasonMarker || '';
+      const showSecondary = s.showSecondaryButton !== false;
+      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
+      const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 400;
+
+      // ─── ARCH split layout ─────────────────────────────────────────────
+      // Photo on the left, ink-on-cream copy + stats strip on the right with
+      // a thin vertical rule between them. Falls back gracefully when the
+      // merchant hasn't supplied a hero image.
+      if ((s.layout || 'split') === 'split') {
+        const stats = Array.isArray(s.stats) ? s.stats : [];
+        const showStats = s.showStats !== false && stats.length > 0;
+        const photo = s.imageUrl
+          ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
+              style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.style.display='none'">`
+          : `<div style="width:100%;height:100%;background:var(--uc-surface)"></div>`;
+        // data-hero-title sits on an inner span so settings.hero_title can
+        // overwrite just the main wordmark while the italic accent
+        // (settings.hero_italic / section.headlineItalic) stays untouched.
+        const headingHtml = `<h1 class="uc-hero-headline" style="font-family:var(--uc-heading-font);font-size:clamp(40px,4.5vw,72px);font-weight:700;line-height:.95;letter-spacing:-.03em;margin:0 0 28px;color:var(--uc-text)"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;color:var(--uc-text-muted);font-size:.72em">${headingItal}</span>` : ''}</h1>`;
+        const subHtml = subheading ? `<p data-hero-subtitle style="font-size:14px;line-height:1.6;color:var(--uc-text-muted);margin-bottom:24px;max-width:420px">${subheading}</p>` : '';
+        const kickerHtml = kicker
+          ? `<div class="uc-hero-kicker" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--uc-text-muted);margin-bottom:20px;display:flex;align-items:center;gap:10px">
+              <span style="display:block;width:28px;height:1px;background:var(--uc-accent)"></span>${kicker}
+            </div>`
+          : '';
+        const seasonHtml = seasonMarker
+          ? `<span class="uc-hero-season" aria-hidden="true" style="position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--uc-border)">${seasonMarker}</span>`
+          : '';
+        const statsHtml = showStats ? `<div class="uc-hero-stats" style="position:absolute;bottom:0;left:0;right:0;display:flex;border-top:1px solid var(--uc-border)">
+            ${stats.map((st, i) => `<div class="uc-hero-stat" style="flex:1;padding:10px 16px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--uc-text-muted);${i < stats.length - 1 ? 'border-right:1px solid var(--uc-border)' : ''}">
+              <strong style="display:block;font-size:15px;font-family:var(--uc-heading-font);font-weight:400;color:var(--uc-text);letter-spacing:0;margin-bottom:1px">${st.value||''}</strong>${st.label||''}
+            </div>`).join('')}
+          </div>` : '';
+
+        return `<section class="uc-hero uc-hero-split" style="position:relative;height:${minH}px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;background:${s.backgroundColor||'var(--uc-surface)'}">
+          <div class="uc-hero-photo" style="position:relative;overflow:hidden;border-right:1px solid var(--uc-border)">${photo}</div>
+          <div class="uc-hero-text" style="background:var(--uc-surface);display:flex;flex-direction:column;justify-content:flex-end;padding:44px 48px;position:relative;${showStats ? 'padding-bottom:60px;' : ''}">
+            ${seasonHtml}
+            ${kickerHtml}
+            ${headingHtml}
+            ${subHtml}
+            ${btns ? `<div style="display:flex;gap:12px;flex-wrap:wrap">${btns}</div>` : ''}
+            ${statsHtml}
+          </div>
+        </section>`;
+      }
+
+      // ─── Classic full-bleed layout (preserved for merchants who flip back) ──
       const mediaHtml = s.mediaType === 'video' && s.videoUrl
         ? `<video src="${s.videoUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'"></video>`
         : s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${s.imageAlt||''}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'">`
           : '';
       const overlay = s.overlayOpacity > 0 ? `<div style="position:absolute;inset:0;background:${s.overlayColor||'#000'};opacity:${s.overlayOpacity||0};z-index:1"></div>` : '';
-      const heading    = s.heading    || s.headline    || 'Welcome';
-      const subheading = s.subheading || s.subheadline || '';
-      const showSecondary = s.showSecondaryButton !== false;
-      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
       const align = s.textAlign || (sec.layout && sec.layout.contentAlign) || 'center';
-      return `<section class="uc-hero" style="position:relative;min-height:${s.minHeight||(sec.layout&&sec.layout.minHeight)||600}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
+      return `<section class="uc-hero" style="position:relative;min-height:${minH}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
         ${mediaHtml}${overlay}
         <div class="uc-container uc-w-contained" style="position:relative;z-index:2;text-align:${align};max-width:${s.contentMaxWidth||'var(--uc-container-max)'}${typeof s.contentMaxWidth==='number'?'px':''}">
-          ${s.eyebrow ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${s.eyebrow}</p>` : ''}
-          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px">${heading}</h1>
-          ${subheading ? `<p style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
+          ${kicker ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${kicker}</p>` : ''}
+          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;opacity:.7;font-size:.72em">${headingItal}</span>` : ''}</h1>
+          ${subheading ? `<p data-hero-subtitle style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
           ${btns ? `<div style="display:flex;gap:12px;justify-content:${align};flex-wrap:wrap">${btns}</div>` : ''}
         </div>
       </section>`;
@@ -538,34 +611,51 @@
 
     'footer': (sec) => {
       const s = sec.settings;
+      const bg        = s.backgroundColor || 'var(--uc-primary)';
+      const fg        = s.textColor || 'var(--uc-primary-text)';
+      const mutedFg   = 'rgba(255,255,255,.6)';
+      const dimFg     = 'rgba(255,255,255,.4)';
+      const veryDimFg = 'rgba(255,255,255,.25)';
+      const borderCol = 'rgba(255,255,255,.08)';
+      const accent    = 'var(--uc-accent)';
+
       const cols = (sec.blocks || []).filter(b => b.type === 'footer-column' && b.visible !== false)
         .map(b => {
-          // Registry block stores `links` as an array of { label, url }.
-          // Older renderer expected an HTML string in `content`. Support both.
           const linksHtml = Array.isArray(b.settings.links)
-            ? b.settings.links.map(l => `<a href="${l.url||'#'}" style="color:inherit;text-decoration:none;display:block">${l.label||''}</a>`).join('')
+            ? b.settings.links.map(l => `<a class="uc-footer-link" href="${l.url||'#'}" style="font-size:12px;color:${mutedFg};text-decoration:none;transition:color .2s" onmouseover="this.style.color='${accent}'" onmouseout="this.style.color='${mutedFg}'">${l.label||''}</a>`).join('')
             : (b.settings.content || '');
           return `<div>
-            <h4 style="font-weight:600;margin-bottom:12px;font-size:14px">${b.settings.heading||''}</h4>
-            <div style="font-size:13px;line-height:2;color:var(--uc-text-muted)">${linksHtml}</div>
+            <div class="uc-footer-col-title" style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:${dimFg};margin-bottom:16px">${b.settings.heading||''}</div>
+            <div class="uc-footer-links" style="display:flex;flex-direction:column;gap:10px">${linksHtml}</div>
           </div>`;
         }).join('');
-      // About column from settings, if provided.
-      const aboutCol = s.aboutText ? `<div>
-        ${s.logoUrl ? `<img src="${s.logoUrl}" alt="" style="height:32px;margin-bottom:12px">` : ''}
-        <p style="font-size:13px;line-height:1.7;color:var(--uc-text-muted);max-width:280px">${s.aboutText}</p>
-      </div>` : '';
-      // Social icons.
+
+      // ARCH brand column: display-serif wordmark + tagline. Uses store_name
+      // injected from settings; falls back to the editor's logo if uploaded.
+      const storeName = s.storeName || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'STORE';
+      const brandCol = `<div>
+        ${s.logoUrl
+          ? `<img data-store-logo src="${s.logoUrl}" alt="${storeName}" class="has-logo" style="height:36px;margin-bottom:16px;filter:invert(1) brightness(2)">`
+          : `<div data-store-name class="uc-footer-logo" style="font-family:var(--uc-heading-font);font-size:28px;font-weight:300;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;color:${fg}">${storeName}</div>`}
+        ${s.aboutText ? `<div data-store-description class="uc-footer-tagline" style="font-size:12px;color:${dimFg};line-height:1.8;max-width:240px">${s.aboutText}</div>` : ''}
+      </div>`;
+
       const social = s.showSocial && s.socialLinks ? Object.entries(s.socialLinks)
         .filter(([, url]) => !!url)
-        .map(([k, url]) => `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}" style="color:inherit;text-decoration:none;font-size:14px;text-transform:capitalize">${k}</a>`).join(' · ') : '';
+        .map(([k, url]) => `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}" style="color:${mutedFg};text-decoration:none;font-size:12px;text-transform:capitalize">${k}</a>`).join(' · ') : '';
       const copyright = s.copyrightText || s.copyright || '';
-      return `<footer class="uc-footer" style="background:${s.backgroundColor||'var(--uc-surface)'};color:${s.textColor||'var(--uc-text)'}">
-        <div class="uc-container uc-w-contained">
-          ${(aboutCol || cols) ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px;margin-bottom:32px">${aboutCol}${cols}</div>` : ''}
-          <div style="border-top:1px solid var(--uc-border);padding-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12px;color:${s.copyrightColor||'var(--uc-text-muted)'}">
-            <span>${copyright}</span>
-            ${social ? `<span>${social}</span>` : (s.showPaymentIcons ? '<span>Payments placeholder</span>' : '')}
+      const legalLine = s.legalLineText || s.legalText || '';
+
+      return `<footer class="uc-footer" style="background:${bg};color:${fg};padding:64px 48px 32px">
+        <div class="uc-container uc-w-wide">
+          <div class="uc-footer-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px">${brandCol}${cols}</div>
+          <div class="uc-footer-bottom" style="border-top:1px solid ${borderCol};padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${copyright}</div>
+            ${social
+              ? `<div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${social}</div>`
+              : legalLine
+                ? `<div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${legalLine}</div>`
+                : ''}
           </div>
         </div>
       </footer>`;
@@ -598,11 +688,34 @@
   // to render blurred.
   const SHOP_CSS = `
     /* ── Header chrome ───────────────────────────────────────────── */
-    .uc-header-icon { transition: opacity .15s; }
-    .uc-header-icon:hover { opacity: .65; }
-    @media (max-width: 768px) {
+    .uc-header-icon { transition: opacity .15s, color .15s; }
+    .uc-header-icon:hover { color: var(--uc-accent); opacity: 1; }
+    .uc-nav-link:hover { color: var(--uc-text) !important; }
+    .uc-header-hamburger { display: none; }
+    @media (max-width: 900px) {
       .uc-header-links { display: none !important; }
       .uc-header-hamburger { display: inline-flex !important; }
+      .uc-header-centered { grid-template-columns: auto 1fr auto !important; }
+      .uc-header-centered .uc-header-left { gap: 8px !important; }
+      .uc-header-centered .uc-header-right .uc-header-links { display: none !important; }
+    }
+
+    /* ── Hero (ARCH split) ───────────────────────────────────────── */
+    .uc-hero-split:hover .uc-hero-photo img { transform: scale(1.03); }
+    @media (max-width: 700px) {
+      .uc-hero-split { grid-template-columns: 1fr !important; height: auto !important; }
+      .uc-hero-split .uc-hero-photo { height: 220px !important; border-right: none !important; border-bottom: 1px solid var(--uc-border) !important; }
+      .uc-hero-split .uc-hero-text { padding: 28px 24px 60px !important; }
+      .uc-hero-split .uc-hero-season { display: none !important; }
+    }
+
+    /* ── Footer (ARCH grid) ──────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .uc-footer { padding: 40px 20px 24px !important; }
+      .uc-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
+    }
+    @media (max-width: 600px) {
+      .uc-footer-grid { grid-template-columns: 1fr !important; }
     }
 
     /* ── Backdrop / overlay ──────────────────────────────────────── */
@@ -755,38 +868,38 @@
 
     .uc-product-card {
       display: block; text-decoration: none; color: inherit;
-      background: var(--uc-bg);
+      background: var(--uc-surface);
       border: 1px solid var(--uc-border);
       border-radius: var(--uc-card-radius);
       overflow: hidden;
-      transition: transform .25s ease, border-color .2s;
+      transition: transform .3s cubic-bezier(.16,1,.3,1), border-color .2s;
       position: relative;
     }
-    .uc-product-card:hover { border-color: var(--uc-text); }
+    .uc-product-card:hover { transform: translateY(-2px); border-color: var(--uc-text); }
     .uc-product-card:hover .uc-product-img img { transform: scale(1.04); }
     .uc-product-card:hover .uc-product-atc { opacity: 1; transform: translateY(0); }
     .uc-product-img {
       aspect-ratio: 3/4;
-      background: var(--uc-surface);
+      background: var(--uc-bg);
       overflow: hidden;
       position: relative;
     }
-    .uc-product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
-    .uc-product-info { padding: 12px 14px 16px; }
-    .uc-product-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; line-height: 1.3; }
-    .uc-product-price { font-size: 13px; color: var(--uc-text-muted); }
+    .uc-product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.16,1,.3,1); }
+    .uc-product-info { padding: 16px 14px 20px; }
+    .uc-product-name { font-family: var(--uc-heading-font); font-size: 17px; font-weight: 400; line-height: 1.25; margin-bottom: 8px; }
+    .uc-product-price { font-size: 13px; color: var(--uc-text); }
     .uc-product-atc {
-      position: absolute; left: 8px; right: 8px; bottom: 8px;
-      padding: 9px 12px;
-      background: var(--uc-primary); color: var(--uc-primary-text);
+      position: absolute; left: 12px; right: 12px; bottom: 12px;
+      padding: 10px 12px;
+      background: var(--uc-surface); color: var(--uc-text);
       border: none; cursor: pointer;
-      font: inherit; font-size: 11px; font-weight: 600;
-      letter-spacing: .08em; text-transform: uppercase;
+      font: inherit; font-size: 10px; font-weight: 500;
+      letter-spacing: .12em; text-transform: uppercase;
       border-radius: var(--uc-radius);
       opacity: 0; transform: translateY(6px);
-      transition: opacity .2s, transform .2s, background .15s;
+      transition: opacity .2s, transform .2s, background .2s, color .2s;
     }
-    .uc-product-atc:hover { background: var(--uc-text); }
+    .uc-product-atc:hover { background: var(--uc-accent); color: var(--uc-primary-text); }
     @media (hover: none) { .uc-product-atc { opacity: 1; transform: none; } }
 
     .uc-shop-grid.uc-view-list .uc-product-card { display: grid; grid-template-columns: 140px 1fr; }
@@ -1015,6 +1128,12 @@
     ensureGlobalChrome();
     bootFilterShops();
     syncCartUI();
+
+    // Re-inject store_name / store_description / logo / hero copy into the
+    // freshly rendered DOM. theme.js exposes window.applyStoreBrand for
+    // exactly this — without it, [data-store-name] / [data-hero-title] etc.
+    // would render with the registry's seed text on the live storefront.
+    if (typeof window.applyStoreBrand === 'function') window.applyStoreBrand();
   }
 
   /* ── Global chrome (cart drawer / overlay / quick view modal) ────────── */

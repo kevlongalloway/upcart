@@ -19,10 +19,12 @@ import {
 } from './types';
 
 // ── Shared default values ─────────────────────────────────────────────────
+// Tuned to ARCH's ecru / ink / cream palette so section seeds blend with
+// the global theme out of the box. Merchants can still pick any colour.
 
-const whiteBg: Background   = { ...BG, color: '#ffffff' };
-const darkBg:  Background   = { ...BG, color: '#111111' };
-const surfaceBg: Background = { ...BG, color: '#f5f5f5' };
+const whiteBg: Background   = { ...BG, color: '#F5F2EC' };  // page ecru
+const darkBg:  Background   = { ...BG, color: '#1A1710' };  // ink (footer / announcement)
+const surfaceBg: Background = { ...BG, color: '#FDFCF9' };  // cream surface (cards / lifted blocks)
 
 function sectionPad(v = 80, h = 24): Spacing { return { top: v, right: h, bottom: v, left: h }; }
 
@@ -88,29 +90,40 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'PanelTop',
     category:    'structure',
     defaultSettings: {
-      storeName:       'My Store',
+      storeName:       'ARCH',
       logoUrl:         '',
-      // The header ships with a basic system-font wordmark by default. Merchants
-      // pick a display font from the global theme; they shouldn't need to fight
-      // a stylized default to get a plain logo.
-      logoFont:        'system',           // 'system' | 'display'
+      // ARCH ships with a centered wordmark in the display serif. Merchants
+      // can swap to a system wordmark if they prefer a sans logo.
+      logoFont:        'display',          // 'system' | 'display'
+      logoLayout:      'centered',         // 'left' | 'centered' — ARCH = centered
+      logoSize:        22,
+      logoSpacing:     '.12em',
       showCartIcon:    true,
       showSearchIcon:  true,
-      showAccountIcon: false,
-      showWishlistIcon: false,
+      showAccountIcon: true,
+      showWishlistIcon: true,
       showHamburger:   true,               // mobile-only menu toggle
       navLinks:        [
-        { label: 'Shop',  url: '/products' },
-        { label: 'About', url: '#'         },
+        { label: 'Women',       url: '#'         },
+        { label: 'Men',         url: '#'         },
+        { label: 'Collections', url: '#'         },
+        { label: 'Sale',        url: '#'         },
+      ],
+      navLinksRight:   [
+        { label: 'About', url: '#' },
       ],
       sticky:          true,
       transparent:     false,
-      textColor:       '#111111',
+      textColor:       '#1A1710',
+      linkColor:       '#8C8779',
+      linkSize:        11,
+      linkSpacing:     24,
+      height:          64,
     },
     defaultLayout: {
       width:      'full',
-      padding:    { top: 0, right: 24, bottom: 0, left: 24 },
-      background: { ...whiteBg },
+      padding:    { top: 0, right: 32, bottom: 0, left: 32 },
+      background: { ...BG, color: '#FDFCF9' },
     },
     defaultBlocks:  [],
     settingsFields: [
@@ -139,47 +152,70 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   hero: {
     type:        'hero',
     name:        'Hero Banner',
-    description: 'Full-width banner with headline, subheadline, and CTA buttons.',
+    description: 'Editorial split banner with photo + headline + stats strip.',
     icon:        'LayoutTemplate',
     category:    'content',
     defaultSettings: {
-      headline:    'Welcome to Our Store',
-      subheadline: 'Discover our curated collection of premium products.',
+      // ARCH split layout: photo on the left, ink-on-cream text on the right.
+      // Merchants can flip back to a classic full-bleed hero via `layout`.
+      layout:        'split',           // 'split' | 'classic'
+      kicker:        'New Season Arrivals',
+      headline:      'The Coat',
+      headlineItalic: 'Issue.',
+      subheadline:   '',
+      seasonMarker:  'SS 26',
+      imageUrl:      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&q=85&auto=format&fit=crop',
+      imageAlt:      'Featured campaign',
+      showStats:     true,
+      stats: [
+        { value: '47',    label: 'New Arrivals'        },
+        { value: 'Free',  label: 'Shipping Over $200'  },
+        { value: '30d',   label: 'Returns'             },
+      ],
       headlineTypography: {
-        ...TYPO, fontSize: 52, fontWeight: 700, color: '#ffffff', textAlign: 'left',
+        ...TYPO, fontSize: 64, fontWeight: 700, color: '#1A1710', textAlign: 'left',
       },
       subheadlineTypography: {
-        ...TYPO, fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.8)', textAlign: 'left',
+        ...TYPO, fontSize: 16, fontWeight: 400, color: '#8C8779', textAlign: 'left',
       },
       primaryButton: {
-        ...BTN, label: 'Shop Now', url: '/products', backgroundColor: '#ffffff', textColor: '#111111',
-        hoverBackgroundColor: '#f0f0f0',
+        ...BTN, label: 'Shop Outerwear', url: '/products', variant: 'link',
+        backgroundColor: 'transparent', textColor: '#1A1710', borderColor: '#1A1710',
+        borderWidth: 0, paddingX: 0, paddingY: 4, fontSize: 11,
+        hoverBackgroundColor: 'transparent', hoverTextColor: '#9E7D45',
       },
       showSecondaryButton: false,
       secondaryButton: {
         ...BTN, label: 'Learn More', url: '#', variant: 'outline',
-        backgroundColor: 'transparent', textColor: '#ffffff', borderColor: '#ffffff',
-        hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'transparent', textColor: '#1A1710', borderColor: '#1A1710',
       },
-      contentMaxWidth:  640,
+      contentMaxWidth:  560,
       showScrollIndicator: false,
     },
     defaultLayout: {
       width:      'full',
-      padding:    { top: 120, right: 40, bottom: 120, left: 40 },
-      // Default is a clean dark surface — no remote image URL so the base
-      // theme never ships with a broken hot-linked image. Merchants opt in
-      // to a hero photo via the editor.
+      padding:    { top: 0, right: 0, bottom: 0, left: 0 },
       background: {
-        ...BG, type: 'color', color: '#1a1a1a',
+        ...BG, type: 'color', color: '#FDFCF9',
       },
-      minHeight:  480,
+      minHeight:  400,
       contentAlign: 'left',
     },
     defaultBlocks:  [],
     settingsFields: [
-      { key: 'headline',     label: 'Headline',    type: 'text', placeholder: 'Welcome…' },
-      { key: 'subheadline',  label: 'Subheadline', type: 'textarea', placeholder: 'Short description…' },
+      { key: 'layout',       label: 'Hero layout', type: 'select',
+        options: [
+          { value: 'split',   label: 'Split (photo + text)' },
+          { value: 'classic', label: 'Classic (full-bleed)' },
+        ] },
+      { key: 'kicker',       label: 'Kicker',       type: 'text',     placeholder: 'New Season Arrivals' },
+      { key: 'headline',     label: 'Headline',     type: 'text',     placeholder: 'The Coat' },
+      { key: 'headlineItalic', label: 'Italic accent (optional)', type: 'text', placeholder: 'Issue.' },
+      { key: 'subheadline',  label: 'Subheadline',  type: 'textarea', placeholder: 'Short description…' },
+      { key: 'imageUrl',     label: 'Hero image',   type: 'image' },
+      { key: 'imageAlt',     label: 'Image alt text', type: 'text' },
+      { key: 'seasonMarker', label: 'Vertical season marker', type: 'text', placeholder: 'SS 26' },
+      { key: 'showStats',    label: 'Show stat strip', type: 'toggle' },
       { key: 'primaryButton',      label: 'Primary button',    type: 'button-style' },
       { key: 'showSecondaryButton', label: 'Show secondary button', type: 'toggle' },
       { key: 'secondaryButton',    label: 'Secondary button',   type: 'button-style',
@@ -292,7 +328,7 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'SlidersHorizontal',
     category:    'commerce',
     defaultSettings: {
-      heading:        'Shop',
+      heading:        '',
       collection:     '',         // optional collection slug to scope the query
       limit:          48,
       columns:        4,
@@ -305,7 +341,7 @@ const REGISTRY: Record<SectionType, SectionDef> = {
       categories:     ['All Items', 'Outerwear', 'Knitwear', 'Trousers', 'Footwear', 'Accessories'],
       sizes:          ['XS', 'S', 'M', 'L', 'XL'],
       priceMin:       0,
-      priceMax:       1000,
+      priceMax:       1200,
     },
     defaultLayout: {
       padding:    sectionPad(40),
@@ -843,27 +879,54 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     category:    'structure',
     defaultSettings: {
       logoUrl:      '',
-      aboutText:    'Quality products with exceptional service.',
-      showSocial:   true,
+      storeName:    'ARCH',
+      // ARCH-style brand tagline; reads as muted grey beneath the wordmark.
+      aboutText:    'Considered clothing for the discerning mind. Crafted with precision, worn with intention.',
+      showSocial:   false,
       socialLinks: {
         instagram: '', twitter: '', facebook: '', tiktok: '', youtube: '',
       },
-      copyrightText: `© ${new Date().getFullYear()} My Store. All rights reserved.`,
+      copyrightText:  `© ${new Date().getFullYear()} ARCH. All rights reserved.`,
+      legalLineText:  'Privacy · Terms · Accessibility',
       copyrightColor: '',
+      backgroundColor: '#1A1710',
+      textColor:       '#FDFCF9',
     },
     defaultLayout: {
       width: 'full',
-      padding: { top: 64, right: 40, bottom: 40, left: 40 },
-      background: { ...darkBg },
+      padding: { top: 64, right: 48, bottom: 32, left: 48 },
+      background: { ...BG, color: '#1A1710' },
     },
     defaultBlocks: [
       { type: 'footer-column', visible: true, settings: {
-        heading: 'Quick Links',
-        links: [{ label: 'Home', url: '/' }, { label: 'Shop', url: '/products' }, { label: 'Cart', url: '/cart' }],
+        heading: 'Shop',
+        links: [
+          { label: 'Women',       url: '#' },
+          { label: 'Men',         url: '#' },
+          { label: 'Collections', url: '#' },
+          { label: 'Sale',        url: '#' },
+          { label: 'Gift Cards',  url: '#' },
+        ],
       } },
       { type: 'footer-column', visible: true, settings: {
-        heading: 'Support',
-        links: [{ label: 'FAQ', url: '#' }, { label: 'Returns', url: '#' }, { label: 'Contact', url: '#' }],
+        heading: 'Help',
+        links: [
+          { label: 'Shipping & Returns', url: '#' },
+          { label: 'Size Guide',         url: '#' },
+          { label: 'Care Instructions',  url: '#' },
+          { label: 'FAQ',                url: '#' },
+          { label: 'Contact Us',         url: '#' },
+        ],
+      } },
+      { type: 'footer-column', visible: true, settings: {
+        heading: 'Company',
+        links: [
+          { label: 'Our Story',     url: '#' },
+          { label: 'Sustainability', url: '#' },
+          { label: 'Stockists',     url: '#' },
+          { label: 'Press',         url: '#' },
+          { label: 'Careers',       url: '#' },
+        ],
       } },
     ],
     settingsFields: [
