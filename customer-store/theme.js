@@ -13,17 +13,17 @@
   /* ── Theme definitions ───────────────────────────────────────────────────── */
   var THEMES = {
 
-    // ── Base (ARCH) ───────────────────────────────────────────────────────────
-    // Default theme: editorial fashion — Bodoni Moda display, Instrument Sans
-    // body, warm ecru background with camel accents. This is the starting
-    // point every new tenant lands on; merchants tune colors / fonts /
-    // sections from the editor on top of these defaults.
+    // ── Base (ARCH-styled, universal fonts) ──────────────────────────────────
+    // Default theme: editorial fashion layout from the ARCH spec, but with
+    // universal Playfair Display + Inter typography so it works as a generic
+    // starting point for any merchant rather than feeling locked-in to one
+    // specific brand voice. The palette stays warm ecru / ink / camel.
     base: {
-      fonts: 'https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,700;1,6..96,400;1,6..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;1,400&display=swap',
+      fonts: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap',
       vars: [
-        '--font-body:"Instrument Sans",system-ui,sans-serif',
-        '--font-display:"Bodoni Moda","Times New Roman",serif',
-        '--font-hero:"Bodoni Moda","Times New Roman",serif',
+        '--font-body:"Inter",system-ui,-apple-system,sans-serif',
+        '--font-display:"Playfair Display","Times New Roman",Georgia,serif',
+        '--font-hero:"Playfair Display","Times New Roman",Georgia,serif',
         '--color-bg:#F5F2EC',
         '--color-text:#1A1710',
         '--color-muted:#8C8779',
