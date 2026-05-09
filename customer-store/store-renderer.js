@@ -900,6 +900,94 @@
 
   /* ── Main render ──────────────────────────────────────────────────────── */
 
+  // Fallback schema used for tenants who haven't saved in the editor yet
+  // (page_sections === ""). Without this, the canvas in index.html stays empty
+  // and the storefront renders as a blank page. Mirrors editor/types.ts
+  // DEFAULT_GLOBAL_THEME and store.ts DEFAULT_SECTION_SEEDS so the seeded
+  // home page (Header / Hero / Gallery / Footer) renders out of the box.
+  const DEFAULT_GLOBAL_THEME = {
+    preset: 'base',
+    colors: {
+      primary:     '#111111',
+      primaryText: '#ffffff',
+      secondary:   '#555555',
+      accent:      '#f5c000',
+      background:  '#ffffff',
+      surface:     '#f5f5f5',
+      text:        '#111111',
+      textMuted:   '#888888',
+      border:      'rgba(0,0,0,0.1)',
+    },
+    typography: {
+      headingFont:   'inherit',
+      bodyFont:      'inherit',
+      baseFontSize:  16,
+      headingWeight: 700,
+      bodyWeight:    400,
+      lineHeight:    1.6,
+      letterSpacing: 0,
+    },
+    spacing: {
+      containerMaxWidth:      1200,
+      sectionVerticalPadding: 80,
+      borderRadius:           4,
+      cardBorderRadius:       4,
+      elementGap:             16,
+    },
+    customCSS: '',
+  };
+
+  function makeDefaultSchema(storeName) {
+    const name = storeName || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'My Store';
+    return {
+      version:     '2.0',
+      globalTheme: DEFAULT_GLOBAL_THEME,
+      pages: {
+        index: {
+          id:   'index',
+          name: 'Home',
+          slug: 'index.html',
+          sections: [
+            {
+              id: 'seed-header', type: 'header', label: 'Header',
+              visible: true, locked: false,
+              layout: { width: 'full', padding: { top: 0, right: 0, bottom: 0, left: 0 }, margin: { top: 0, right: 0, bottom: 0, left: 0 }, minHeight: 0, contentAlign: 'left' },
+              settings: { storeName: name, sticky: true, showCartIcon: true, height: 64, navLinks: [
+                { url: '/products.html', label: 'Shop' },
+                { url: '/cart.html',     label: 'Cart' },
+              ] },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'seed-hero', type: 'hero', label: 'Hero',
+              visible: true, locked: false,
+              layout: { width: 'full', padding: { top: 0, right: 0, bottom: 0, left: 0 }, margin: { top: 0, right: 0, bottom: 0, left: 0 }, minHeight: 480, contentAlign: 'center' },
+              settings: { heading: name, subheading: 'Welcome to our store.', textAlign: 'center',
+                primaryButton: { label: 'Shop now', url: '/products.html', variant: 'solid', backgroundColor: '#111111', textColor: '#ffffff', borderColor: '#111111', borderWidth: 0, borderRadius: 4, paddingX: 24, paddingY: 12, fontSize: 14, fontWeight: 600 },
+                showSecondaryButton: false,
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'seed-gallery', type: 'product-grid', label: 'Products',
+              visible: true, locked: false,
+              layout: { width: 'contained', padding: { top: 80, right: 24, bottom: 80, left: 24 }, margin: { top: 0, right: 0, bottom: 0, left: 0 }, minHeight: 0, contentAlign: 'left' },
+              settings: { heading: 'Shop', columns: 4, limit: 8 },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'seed-footer', type: 'footer', label: 'Footer',
+              visible: true, locked: false,
+              layout: { width: 'full', padding: { top: 0, right: 0, bottom: 0, left: 0 }, margin: { top: 0, right: 0, bottom: 0, left: 0 }, minHeight: 0, contentAlign: 'left' },
+              settings: { storeName: name },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+          ],
+        },
+      },
+    };
+  }
+
   let currentSchema = null;
   let styleEl = null;
   let mainEl  = null;
@@ -939,6 +1027,23 @@
   }
 
   function applySchema(schema) {
+    // Defensive defaults: a malformed save (or an older schema version)
+    // shouldn't blank the storefront. Fill in any missing top-level keys
+    // before we touch theme.colors / pages / typography.
+    if (!schema || typeof schema !== 'object') schema = {};
+    if (!schema.globalTheme) schema.globalTheme = DEFAULT_GLOBAL_THEME;
+    else {
+      schema.globalTheme = {
+        ...DEFAULT_GLOBAL_THEME,
+        ...schema.globalTheme,
+        colors:     { ...DEFAULT_GLOBAL_THEME.colors,     ...(schema.globalTheme.colors     || {}) },
+        typography: { ...DEFAULT_GLOBAL_THEME.typography, ...(schema.globalTheme.typography || {}) },
+        spacing:    { ...DEFAULT_GLOBAL_THEME.spacing,    ...(schema.globalTheme.spacing    || {}) },
+      };
+    }
+    if (!schema.pages || typeof schema.pages !== 'object' || !Object.keys(schema.pages).length) {
+      schema.pages = makeDefaultSchema().pages;
+    }
     currentSchema = schema;
 
     // ── Global CSS vars ────────────────────────────────────────────────
@@ -1414,17 +1519,38 @@
   // settings endpoint and render it. Editor mode (parent !== window) is
   // already handled via the `bst:schema` postMessage above, so this branch
   // only runs for real customers visiting the storefront directly.
+  //
+  // For tenants who haven't saved in the editor yet, /settings/public returns
+  // page_sections: "". We render the seeded default schema in that case so a
+  // fresh store still has Header / Hero / Products / Footer, instead of a
+  // blank page.
   if (window.parent === window) {
     var apiBase = window.BST_API_BASE || '';
+    var renderFallback = function (storeName) {
+      try { applySchema(makeDefaultSchema(storeName)); }
+      catch (e) { console.error('Default schema failed to render:', e); }
+    };
     fetch(apiBase + '/settings/public', { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (body) {
-        var raw = body && body.ok && body.data && body.data.page_sections;
-        if (!raw) return;
-        try { applySchema(JSON.parse(raw)); }
-        catch (e) { console.error('Bad page_sections JSON:', e); }
+        var data = body && body.ok && body.data ? body.data : null;
+        var raw  = data && data.page_sections;
+        var name = data && data.store_name;
+        if (!raw) { renderFallback(name); return; }
+        var parsed;
+        try { parsed = JSON.parse(raw); }
+        catch (e) {
+          console.error('Bad page_sections JSON, rendering default:', e);
+          renderFallback(name);
+          return;
+        }
+        applySchema(parsed);
       })
-      .catch(function () { /* network error: leave canvas empty */ });
+      .catch(function () {
+        // Network error: still render the default chrome so customers see a
+        // usable page instead of a blank canvas.
+        renderFallback();
+      });
   }
 
 })();

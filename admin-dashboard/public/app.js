@@ -130,10 +130,27 @@ const Api = {
         ...opts.headers,
       },
     });
-    const body = await res.json();
-    if (!res.ok || !body.ok) {
-      if (res.status === 401) { Auth.clear(); Router.go('/login'); }
-      throw new ApiError(body.error ?? 'Unknown error', res.status, body.details);
+    // Tolerate non-JSON responses (e.g. Cloudflare edge HTML, the suspended
+    // 402 page, or a worker that crashed before the JSON middleware could
+    // run). Without this guard, `await res.json()` throws SyntaxError and
+    // the caller sees a confusing parse error instead of the real status.
+    let body = null;
+    try { body = await res.json(); }
+    catch { body = null; }
+    if (!res.ok || !body || body.ok === false) {
+      if (res.status === 401) {
+        // Surface the real error before booting the user back to /login so
+        // they see *why* their session was rejected (e.g. JWT secret
+        // rotated, tenant misconfigured) instead of an unexplained
+        // redirect loop. Also keeps the UI usable when an unrelated
+        // background fetch (banners, polling) trips a 401.
+        const msg = (body && body.error) || 'Your session has expired. Please sign in again.';
+        try { Toast.error(msg); } catch { /* Toast may not be initialised yet */ }
+        Auth.clear();
+        Router.go('/login');
+      }
+      const message = (body && body.error) || `Request failed (${res.status})`;
+      throw new ApiError(message, res.status, body && body.details);
     }
     return body.data;
   },

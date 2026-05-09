@@ -34,13 +34,6 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
     if (dbAdmin) {
       validUsername = timingSafeEqual(username, dbAdmin.username);
       validPassword = await verifyPassword(password, dbAdmin.password_hash);
-
-      if (!jwtSecret) {
-        const row = await c.env.DB.prepare(
-          "SELECT value FROM store_settings WHERE key = 'db_jwt_secret'"
-        ).first<{ value: string }>();
-        if (row) jwtSecret = row.value;
-      }
     } else {
       // ── Env-var auth (default for provisioned tenants) ────────────────────
       // Provisioning writes ADMIN_USERNAME + ADMIN_PASSWORD_HASH as
@@ -57,6 +50,20 @@ adminLogin.post("/", zValidator("json", loginSchema), async (c) => {
       validPassword = c.env.ADMIN_PASSWORD_HASH
         ? await verifyPassword(password, c.env.ADMIN_PASSWORD_HASH)
         : timingSafeEqual(password, c.env.ADMIN_PASSWORD);
+    }
+
+    // JWT secret resolution must mirror auth.ts middleware (which always
+    // falls back to db_jwt_secret when JWT_SECRET is unset). Otherwise a
+    // freshly issued token can fail to verify on the next request:
+    // sign side reads JWT_SECRET (undefined → 500), or worse, a worker
+    // restart between sign and verify could swap which source wins. By
+    // running the same fallback chain on both sides we guarantee the
+    // signing key and the verifying key are the same string.
+    if (!jwtSecret) {
+      const row = await c.env.DB.prepare(
+        "SELECT value FROM store_settings WHERE key = 'db_jwt_secret'"
+      ).first<{ value: string }>();
+      if (row) jwtSecret = row.value;
     }
   } catch {
     // DB unavailable — fall back to env vars.
