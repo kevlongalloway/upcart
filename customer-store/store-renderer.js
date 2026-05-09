@@ -136,20 +136,30 @@
         .map(b => ({ url: b.settings.url, label: b.settings.label }));
       const settingLinks = Array.isArray(s.navLinks) ? s.navLinks : [];
       const allLinks = blockLinks.length ? blockLinks : settingLinks;
-      const links = allLinks
-        .map(l => `<a href="${l.url||'#'}" class="uc-nav-link" style="color:${s.linkColor||s.textColor||'inherit'};font-size:${s.linkSize||13}px;letter-spacing:.04em;text-decoration:none;opacity:.8">${l.label||''}</a>`)
+      // ARCH puts a couple of "About" / utility links on the right side; if a
+      // merchant doesn't supply navLinksRight we fall back to none and use
+      // navLinks on the left.
+      const rightLinks = Array.isArray(s.navLinksRight) ? s.navLinksRight : [];
+      const linkColor = s.linkColor || 'var(--uc-text-muted)';
+      const renderLinks = (arr) => arr
+        .map(l => `<a href="${l.url||'#'}" class="uc-nav-link" data-store-href style="color:${linkColor};font-size:${s.linkSize||11}px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;white-space:nowrap;transition:color .2s">${l.label||''}</a>`)
         .join('');
-      const storeName = s.storeName || s.logoAlt || 'My Store';
-      // The base theme uses a system-font wordmark by default — switch to the
-      // global display font only when the merchant opts in.
-      const useDisplay = s.logoFont === 'display';
+      const leftLinksHtml  = renderLinks(allLinks);
+      const rightLinksHtml = renderLinks(rightLinks);
+
+      const storeName = s.storeName || s.logoAlt || 'STORE';
+      // ARCH defaults to a centered display-serif wordmark; merchants can flip
+      // back to a left-aligned system-font wordmark via the editor.
+      const layout    = s.logoLayout === 'centered' ? 'centered' : (rightLinks.length ? 'centered' : 'left');
+      const useDisplay = s.logoFont !== 'system';
       const logoFont   = useDisplay ? 'var(--uc-heading-font)' : 'var(--uc-body-font)';
       const logoWeight = useDisplay ? 600 : 700;
-      const logoSize   = s.logoSize || 18;
-      const logoSpacing = useDisplay ? '.04em' : '.01em';
+      const logoSize   = s.logoSize || 22;
+      const logoSpacing = s.logoSpacing || (useDisplay ? '.12em' : '.02em');
+      const logoTextTransform = useDisplay ? 'uppercase' : 'none';
       const logoHtml = s.logoUrl
-        ? `<img src="${s.logoUrl}" alt="${storeName}" style="height:${s.logoHeight||32}px;width:auto" onerror="this.style.display='none'">`
-        : `<span style="font-family:${logoFont};font-weight:${logoWeight};font-size:${logoSize}px;letter-spacing:${logoSpacing}">${storeName}</span>`;
+        ? `<img src="${s.logoUrl}" alt="${storeName}" data-store-logo class="has-logo" style="height:${s.logoHeight||32}px;width:auto" onerror="this.style.display='none'">`
+        : `<span data-store-name style="font-family:${logoFont};font-weight:${logoWeight};font-size:${logoSize}px;letter-spacing:${logoSpacing};text-transform:${logoTextTransform}">${storeName}</span>`;
 
       const iconBtn = (label, svg, onclick) =>
         `<button type="button" aria-label="${label}" onclick="${onclick}" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${svg}</button>`;
@@ -162,51 +172,139 @@
         menu:     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
       };
 
+      const cartBadgeHtml = `<span class="uc-cart-badge" data-uc-cart-badge style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:50%;background:var(--uc-accent);color:var(--uc-primary-text);font-size:9px;font-weight:500;display:none;align-items:center;justify-content:center;padding:0 4px">0</span>`;
+
       const icons = [
         s.showSearchIcon   ? iconBtn('Search',   SVG.search,   "window.UC&&UC.focusSearch&&UC.focusSearch()") : '',
         s.showAccountIcon  ? iconBtn('Account',  SVG.account,  "window.location.href='/account'")          : '',
         s.showWishlistIcon ? iconBtn('Wishlist', SVG.wishlist, "window.location.href='/wishlist'")          : '',
-        s.showCartIcon ? `<button type="button" aria-label="Cart" onclick="window.UC&&UC.openCart&&UC.openCart()" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${SVG.cart}<span class="uc-cart-badge" data-uc-cart-badge style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:50%;background:var(--uc-primary);color:var(--uc-primary-text);font-size:10px;font-weight:600;display:none;align-items:center;justify-content:center;padding:0 4px">0</span></button>` : '',
+        s.showCartIcon ? `<button type="button" aria-label="Cart" onclick="window.UC&&UC.openCart&&UC.openCart()" class="uc-header-icon" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:inline-flex;align-items:center;justify-content:center;position:relative">${SVG.cart}${cartBadgeHtml}</button>` : '',
       ].filter(Boolean).join('');
 
       const hamburger = s.showHamburger
-        ? `<button type="button" aria-label="Menu" class="uc-header-hamburger" onclick="window.UC&&UC.openSidebar&&UC.openSidebar()" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;display:none;align-items:center">${SVG.menu}</button>`
+        ? `<button type="button" aria-label="Menu" class="uc-header-hamburger" onclick="window.UC&&UC.openSidebar&&UC.openSidebar()" style="background:none;border:none;color:inherit;cursor:pointer;padding:8px;align-items:center">${SVG.menu}</button>`
         : '';
 
-      return `<header class="uc-header" style="background:${s.backgroundColor||'var(--uc-bg)'};color:${s.textColor||'var(--uc-text)'};border-bottom:1px solid var(--uc-border);position:${s.sticky?'sticky':'relative'};top:0;z-index:80;">
-        <div class="uc-container uc-w-contained" style="display:flex;align-items:center;gap:16px;height:${s.height||64}px">
-          ${hamburger}
-          <a href="/" style="display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
-          <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-left:24px">${links}</nav>
-          <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px;margin-left:auto">${icons}</div>
-        </div>
+      // Centered logo: 3-column grid (left links / wordmark / right links + icons).
+      // Left logo: flex row.
+      const isCentered = layout === 'centered';
+      const innerHtml = isCentered
+        ? `<div class="uc-header-row uc-header-centered" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;height:${s.height||64}px">
+            <div class="uc-header-left" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px">
+              ${hamburger}
+              <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px">${leftLinksHtml}</nav>
+            </div>
+            <a href="/" class="uc-header-logo" style="justify-self:center;display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
+            <div class="uc-header-right" style="display:flex;align-items:center;justify-content:flex-end;gap:${(s.linkSpacing||24) - 4}px">
+              <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-right:8px">${rightLinksHtml}</nav>
+              <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px">${icons}</div>
+            </div>
+          </div>`
+        : `<div class="uc-header-row" style="display:flex;align-items:center;gap:16px;height:${s.height||64}px">
+            ${hamburger}
+            <a href="/" class="uc-header-logo" style="display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none">${logoHtml}</a>
+            <nav class="uc-header-links" style="display:flex;align-items:center;gap:${s.linkSpacing||24}px;margin-left:24px">${leftLinksHtml}</nav>
+            <div class="uc-header-icons" style="display:flex;align-items:center;gap:4px;margin-left:auto">${icons}</div>
+          </div>`;
+
+      return `<header class="uc-header" style="background:${s.backgroundColor||'var(--uc-surface)'};color:${s.textColor||'var(--uc-text)'};border-bottom:1px solid var(--uc-border);position:${s.sticky?'sticky':'relative'};top:0;z-index:80;">
+        <div class="uc-container uc-w-wide" style="padding:0 32px">${innerHtml}</div>
       </header>`;
     },
 
     'hero': (sec) => {
       const s = sec.settings;
-      // Only render an <img>/<video> when the merchant actually supplied a URL.
-      // The base theme falls back to the section's background color so an
-      // unconfigured hero never shows a broken-image icon. The onerror handler
-      // hides any image that fails to load (e.g. expired remote URL) so the
-      // colored background still shows through cleanly.
+      const heading      = s.heading    || s.headline    || 'Welcome';
+      const headingItal  = s.headlineItalic || s.headingItalic || '';
+      const subheading   = s.subheading || s.subheadline || '';
+      // Editorial chrome — kicker line, season marker — defines the look.
+      // Fall back to ARCH-style defaults so legacy schemas (without these
+      // fields) still paint as ARCH instead of a half-styled hero.
+      const kicker       = s.kicker     || s.eyebrow     || 'New Arrivals';
+      const seasonMarker = typeof s.seasonMarker === 'string' ? s.seasonMarker : '';
+      const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 400;
+
+      // ─── ARCH split layout ─────────────────────────────────────────────
+      // Photo on the left, ink-on-cream copy + stats strip on the right with
+      // a thin vertical rule between them. Falls back gracefully when the
+      // merchant hasn't supplied a hero image.
+      if ((s.layout || 'split') === 'split') {
+        const stats = Array.isArray(s.stats) ? s.stats : [];
+        const showStats = s.showStats !== false && stats.length > 0;
+        // Photo column: real image when supplied, otherwise a tasteful
+        // ecru-on-cream placeholder with a thin accent rule so the split
+        // layout still reads as intentional editorial chrome instead of an
+        // empty white box.
+        const photoEmptyClass = s.imageUrl ? '' : ' uc-hero-photo-empty';
+        const photo = s.imageUrl
+          ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
+              style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
+          : `<div class="uc-hero-photo-fallback">
+              <span class="uc-hero-photo-eyebrow">Welcome to</span>
+              <span class="uc-hero-photo-name" data-store-name>${(window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store'}</span>
+              <span class="uc-hero-photo-rule"></span>
+            </div>`;
+        // data-hero-title sits on an inner span so settings.hero_title can
+        // overwrite just the main wordmark while the italic accent
+        // (settings.hero_italic / section.headlineItalic) stays untouched.
+        const headingHtml = `<h1 class="uc-hero-headline" style="font-family:var(--uc-heading-font);font-size:clamp(40px,4.5vw,72px);font-weight:700;line-height:.95;letter-spacing:-.03em;margin:0 0 28px;color:var(--uc-text)"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;color:var(--uc-text-muted);font-size:.72em">${headingItal}</span>` : ''}</h1>`;
+        const subHtml = subheading ? `<p data-hero-subtitle style="font-size:14px;line-height:1.6;color:var(--uc-text-muted);margin-bottom:24px;max-width:420px">${subheading}</p>` : '';
+        const kickerHtml = `<div class="uc-hero-kicker" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--uc-text-muted);margin-bottom:20px;display:flex;align-items:center;gap:10px">
+              <span style="display:block;width:28px;height:1px;background:var(--uc-accent);flex-shrink:0"></span>${kicker}
+            </div>`;
+        const seasonHtml = seasonMarker
+          ? `<span class="uc-hero-season" aria-hidden="true" style="position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--uc-border)">${seasonMarker}</span>`
+          : '';
+        const statsHtml = showStats ? `<div class="uc-hero-stats" style="position:absolute;bottom:0;left:0;right:0;display:flex;border-top:1px solid var(--uc-border)">
+            ${stats.map((st, i) => `<div class="uc-hero-stat" style="flex:1;padding:10px 16px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--uc-text-muted);${i < stats.length - 1 ? 'border-right:1px solid var(--uc-border)' : ''}">
+              <strong style="display:block;font-size:15px;font-family:var(--uc-heading-font);font-weight:400;color:var(--uc-text);letter-spacing:0;margin-bottom:1px">${st.value||''}</strong>${st.label||''}
+            </div>`).join('')}
+          </div>` : '';
+
+        // ARCH editorial CTA: text link with arrow + thin underline. Pulls
+        // label/url from the merchant's primaryButton (or legacy hero_cta /
+        // ctaLabel fields) but ignores backgroundColor / borderRadius from
+        // older schemas so we never render a stranded white button or a
+        // default browser link. The merchant can still rename / repoint it
+        // through the Primary button field in the editor.
+        const primary  = s.primaryButton || {};
+        const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop Now';
+        // /products collides with the API route on the tenant worker; the
+        // static products *page* is served at /products.html. Use that as the
+        // CTA target so clicks don't fall through to the JSON API.
+        const ctaUrl   = primary.url   || s.ctaUrl   || '/products.html';
+        const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        const ctaHtml  = `<a href="${ctaUrl}" data-hero-cta class="uc-hero-cta" style="display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--uc-text);border-bottom:1px solid var(--uc-text);padding-bottom:2px;width:fit-content;text-decoration:none;font-family:var(--uc-body-font);transition:gap .25s,color .2s,border-color .2s">${ctaLabel}${arrowSvg}</a>`;
+
+        return `<section class="uc-hero uc-hero-split" style="position:relative;height:${minH}px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;background:${s.backgroundColor||'var(--uc-surface)'}">
+          <div class="uc-hero-photo${photoEmptyClass}" style="position:relative;overflow:hidden;border-right:1px solid var(--uc-border);background:var(--uc-bg)">${photo}</div>
+          <div class="uc-hero-text" style="background:var(--uc-surface);display:flex;flex-direction:column;justify-content:flex-end;padding:44px 48px;position:relative;${showStats ? 'padding-bottom:60px;' : ''}">
+            ${seasonHtml}
+            ${kickerHtml}
+            ${headingHtml}
+            ${subHtml}
+            ${ctaHtml}
+            ${statsHtml}
+          </div>
+        </section>`;
+      }
+
+      // ─── Classic full-bleed layout (preserved for merchants who flip back) ──
+      const showSecondary = s.showSecondaryButton !== false;
+      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
       const mediaHtml = s.mediaType === 'video' && s.videoUrl
         ? `<video src="${s.videoUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'"></video>`
         : s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${s.imageAlt||''}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'">`
           : '';
       const overlay = s.overlayOpacity > 0 ? `<div style="position:absolute;inset:0;background:${s.overlayColor||'#000'};opacity:${s.overlayOpacity||0};z-index:1"></div>` : '';
-      const heading    = s.heading    || s.headline    || 'Welcome';
-      const subheading = s.subheading || s.subheadline || '';
-      const showSecondary = s.showSecondaryButton !== false;
-      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
       const align = s.textAlign || (sec.layout && sec.layout.contentAlign) || 'center';
-      return `<section class="uc-hero" style="position:relative;min-height:${s.minHeight||(sec.layout&&sec.layout.minHeight)||600}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
+      return `<section class="uc-hero" style="position:relative;min-height:${minH}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
         ${mediaHtml}${overlay}
         <div class="uc-container uc-w-contained" style="position:relative;z-index:2;text-align:${align};max-width:${s.contentMaxWidth||'var(--uc-container-max)'}${typeof s.contentMaxWidth==='number'?'px':''}">
-          ${s.eyebrow ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${s.eyebrow}</p>` : ''}
-          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px">${heading}</h1>
-          ${subheading ? `<p style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
+          ${kicker ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${kicker}</p>` : ''}
+          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;opacity:.7;font-size:.72em">${headingItal}</span>` : ''}</h1>
+          ${subheading ? `<p data-hero-subtitle style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
           ${btns ? `<div style="display:flex;gap:12px;justify-content:${align};flex-wrap:wrap">${btns}</div>` : ''}
         </div>
       </section>`;
@@ -214,11 +312,26 @@
 
     'product-grid': (sec) => {
       const s = sec.settings;
+      const cols       = Math.min(Math.max(parseInt(s.columns, 10) || 4, 2), 5);
+      const limit      = parseInt(s.limit, 10) || 8;
+      const collection = s.collection || '';
+      const showATC    = s.showAddToCart !== false;
+      const heading    = s.heading || '';
+      const subheading = s.subheading || '';
       return `<section class="uc-product-grid">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          <div class="uc-product-grid-items" data-cols="${s.columns||4}" data-limit="${s.limit||8}" data-collection="${s.collection||''}">
-            <p style="color:var(--uc-text-muted);font-size:14px">Products loading…</p>
+          ${heading || subheading ? `<div class="uc-pg-head">
+            ${heading ? `<h2 class="uc-section-title">${heading}</h2>` : ''}
+            ${subheading ? `<p class="uc-section-sub">${subheading}</p>` : ''}
+          </div>` : ''}
+          <div class="uc-product-grid-items uc-pg-grid"
+               data-uc-product-grid
+               data-uc-cols="${cols}"
+               data-uc-limit="${limit}"
+               data-uc-collection="${collection}"
+               data-uc-show-atc="${showATC ? '1' : '0'}"
+               style="--uc-pg-cols:${cols}">
+            <p class="uc-pg-state" data-uc-pg-state>Loading products…</p>
           </div>`, sec.layout)}
       </section>`;
     },
@@ -345,17 +458,28 @@
 
     'gallery': (sec) => {
       const s = sec.settings;
+      // Each tile renders the merchant's image when set; otherwise a cream
+      // ecru-tile placeholder so legacy gallery seeds (with empty image
+      // blocks) don't render as harsh dark logo plates.
       const items = (sec.blocks || []).filter(b => (b.type === 'gallery-image' || b.type === 'gallery-item') && b.visible !== false)
-        .map(b => `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
-          <img src="${b.settings.url||b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
-            style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
-            onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
-        </div>`).join('');
+        .map(b => {
+          const url = b.settings.url || b.settings.imageUrl || '';
+          const tile = url
+            ? `<img src="${url}" alt="${b.settings.alt||''}" loading="lazy"
+                style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;display:block;transition:transform .3s"
+                onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"
+                onerror="this.parentElement.classList.add('uc-gallery-empty');this.style.display='none'">`
+            : '';
+          const emptyCls = url ? '' : ' uc-gallery-empty';
+          return `<div class="uc-gallery-item${emptyCls}" style="overflow:hidden;border-radius:var(--uc-card-radius);background:var(--uc-surface);border:1px solid var(--uc-border);height:${s.imageHeight||280}px;position:relative">
+            ${tile}
+            ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
+          </div>`;
+        }).join('');
       return `<section class="uc-gallery">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          <div style="display:grid;grid-template-columns:repeat(${s.columns||3},1fr);gap:var(--uc-gap)">${items || ''}</div>`, sec.layout)}
+          ${s.heading ? `<h2 class="uc-section-title" style="font-family:var(--uc-heading-font);font-weight:var(--uc-heading-weight);font-size:clamp(28px,5vw,52px);margin-bottom:24px">${s.heading}</h2>` : ''}
+          <div class="uc-gallery-grid" style="display:grid;grid-template-columns:repeat(${s.columns||3},1fr);gap:var(--uc-gap)">${items || ''}</div>`, sec.layout)}
       </section>`;
     },
 
@@ -538,34 +662,49 @@
 
     'footer': (sec) => {
       const s = sec.settings;
+      // Lighter, surface-on-bg footer. The previous dark slab dominated the
+      // page; this version uses the surface tone so the footer feels like a
+      // graceful close to the page rather than a sudden mood change.
+      const bg = s.backgroundColor || 'var(--uc-surface)';
+      const fg = s.textColor || 'var(--uc-text)';
+
       const cols = (sec.blocks || []).filter(b => b.type === 'footer-column' && b.visible !== false)
         .map(b => {
-          // Registry block stores `links` as an array of { label, url }.
-          // Older renderer expected an HTML string in `content`. Support both.
           const linksHtml = Array.isArray(b.settings.links)
-            ? b.settings.links.map(l => `<a href="${l.url||'#'}" style="color:inherit;text-decoration:none;display:block">${l.label||''}</a>`).join('')
-            : (b.settings.content || '');
-          return `<div>
-            <h4 style="font-weight:600;margin-bottom:12px;font-size:14px">${b.settings.heading||''}</h4>
-            <div style="font-size:13px;line-height:2;color:var(--uc-text-muted)">${linksHtml}</div>
+            ? b.settings.links.map(l => `<a class="uc-footer-link" href="${l.url||'#'}">${l.label||''}</a>`).join('')
+            : (b.settings.content ? `<div class="uc-footer-content">${b.settings.content}</div>` : '');
+          return `<div class="uc-footer-col">
+            <div class="uc-footer-col-title">${b.settings.heading||''}</div>
+            <div class="uc-footer-links">${linksHtml}</div>
           </div>`;
         }).join('');
-      // About column from settings, if provided.
-      const aboutCol = s.aboutText ? `<div>
-        ${s.logoUrl ? `<img src="${s.logoUrl}" alt="" style="height:32px;margin-bottom:12px">` : ''}
-        <p style="font-size:13px;line-height:1.7;color:var(--uc-text-muted);max-width:280px">${s.aboutText}</p>
-      </div>` : '';
-      // Social icons.
-      const social = s.showSocial && s.socialLinks ? Object.entries(s.socialLinks)
-        .filter(([, url]) => !!url)
-        .map(([k, url]) => `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}" style="color:inherit;text-decoration:none;font-size:14px;text-transform:capitalize">${k}</a>`).join(' · ') : '';
-      const copyright = s.copyrightText || s.copyright || '';
-      return `<footer class="uc-footer" style="background:${s.backgroundColor||'var(--uc-surface)'};color:${s.textColor||'var(--uc-text)'}">
-        <div class="uc-container uc-w-contained">
-          ${(aboutCol || cols) ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px;margin-bottom:32px">${aboutCol}${cols}</div>` : ''}
-          <div style="border-top:1px solid var(--uc-border);padding-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12px;color:${s.copyrightColor||'var(--uc-text-muted)'}">
-            <span>${copyright}</span>
-            ${social ? `<span>${social}</span>` : (s.showPaymentIcons ? '<span>Payments placeholder</span>' : '')}
+
+      const storeName = s.storeName || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store';
+      const aboutText = s.aboutText || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_description) || '';
+      const brandCol = `<div class="uc-footer-brand">
+        ${s.logoUrl
+          ? `<img data-store-logo src="${s.logoUrl}" alt="${storeName}" class="has-logo uc-footer-logo-img">`
+          : `<div data-store-name class="uc-footer-wordmark">${storeName}</div>`}
+        ${aboutText ? `<p data-store-description class="uc-footer-tagline">${aboutText}</p>` : ''}
+      </div>`;
+
+      const socialEntries = s.showSocial && s.socialLinks
+        ? Object.entries(s.socialLinks).filter(([, url]) => !!url)
+        : [];
+      const socialHtml = socialEntries.length
+        ? `<div class="uc-footer-social">${socialEntries.map(([k, url]) =>
+            `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}">${k}</a>`).join('')}</div>`
+        : '';
+
+      const copyright = s.copyrightText || s.copyright || `© ${new Date().getFullYear()} ${storeName}. All rights reserved.`;
+      const legalLine = s.legalLineText || s.legalText || '';
+
+      return `<footer class="uc-footer" style="background:${bg};color:${fg}">
+        <div class="uc-container uc-w-wide">
+          <div class="uc-footer-grid">${brandCol}${cols}</div>
+          <div class="uc-footer-bottom">
+            <div class="uc-footer-copy">${copyright}</div>
+            ${socialHtml || (legalLine ? `<div class="uc-footer-copy">${legalLine}</div>` : '')}
           </div>
         </div>
       </footer>`;
@@ -598,11 +737,132 @@
   // to render blurred.
   const SHOP_CSS = `
     /* ── Header chrome ───────────────────────────────────────────── */
-    .uc-header-icon { transition: opacity .15s; }
-    .uc-header-icon:hover { opacity: .65; }
-    @media (max-width: 768px) {
+    .uc-header-icon { transition: opacity .15s, color .15s; }
+    .uc-header-icon:hover { color: var(--uc-accent); opacity: 1; }
+    .uc-nav-link:hover { color: var(--uc-text) !important; }
+    .uc-header-hamburger { display: none; }
+    @media (max-width: 900px) {
       .uc-header-links { display: none !important; }
       .uc-header-hamburger { display: inline-flex !important; }
+      .uc-header-centered { grid-template-columns: auto 1fr auto !important; }
+      .uc-header-centered .uc-header-left { gap: 8px !important; }
+      .uc-header-centered .uc-header-right .uc-header-links { display: none !important; }
+    }
+
+    /* ── Hero (ARCH split) ───────────────────────────────────────── */
+    .uc-hero-split:hover .uc-hero-photo img { transform: scale(1.03); }
+    /* Empty / missing hero image: warm gradient + store wordmark so a brand
+       new merchant who hasn't uploaded a hero image still sees an inviting,
+       branded fallback instead of an empty striped panel. */
+    .uc-hero-photo-empty {
+      background:
+        radial-gradient(120% 80% at 30% 20%, var(--uc-surface) 0%, var(--uc-bg) 60%, var(--uc-surface) 100%) !important;
+    }
+    .uc-hero-photo-fallback {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px; padding: 32px;
+      text-align: center;
+    }
+    .uc-hero-photo-eyebrow {
+      font-size: 10px; letter-spacing: .25em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+    }
+    .uc-hero-photo-name {
+      font-family: var(--uc-heading-font);
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 600;
+      letter-spacing: .04em;
+      line-height: 1.05;
+      color: var(--uc-text);
+      max-width: 90%;
+      text-transform: uppercase;
+    }
+    .uc-hero-photo-rule {
+      display: block; width: 48px; height: 1px;
+      background: var(--uc-accent, var(--uc-text));
+      opacity: .6;
+    }
+    .uc-hero-cta:hover { gap: 16px !important; color: var(--uc-accent) !important; border-color: var(--uc-accent) !important; }
+
+    /* ── Gallery empty tile placeholder ─────────────────────────── */
+    .uc-gallery-empty {
+      background:
+        repeating-linear-gradient(135deg, var(--uc-bg) 0 18px, var(--uc-surface) 18px 36px) !important;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .uc-gallery-empty::after {
+      content: ''; display: block;
+      width: 36px; height: 1px; background: var(--uc-accent);
+    }
+    @media (max-width: 700px) {
+      .uc-hero-split { grid-template-columns: 1fr !important; height: auto !important; }
+      .uc-hero-split .uc-hero-photo { height: 220px !important; border-right: none !important; border-bottom: 1px solid var(--uc-border) !important; }
+      .uc-hero-split .uc-hero-text { padding: 28px 24px 60px !important; }
+      .uc-hero-split .uc-hero-season { display: none !important; }
+    }
+
+    /* ── Footer (refined, light) ─────────────────────────────────── */
+    .uc-footer {
+      padding: 72px 48px 28px;
+      border-top: 1px solid var(--uc-border);
+      font-family: var(--uc-body-font);
+    }
+    .uc-footer .uc-footer-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr 1fr 1fr;
+      gap: 56px;
+      padding-bottom: 48px;
+    }
+    .uc-footer-brand { max-width: 280px; }
+    .uc-footer-wordmark {
+      font-family: var(--uc-heading-font);
+      font-size: 22px; font-weight: 600;
+      letter-spacing: .04em;
+      margin-bottom: 14px;
+      color: var(--uc-text);
+    }
+    .uc-footer-logo-img { height: 32px; width: auto; margin-bottom: 14px; }
+    .uc-footer-tagline {
+      font-size: 13px; line-height: 1.7;
+      color: var(--uc-text-muted);
+      margin: 0;
+    }
+    .uc-footer-col-title {
+      font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+    .uc-footer-links { display: flex; flex-direction: column; gap: 10px; }
+    .uc-footer-link, .uc-footer-content {
+      font-size: 13px; color: var(--uc-text);
+      text-decoration: none;
+      transition: color .15s, opacity .15s;
+      opacity: .75;
+    }
+    .uc-footer-link:hover { opacity: 1; color: var(--uc-accent); }
+    .uc-footer-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 14px;
+      padding-top: 22px;
+      border-top: 1px solid var(--uc-border);
+    }
+    .uc-footer-copy { font-size: 11px; color: var(--uc-text-muted); letter-spacing: .04em; }
+    .uc-footer-social { display: flex; gap: 18px; }
+    .uc-footer-social a {
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--uc-text-muted); text-decoration: none;
+      transition: color .15s;
+    }
+    .uc-footer-social a:hover { color: var(--uc-text); }
+    @media (max-width: 900px) {
+      .uc-footer { padding: 48px 24px 24px; }
+      .uc-footer .uc-footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; padding-bottom: 32px; }
+    }
+    @media (max-width: 600px) {
+      .uc-footer .uc-footer-grid { grid-template-columns: 1fr; gap: 28px; }
+      .uc-footer-bottom { flex-direction: column; align-items: flex-start; }
     }
 
     /* ── Backdrop / overlay ──────────────────────────────────────── */
@@ -755,38 +1015,38 @@
 
     .uc-product-card {
       display: block; text-decoration: none; color: inherit;
-      background: var(--uc-bg);
+      background: var(--uc-surface);
       border: 1px solid var(--uc-border);
       border-radius: var(--uc-card-radius);
       overflow: hidden;
-      transition: transform .25s ease, border-color .2s;
+      transition: transform .3s cubic-bezier(.16,1,.3,1), border-color .2s;
       position: relative;
     }
-    .uc-product-card:hover { border-color: var(--uc-text); }
+    .uc-product-card:hover { transform: translateY(-2px); border-color: var(--uc-text); }
     .uc-product-card:hover .uc-product-img img { transform: scale(1.04); }
     .uc-product-card:hover .uc-product-atc { opacity: 1; transform: translateY(0); }
     .uc-product-img {
       aspect-ratio: 3/4;
-      background: var(--uc-surface);
+      background: var(--uc-bg);
       overflow: hidden;
       position: relative;
     }
-    .uc-product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
-    .uc-product-info { padding: 12px 14px 16px; }
-    .uc-product-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; line-height: 1.3; }
-    .uc-product-price { font-size: 13px; color: var(--uc-text-muted); }
+    .uc-product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.16,1,.3,1); }
+    .uc-product-info { padding: 16px 14px 20px; }
+    .uc-product-name { font-family: var(--uc-heading-font); font-size: 17px; font-weight: 400; line-height: 1.25; margin-bottom: 8px; }
+    .uc-product-price { font-size: 13px; color: var(--uc-text); }
     .uc-product-atc {
-      position: absolute; left: 8px; right: 8px; bottom: 8px;
-      padding: 9px 12px;
-      background: var(--uc-primary); color: var(--uc-primary-text);
+      position: absolute; left: 12px; right: 12px; bottom: 12px;
+      padding: 10px 12px;
+      background: var(--uc-surface); color: var(--uc-text);
       border: none; cursor: pointer;
-      font: inherit; font-size: 11px; font-weight: 600;
-      letter-spacing: .08em; text-transform: uppercase;
+      font: inherit; font-size: 10px; font-weight: 500;
+      letter-spacing: .12em; text-transform: uppercase;
       border-radius: var(--uc-radius);
       opacity: 0; transform: translateY(6px);
-      transition: opacity .2s, transform .2s, background .15s;
+      transition: opacity .2s, transform .2s, background .2s, color .2s;
     }
-    .uc-product-atc:hover { background: var(--uc-text); }
+    .uc-product-atc:hover { background: var(--uc-accent); color: var(--uc-primary-text); }
     @media (hover: none) { .uc-product-atc { opacity: 1; transform: none; } }
 
     .uc-shop-grid.uc-view-list .uc-product-card { display: grid; grid-template-columns: 140px 1fr; }
@@ -795,6 +1055,27 @@
     .uc-shop-grid.uc-view-list .uc-product-atc {
       position: static; margin-top: 12px; max-width: 180px;
       opacity: 1; transform: none;
+    }
+
+    /* ── Plain product-grid section ─────────────────────────────── */
+    .uc-pg-head { margin-bottom: 32px; text-align: center; }
+    .uc-pg-head .uc-section-title { margin-bottom: 8px; }
+    .uc-pg-head .uc-section-sub { margin-bottom: 0; }
+    .uc-pg-grid {
+      display: grid;
+      grid-template-columns: repeat(var(--uc-pg-cols, 4), minmax(0, 1fr));
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .uc-pg-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
+    @media (max-width: 600px) { .uc-pg-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+    .uc-pg-state { grid-column: 1/-1; padding: 60px 0; text-align: center;
+      color: var(--uc-text-muted); font-size: 12px; letter-spacing: .15em; text-transform: uppercase; }
+    .uc-soldout .uc-product-img img { opacity: 0.55; }
+    .uc-soldout-badge {
+      position: absolute; top: 12px; left: 12px;
+      background: var(--uc-bg); color: var(--uc-text);
+      font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+      padding: 5px 10px; border: 1px solid var(--uc-border);
     }
 
     /* ── Cart drawer (singleton) ────────────────────────────────── */
@@ -910,16 +1191,24 @@
   const HEADER_SECTION_TYPES = ['announcement-bar', 'header', 'nav'];
   const FOOTER_SECTION_TYPES = ['footer'];
 
+  // Section types whose renderers own their own chrome (background, padding,
+  // borders) end-to-end. For these the saved layout's wrapper padding/bg is
+  // ignored so legacy schemas don't bracket the ARCH hero / header / footer
+  // with a stale white frame and 120px of padding.
+  const SELF_CHROMED = new Set(['hero', 'header', 'nav', 'announcement-bar', 'footer']);
+
   function renderSectionWrapper(sec) {
     const renderer = RENDERERS[sec.type];
     if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
 
-    // Apply section layout background, padding, min-height
+    // Apply section layout background, padding, min-height — except for
+    // self-chromed sections (see SELF_CHROMED above).
+    const selfChromed = SELF_CHROMED.has(sec.type);
     const layout   = sec.layout || {};
-    const bg       = layout.background ? bgToCss(layout.background) : '';
-    const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
+    const bg       = !selfChromed && layout.background ? bgToCss(layout.background) : '';
+    const padding  = !selfChromed && layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
     const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
-    const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
+    const minH     = !selfChromed && layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
     const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
 
     const inner = renderer(sec);
@@ -953,16 +1242,23 @@
     styleEl.textContent = `:root { ${themeToCssVars(theme)} }\n` +
       bodyRule +
       `h1,h2,h3,h4,h5,h6 { font-family: var(--uc-heading-font); font-weight: var(--uc-heading-weight); }\n` +
+      `a { color: inherit; }\n` +
       `.uc-container { width: 100%; margin: 0 auto; padding: 0 24px; }\n` +
+      `@media (min-width: 900px) { .uc-container { padding: 0 40px; } }\n` +
       `.uc-w-full  { max-width: 100%; padding: 0; }\n` +
       `.uc-w-wide  { max-width: 1440px; }\n` +
       `.uc-w-contained { max-width: var(--uc-container-max); }\n` +
       `.uc-w-narrow { max-width: 720px; }\n` +
-      `.uc-section-title { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: var(--uc-heading-weight); margin-bottom: 12px; }\n` +
-      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; }\n` +
+      `.uc-section-title { font-size: clamp(1.75rem, 3.5vw, 2.75rem); font-weight: var(--uc-heading-weight); line-height: 1.1; letter-spacing: -.01em; margin-bottom: 12px; }\n` +
+      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; line-height: 1.6; }\n` +
       `.uc-prose { font-size: var(--uc-base-font-size); line-height: 1.8; }\n` +
       `.uc-prose h2 { font-size: 1.5em; margin: 1.5em 0 .5em; }\n` +
       `.uc-prose p { margin: 0 0 1em; }\n` +
+      // Default vertical breathing room for body sections so stacked sections
+      // don't crash into each other when the merchant hasn't set per-section
+      // padding. Self-chromed sections (hero / header / footer / announcement
+      // bar) own their own spacing and skip this rule via :not().
+      `[data-sec][data-type]:not([data-type="hero"]):not([data-type="header"]):not([data-type="nav"]):not([data-type="announcement-bar"]):not([data-type="footer"]):not([data-type="spacer"]):not([data-type="divider"]) { padding: clamp(56px, 7vw, 96px) 0; }\n` +
       SHOP_CSS +
       (theme.customCSS || '');
 
@@ -1014,7 +1310,14 @@
     // product loaders. Idempotent: safe to call after every schema apply.
     ensureGlobalChrome();
     bootFilterShops();
+    bootProductGrids();
     syncCartUI();
+
+    // Re-inject store_name / store_description / logo / hero copy into the
+    // freshly rendered DOM. theme.js exposes window.applyStoreBrand for
+    // exactly this — without it, [data-store-name] / [data-hero-title] etc.
+    // would render with the registry's seed text on the live storefront.
+    if (typeof window.applyStoreBrand === 'function') window.applyStoreBrand();
   }
 
   /* ── Global chrome (cart drawer / overlay / quick view modal) ────────── */
@@ -1149,6 +1452,75 @@
       const limit      = parseInt(root.dataset.ucLimit, 10) || 48;
       loadShopProducts(root, sectionId, collection, limit);
     });
+  }
+
+  // Plain product-grid sections: no filters/sort, just a simple responsive
+  // grid of cards. Each grid loads its own product slice from the API and
+  // renders cards with optional Add-to-Bag.
+  function bootProductGrids() {
+    document.querySelectorAll('[data-uc-product-grid]').forEach(grid => {
+      if (grid.dataset.ucBooted === '1') return;
+      grid.dataset.ucBooted = '1';
+      const collection = grid.dataset.ucCollection || '';
+      const limit      = parseInt(grid.dataset.ucLimit, 10) || 8;
+      const showATC    = grid.dataset.ucShowAtc !== '0';
+      loadProductGrid(grid, collection, limit, showATC);
+    });
+  }
+
+  async function loadProductGrid(grid, collection, limit, showATC) {
+    const stateEl = grid.querySelector('[data-uc-pg-state]');
+    const apiBase = (window.BST_API_BASE || '').replace(/\/$/, '');
+    const setMsg  = (msg) => { grid.innerHTML = `<p class="uc-pg-state">${msg}</p>`; };
+
+    if (!apiBase) {
+      // No API configured (preview/editor): leave the placeholder visible
+      // rather than hanging on a request that will never resolve.
+      if (stateEl) stateEl.textContent = 'Connect a backend to load products.';
+      return;
+    }
+
+    try {
+      const url = apiBase + '/products?limit=' + limit + '&offset=0'
+        + (collection ? '&collection=' + encodeURIComponent(collection) : '');
+      const res  = await fetch(url, { credentials: 'omit' });
+      const body = await res.json();
+      if (!body || !body.ok || !Array.isArray(body.data)) {
+        setMsg('No products yet.');
+        return;
+      }
+      const products = body.data.slice(0, limit);
+      if (!products.length) {
+        setMsg('No products yet — add some from the dashboard.');
+        return;
+      }
+      // Cache so quick-view / add-to-cart can find these by id without
+      // re-requesting them.
+      const sid = 'pg-' + (grid.closest('[data-sec]') ? grid.closest('[data-sec]').getAttribute('data-sec') : Math.random().toString(36).slice(2, 8));
+      SHOP_STATE[sid] = { products, filters: {}, view: 'grid' };
+
+      grid.innerHTML = products.map(p => {
+        const img   = (p.images && p.images[0]) || '';
+        const price = typeof window.formatPrice === 'function'
+          ? window.formatPrice(p.price, p.currency)
+          : '$' + (p.price / 100).toFixed(2);
+        const idAttr  = String(p.id).replace(/"/g, '&quot;');
+        const soldOut = p.stock === 0;
+        return `<a href="product.html?id=${encodeURIComponent(p.id)}" class="uc-product-card${soldOut?' uc-soldout':''}" data-uc-product-id="${idAttr}">
+          <div class="uc-product-img">
+            ${img ? `<img src="${img}" alt="${(p.name||'').replace(/"/g,'&quot;')}" loading="lazy" onerror="this.style.display='none'">` : ''}
+            ${soldOut ? '<span class="uc-soldout-badge">Sold Out</span>' : ''}
+            ${(showATC && !soldOut) ? `<button type="button" class="uc-product-atc" onclick="event.preventDefault();event.stopPropagation();window.UC&&UC.addProductToCart(this.closest('.uc-product-card').getAttribute('data-uc-product-id'))">Add to Bag</button>` : ''}
+          </div>
+          <div class="uc-product-info">
+            <div class="uc-product-name">${p.name||''}</div>
+            <div class="uc-product-price">${price}</div>
+          </div>
+        </a>`;
+      }).join('');
+    } catch (err) {
+      setMsg('Couldn’t load products.');
+    }
   }
 
   async function loadShopProducts(root, sectionId, collection, limit) {
@@ -1402,6 +1774,95 @@
     window.parent.postMessage({ type: 'bst:ready' }, '*');
   }
 
+  // Build a polished default schema so a brand-new merchant — or one whose
+  // saved schema couldn't be loaded — sees a complete, branded storefront
+  // instead of an empty canvas. Mirrors the seed in
+  // provisioning-service/src/defaults/store-schema.ts so the live storefront
+  // and the editor stay in sync.
+  function buildDefaultSchema(settings) {
+    var s = settings || {};
+    var name = s.store_name || 'Your Store';
+    return {
+      version: '2.0',
+      globalTheme: {
+        preset: 'base',
+        colors: {
+          primary: '#111111', primaryText: '#ffffff', secondary: '#555555',
+          accent: '#C8A96E', background: '#ffffff', surface: '#f7f5f1',
+          text: '#111111', textMuted: '#7a7468', border: 'rgba(0,0,0,0.1)',
+        },
+        typography: {
+          headingFont: 'inherit', bodyFont: 'inherit',
+          baseFontSize: 16, headingWeight: 700, bodyWeight: 400,
+          lineHeight: 1.6, letterSpacing: 0,
+        },
+        spacing: {
+          containerMaxWidth: 1200, sectionVerticalPadding: 80,
+          borderRadius: 4, cardBorderRadius: 4, elementGap: 16,
+        },
+        customCSS: '',
+      },
+      pages: {
+        index: {
+          id: 'index', name: 'Home', slug: 'index.html',
+          sections: [
+            {
+              id: 'd-header', type: 'header', visible: true, locked: true, layout: {},
+              settings: {
+                storeName: name, showCartIcon: true, sticky: true,
+                navLinks: [{ label: 'Shop', url: '/products.html' }, { label: 'About', url: '#' }],
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-hero', type: 'hero', visible: true, layout: {},
+              settings: {
+                headline:      s.hero_title    || 'Made for everyday',
+                subheadline:   s.hero_subtitle || 'A modern collection of essentials, designed to last.',
+                kicker:        'New Collection',
+                primaryButton: { label: s.hero_cta || 'Shop the Collection', url: '/products.html' },
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-features', type: 'features', visible: true, layout: {},
+              settings: { columns: 3, cardStyle: 'plain', cardAlign: 'center' },
+              blocks: [
+                { id: 'df1', type: 'feature', visible: true, settings: { heading: 'Free Shipping',   description: 'On every order over $75.', icon: '01' } },
+                { id: 'df2', type: 'feature', visible: true, settings: { heading: 'Easy Returns',    description: '30-day, no questions.',     icon: '02' } },
+                { id: 'df3', type: 'feature', visible: true, settings: { heading: 'Secure Checkout', description: 'Encrypted via Stripe.',     icon: '03' } },
+              ],
+              customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-products', type: 'product-grid', visible: true, layout: {},
+              settings: { heading: 'New Arrivals', subheading: 'A curated selection of our latest pieces.', columns: 4, limit: 8, showAddToCart: true },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-newsletter', type: 'newsletter', visible: true, layout: {},
+              settings: { heading: 'Join the list', description: 'Hear about new arrivals first.', buttonText: 'Subscribe', placeholder: 'you@example.com' },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-footer', type: 'footer', visible: true, locked: true, layout: {},
+              settings: {
+                aboutText:     s.store_description || 'A thoughtfully made collection — shipped fast and built to last.',
+                copyrightText: '© ' + new Date().getFullYear() + ' ' + name + '. All rights reserved.',
+              },
+              blocks: [
+                { id: 'dfc1', type: 'footer-column', visible: true, settings: { heading: 'Shop',    links: [{ label: 'All Products', url: '/products.html' }] } },
+                { id: 'dfc2', type: 'footer-column', visible: true, settings: { heading: 'Help',    links: [{ label: 'Contact', url: '#' }, { label: 'Shipping', url: '#' }, { label: 'Returns', url: '#' }] } },
+                { id: 'dfc3', type: 'footer-column', visible: true, settings: { heading: 'Company', links: [{ label: 'About',   url: '#' }] } },
+              ],
+              customCSS: '', customClasses: '',
+            },
+          ],
+        },
+      },
+    };
+  }
+
   // Standalone (non-editor) load: pull the saved schema from the public
   // settings endpoint and render it. Editor mode (parent !== window) is
   // already handled via the `bst:schema` postMessage above, so this branch
@@ -1411,12 +1872,20 @@
     fetch(apiBase + '/settings/public', { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (body) {
-        var raw = body && body.ok && body.data && body.data.page_sections;
-        if (!raw) return;
-        try { applySchema(JSON.parse(raw)); }
-        catch (e) { console.error('Bad page_sections JSON:', e); }
+        var data = body && body.ok && body.data;
+        var raw  = data && data.page_sections;
+        if (raw) {
+          try { applySchema(JSON.parse(raw)); return; }
+          catch (e) { console.error('Bad page_sections JSON:', e); }
+        }
+        // No saved schema (or it failed to parse) — render a polished
+        // default so the storefront isn't a blank canvas.
+        applySchema(buildDefaultSchema(data));
       })
-      .catch(function () { /* network error: leave canvas empty */ });
+      .catch(function () {
+        // Network error: still render a default rather than nothing.
+        applySchema(buildDefaultSchema());
+      });
   }
 
 })();
