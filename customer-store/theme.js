@@ -276,10 +276,14 @@
           n.style.backgroundImage = 'url("' + settings.logo_url.replace(/"/g,'%22') + '")';
         }
       });
-      // Hero section content — falls back to store name/description if not set.
-      var heroTitle = settings.hero_title || settings.store_name || '';
-      if (heroTitle) {
-        document.querySelectorAll('[data-hero-title]').forEach(function (n) { n.textContent = heroTitle; });
+      // Hero section content — only override the title when the merchant has
+      // explicitly set hero_title. Falling back to store_name made the hero
+      // read "<KICKER> / <STORE NAME>" right next to the header wordmark, so
+      // the store name was duplicated on the home page.
+      if (settings.hero_title) {
+        document.querySelectorAll('[data-hero-title]').forEach(function (n) {
+          n.textContent = settings.hero_title;
+        });
       }
       if (settings.hero_subtitle) {
         document.querySelectorAll('[data-hero-subtitle]').forEach(function (n) { n.textContent = settings.hero_subtitle; });
