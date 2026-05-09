@@ -239,7 +239,11 @@
         const photo = s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
               style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
-          : '';
+          : `<div class="uc-hero-photo-fallback">
+              <span class="uc-hero-photo-eyebrow">Welcome to</span>
+              <span class="uc-hero-photo-name" data-store-name>${(window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store'}</span>
+              <span class="uc-hero-photo-rule"></span>
+            </div>`;
         // data-hero-title sits on an inner span so settings.hero_title can
         // overwrite just the main wordmark while the italic accent
         // (settings.hero_italic / section.headlineItalic) stays untouched.
@@ -265,7 +269,10 @@
         // through the Primary button field in the editor.
         const primary  = s.primaryButton || {};
         const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop Now';
-        const ctaUrl   = primary.url   || s.ctaUrl   || '/products';
+        // /products collides with the API route on the tenant worker; the
+        // static products *page* is served at /products.html. Use that as the
+        // CTA target so clicks don't fall through to the JSON API.
+        const ctaUrl   = primary.url   || s.ctaUrl   || '/products.html';
         const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
         const ctaHtml  = `<a href="${ctaUrl}" data-hero-cta class="uc-hero-cta" style="display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--uc-text);border-bottom:1px solid var(--uc-text);padding-bottom:2px;width:fit-content;text-decoration:none;font-family:var(--uc-body-font);transition:gap .25s,color .2s,border-color .2s">${ctaLabel}${arrowSvg}</a>`;
 
@@ -305,11 +312,26 @@
 
     'product-grid': (sec) => {
       const s = sec.settings;
+      const cols       = Math.min(Math.max(parseInt(s.columns, 10) || 4, 2), 5);
+      const limit      = parseInt(s.limit, 10) || 8;
+      const collection = s.collection || '';
+      const showATC    = s.showAddToCart !== false;
+      const heading    = s.heading || '';
+      const subheading = s.subheading || '';
       return `<section class="uc-product-grid">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          <div class="uc-product-grid-items" data-cols="${s.columns||4}" data-limit="${s.limit||8}" data-collection="${s.collection||''}">
-            <p style="color:var(--uc-text-muted);font-size:14px">Products loading…</p>
+          ${heading || subheading ? `<div class="uc-pg-head">
+            ${heading ? `<h2 class="uc-section-title">${heading}</h2>` : ''}
+            ${subheading ? `<p class="uc-section-sub">${subheading}</p>` : ''}
+          </div>` : ''}
+          <div class="uc-product-grid-items uc-pg-grid"
+               data-uc-product-grid
+               data-uc-cols="${cols}"
+               data-uc-limit="${limit}"
+               data-uc-collection="${collection}"
+               data-uc-show-atc="${showATC ? '1' : '0'}"
+               style="--uc-pg-cols:${cols}">
+            <p class="uc-pg-state" data-uc-pg-state>Loading products…</p>
           </div>`, sec.layout)}
       </section>`;
     },
@@ -640,51 +662,49 @@
 
     'footer': (sec) => {
       const s = sec.settings;
-      const bg        = s.backgroundColor || 'var(--uc-primary)';
-      const fg        = s.textColor || 'var(--uc-primary-text)';
-      const mutedFg   = 'rgba(255,255,255,.6)';
-      const dimFg     = 'rgba(255,255,255,.4)';
-      const veryDimFg = 'rgba(255,255,255,.25)';
-      const borderCol = 'rgba(255,255,255,.08)';
-      const accent    = 'var(--uc-accent)';
+      // Lighter, surface-on-bg footer. The previous dark slab dominated the
+      // page; this version uses the surface tone so the footer feels like a
+      // graceful close to the page rather than a sudden mood change.
+      const bg = s.backgroundColor || 'var(--uc-surface)';
+      const fg = s.textColor || 'var(--uc-text)';
 
       const cols = (sec.blocks || []).filter(b => b.type === 'footer-column' && b.visible !== false)
         .map(b => {
           const linksHtml = Array.isArray(b.settings.links)
-            ? b.settings.links.map(l => `<a class="uc-footer-link" href="${l.url||'#'}" style="font-size:12px;color:${mutedFg};text-decoration:none;transition:color .2s" onmouseover="this.style.color='${accent}'" onmouseout="this.style.color='${mutedFg}'">${l.label||''}</a>`).join('')
-            : (b.settings.content || '');
-          return `<div>
-            <div class="uc-footer-col-title" style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:${dimFg};margin-bottom:16px">${b.settings.heading||''}</div>
-            <div class="uc-footer-links" style="display:flex;flex-direction:column;gap:10px">${linksHtml}</div>
+            ? b.settings.links.map(l => `<a class="uc-footer-link" href="${l.url||'#'}">${l.label||''}</a>`).join('')
+            : (b.settings.content ? `<div class="uc-footer-content">${b.settings.content}</div>` : '');
+          return `<div class="uc-footer-col">
+            <div class="uc-footer-col-title">${b.settings.heading||''}</div>
+            <div class="uc-footer-links">${linksHtml}</div>
           </div>`;
         }).join('');
 
-      // ARCH brand column: display-serif wordmark + tagline. Uses store_name
-      // injected from settings; falls back to the editor's logo if uploaded.
-      const storeName = s.storeName || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'STORE';
-      const brandCol = `<div>
+      const storeName = s.storeName || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store';
+      const aboutText = s.aboutText || (window.STORE_SETTINGS && window.STORE_SETTINGS.store_description) || '';
+      const brandCol = `<div class="uc-footer-brand">
         ${s.logoUrl
-          ? `<img data-store-logo src="${s.logoUrl}" alt="${storeName}" class="has-logo" style="height:36px;margin-bottom:16px;filter:invert(1) brightness(2)">`
-          : `<div data-store-name class="uc-footer-logo" style="font-family:var(--uc-heading-font);font-size:28px;font-weight:300;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;color:${fg}">${storeName}</div>`}
-        ${s.aboutText ? `<div data-store-description class="uc-footer-tagline" style="font-size:12px;color:${dimFg};line-height:1.8;max-width:240px">${s.aboutText}</div>` : ''}
+          ? `<img data-store-logo src="${s.logoUrl}" alt="${storeName}" class="has-logo uc-footer-logo-img">`
+          : `<div data-store-name class="uc-footer-wordmark">${storeName}</div>`}
+        ${aboutText ? `<p data-store-description class="uc-footer-tagline">${aboutText}</p>` : ''}
       </div>`;
 
-      const social = s.showSocial && s.socialLinks ? Object.entries(s.socialLinks)
-        .filter(([, url]) => !!url)
-        .map(([k, url]) => `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}" style="color:${mutedFg};text-decoration:none;font-size:12px;text-transform:capitalize">${k}</a>`).join(' · ') : '';
-      const copyright = s.copyrightText || s.copyright || '';
+      const socialEntries = s.showSocial && s.socialLinks
+        ? Object.entries(s.socialLinks).filter(([, url]) => !!url)
+        : [];
+      const socialHtml = socialEntries.length
+        ? `<div class="uc-footer-social">${socialEntries.map(([k, url]) =>
+            `<a href="${url}" target="_blank" rel="noreferrer" aria-label="${k}">${k}</a>`).join('')}</div>`
+        : '';
+
+      const copyright = s.copyrightText || s.copyright || `© ${new Date().getFullYear()} ${storeName}. All rights reserved.`;
       const legalLine = s.legalLineText || s.legalText || '';
 
-      return `<footer class="uc-footer" style="background:${bg};color:${fg};padding:64px 48px 32px">
+      return `<footer class="uc-footer" style="background:${bg};color:${fg}">
         <div class="uc-container uc-w-wide">
-          <div class="uc-footer-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px">${brandCol}${cols}</div>
-          <div class="uc-footer-bottom" style="border-top:1px solid ${borderCol};padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-            <div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${copyright}</div>
-            ${social
-              ? `<div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${social}</div>`
-              : legalLine
-                ? `<div class="uc-footer-copy" style="font-size:11px;color:${veryDimFg}">${legalLine}</div>`
-                : ''}
+          <div class="uc-footer-grid">${brandCol}${cols}</div>
+          <div class="uc-footer-bottom">
+            <div class="uc-footer-copy">${copyright}</div>
+            ${socialHtml || (legalLine ? `<div class="uc-footer-copy">${legalLine}</div>` : '')}
           </div>
         </div>
       </footer>`;
@@ -731,13 +751,37 @@
 
     /* ── Hero (ARCH split) ───────────────────────────────────────── */
     .uc-hero-split:hover .uc-hero-photo img { transform: scale(1.03); }
-    /* Empty / missing hero image: subtle ecru-on-cream pattern with a thin
-       accent rule down the centre so the split layout still reads as
-       intentional editorial chrome. */
+    /* Empty / missing hero image: warm gradient + store wordmark so a brand
+       new merchant who hasn't uploaded a hero image still sees an inviting,
+       branded fallback instead of an empty striped panel. */
     .uc-hero-photo-empty {
       background:
-        linear-gradient(180deg, transparent 0, transparent calc(50% - 1px), var(--uc-border) calc(50%), transparent calc(50% + 1px)) center/40px 60px no-repeat,
-        repeating-linear-gradient(135deg, var(--uc-bg) 0 18px, var(--uc-surface) 18px 36px) !important;
+        radial-gradient(120% 80% at 30% 20%, var(--uc-surface) 0%, var(--uc-bg) 60%, var(--uc-surface) 100%) !important;
+    }
+    .uc-hero-photo-fallback {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px; padding: 32px;
+      text-align: center;
+    }
+    .uc-hero-photo-eyebrow {
+      font-size: 10px; letter-spacing: .25em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+    }
+    .uc-hero-photo-name {
+      font-family: var(--uc-heading-font);
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 600;
+      letter-spacing: .04em;
+      line-height: 1.05;
+      color: var(--uc-text);
+      max-width: 90%;
+      text-transform: uppercase;
+    }
+    .uc-hero-photo-rule {
+      display: block; width: 48px; height: 1px;
+      background: var(--uc-accent, var(--uc-text));
+      opacity: .6;
     }
     .uc-hero-cta:hover { gap: 16px !important; color: var(--uc-accent) !important; border-color: var(--uc-accent) !important; }
 
@@ -758,13 +802,67 @@
       .uc-hero-split .uc-hero-season { display: none !important; }
     }
 
-    /* ── Footer (ARCH grid) ──────────────────────────────────────── */
+    /* ── Footer (refined, light) ─────────────────────────────────── */
+    .uc-footer {
+      padding: 72px 48px 28px;
+      border-top: 1px solid var(--uc-border);
+      font-family: var(--uc-body-font);
+    }
+    .uc-footer .uc-footer-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr 1fr 1fr;
+      gap: 56px;
+      padding-bottom: 48px;
+    }
+    .uc-footer-brand { max-width: 280px; }
+    .uc-footer-wordmark {
+      font-family: var(--uc-heading-font);
+      font-size: 22px; font-weight: 600;
+      letter-spacing: .04em;
+      margin-bottom: 14px;
+      color: var(--uc-text);
+    }
+    .uc-footer-logo-img { height: 32px; width: auto; margin-bottom: 14px; }
+    .uc-footer-tagline {
+      font-size: 13px; line-height: 1.7;
+      color: var(--uc-text-muted);
+      margin: 0;
+    }
+    .uc-footer-col-title {
+      font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+    .uc-footer-links { display: flex; flex-direction: column; gap: 10px; }
+    .uc-footer-link, .uc-footer-content {
+      font-size: 13px; color: var(--uc-text);
+      text-decoration: none;
+      transition: color .15s, opacity .15s;
+      opacity: .75;
+    }
+    .uc-footer-link:hover { opacity: 1; color: var(--uc-accent); }
+    .uc-footer-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 14px;
+      padding-top: 22px;
+      border-top: 1px solid var(--uc-border);
+    }
+    .uc-footer-copy { font-size: 11px; color: var(--uc-text-muted); letter-spacing: .04em; }
+    .uc-footer-social { display: flex; gap: 18px; }
+    .uc-footer-social a {
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--uc-text-muted); text-decoration: none;
+      transition: color .15s;
+    }
+    .uc-footer-social a:hover { color: var(--uc-text); }
     @media (max-width: 900px) {
-      .uc-footer { padding: 40px 20px 24px !important; }
-      .uc-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
+      .uc-footer { padding: 48px 24px 24px; }
+      .uc-footer .uc-footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; padding-bottom: 32px; }
     }
     @media (max-width: 600px) {
-      .uc-footer-grid { grid-template-columns: 1fr !important; }
+      .uc-footer .uc-footer-grid { grid-template-columns: 1fr; gap: 28px; }
+      .uc-footer-bottom { flex-direction: column; align-items: flex-start; }
     }
 
     /* ── Backdrop / overlay ──────────────────────────────────────── */
@@ -959,6 +1057,27 @@
       opacity: 1; transform: none;
     }
 
+    /* ── Plain product-grid section ─────────────────────────────── */
+    .uc-pg-head { margin-bottom: 32px; text-align: center; }
+    .uc-pg-head .uc-section-title { margin-bottom: 8px; }
+    .uc-pg-head .uc-section-sub { margin-bottom: 0; }
+    .uc-pg-grid {
+      display: grid;
+      grid-template-columns: repeat(var(--uc-pg-cols, 4), minmax(0, 1fr));
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .uc-pg-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
+    @media (max-width: 600px) { .uc-pg-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+    .uc-pg-state { grid-column: 1/-1; padding: 60px 0; text-align: center;
+      color: var(--uc-text-muted); font-size: 12px; letter-spacing: .15em; text-transform: uppercase; }
+    .uc-soldout .uc-product-img img { opacity: 0.55; }
+    .uc-soldout-badge {
+      position: absolute; top: 12px; left: 12px;
+      background: var(--uc-bg); color: var(--uc-text);
+      font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+      padding: 5px 10px; border: 1px solid var(--uc-border);
+    }
+
     /* ── Cart drawer (singleton) ────────────────────────────────── */
     .uc-cart-drawer {
       position: fixed; top: 0; right: 0; bottom: 0;
@@ -1123,16 +1242,23 @@
     styleEl.textContent = `:root { ${themeToCssVars(theme)} }\n` +
       bodyRule +
       `h1,h2,h3,h4,h5,h6 { font-family: var(--uc-heading-font); font-weight: var(--uc-heading-weight); }\n` +
+      `a { color: inherit; }\n` +
       `.uc-container { width: 100%; margin: 0 auto; padding: 0 24px; }\n` +
+      `@media (min-width: 900px) { .uc-container { padding: 0 40px; } }\n` +
       `.uc-w-full  { max-width: 100%; padding: 0; }\n` +
       `.uc-w-wide  { max-width: 1440px; }\n` +
       `.uc-w-contained { max-width: var(--uc-container-max); }\n` +
       `.uc-w-narrow { max-width: 720px; }\n` +
-      `.uc-section-title { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: var(--uc-heading-weight); margin-bottom: 12px; }\n` +
-      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; }\n` +
+      `.uc-section-title { font-size: clamp(1.75rem, 3.5vw, 2.75rem); font-weight: var(--uc-heading-weight); line-height: 1.1; letter-spacing: -.01em; margin-bottom: 12px; }\n` +
+      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; line-height: 1.6; }\n` +
       `.uc-prose { font-size: var(--uc-base-font-size); line-height: 1.8; }\n` +
       `.uc-prose h2 { font-size: 1.5em; margin: 1.5em 0 .5em; }\n` +
       `.uc-prose p { margin: 0 0 1em; }\n` +
+      // Default vertical breathing room for body sections so stacked sections
+      // don't crash into each other when the merchant hasn't set per-section
+      // padding. Self-chromed sections (hero / header / footer / announcement
+      // bar) own their own spacing and skip this rule via :not().
+      `[data-sec][data-type]:not([data-type="hero"]):not([data-type="header"]):not([data-type="nav"]):not([data-type="announcement-bar"]):not([data-type="footer"]):not([data-type="spacer"]):not([data-type="divider"]) { padding: clamp(56px, 7vw, 96px) 0; }\n` +
       SHOP_CSS +
       (theme.customCSS || '');
 
@@ -1184,6 +1310,7 @@
     // product loaders. Idempotent: safe to call after every schema apply.
     ensureGlobalChrome();
     bootFilterShops();
+    bootProductGrids();
     syncCartUI();
 
     // Re-inject store_name / store_description / logo / hero copy into the
@@ -1325,6 +1452,75 @@
       const limit      = parseInt(root.dataset.ucLimit, 10) || 48;
       loadShopProducts(root, sectionId, collection, limit);
     });
+  }
+
+  // Plain product-grid sections: no filters/sort, just a simple responsive
+  // grid of cards. Each grid loads its own product slice from the API and
+  // renders cards with optional Add-to-Bag.
+  function bootProductGrids() {
+    document.querySelectorAll('[data-uc-product-grid]').forEach(grid => {
+      if (grid.dataset.ucBooted === '1') return;
+      grid.dataset.ucBooted = '1';
+      const collection = grid.dataset.ucCollection || '';
+      const limit      = parseInt(grid.dataset.ucLimit, 10) || 8;
+      const showATC    = grid.dataset.ucShowAtc !== '0';
+      loadProductGrid(grid, collection, limit, showATC);
+    });
+  }
+
+  async function loadProductGrid(grid, collection, limit, showATC) {
+    const stateEl = grid.querySelector('[data-uc-pg-state]');
+    const apiBase = (window.BST_API_BASE || '').replace(/\/$/, '');
+    const setMsg  = (msg) => { grid.innerHTML = `<p class="uc-pg-state">${msg}</p>`; };
+
+    if (!apiBase) {
+      // No API configured (preview/editor): leave the placeholder visible
+      // rather than hanging on a request that will never resolve.
+      if (stateEl) stateEl.textContent = 'Connect a backend to load products.';
+      return;
+    }
+
+    try {
+      const url = apiBase + '/products?limit=' + limit + '&offset=0'
+        + (collection ? '&collection=' + encodeURIComponent(collection) : '');
+      const res  = await fetch(url, { credentials: 'omit' });
+      const body = await res.json();
+      if (!body || !body.ok || !Array.isArray(body.data)) {
+        setMsg('No products yet.');
+        return;
+      }
+      const products = body.data.slice(0, limit);
+      if (!products.length) {
+        setMsg('No products yet — add some from the dashboard.');
+        return;
+      }
+      // Cache so quick-view / add-to-cart can find these by id without
+      // re-requesting them.
+      const sid = 'pg-' + (grid.closest('[data-sec]') ? grid.closest('[data-sec]').getAttribute('data-sec') : Math.random().toString(36).slice(2, 8));
+      SHOP_STATE[sid] = { products, filters: {}, view: 'grid' };
+
+      grid.innerHTML = products.map(p => {
+        const img   = (p.images && p.images[0]) || '';
+        const price = typeof window.formatPrice === 'function'
+          ? window.formatPrice(p.price, p.currency)
+          : '$' + (p.price / 100).toFixed(2);
+        const idAttr  = String(p.id).replace(/"/g, '&quot;');
+        const soldOut = p.stock === 0;
+        return `<a href="product.html?id=${encodeURIComponent(p.id)}" class="uc-product-card${soldOut?' uc-soldout':''}" data-uc-product-id="${idAttr}">
+          <div class="uc-product-img">
+            ${img ? `<img src="${img}" alt="${(p.name||'').replace(/"/g,'&quot;')}" loading="lazy" onerror="this.style.display='none'">` : ''}
+            ${soldOut ? '<span class="uc-soldout-badge">Sold Out</span>' : ''}
+            ${(showATC && !soldOut) ? `<button type="button" class="uc-product-atc" onclick="event.preventDefault();event.stopPropagation();window.UC&&UC.addProductToCart(this.closest('.uc-product-card').getAttribute('data-uc-product-id'))">Add to Bag</button>` : ''}
+          </div>
+          <div class="uc-product-info">
+            <div class="uc-product-name">${p.name||''}</div>
+            <div class="uc-product-price">${price}</div>
+          </div>
+        </a>`;
+      }).join('');
+    } catch (err) {
+      setMsg('Couldn’t load products.');
+    }
   }
 
   async function loadShopProducts(root, sectionId, collection, limit) {
@@ -1578,6 +1774,95 @@
     window.parent.postMessage({ type: 'bst:ready' }, '*');
   }
 
+  // Build a polished default schema so a brand-new merchant — or one whose
+  // saved schema couldn't be loaded — sees a complete, branded storefront
+  // instead of an empty canvas. Mirrors the seed in
+  // provisioning-service/src/defaults/store-schema.ts so the live storefront
+  // and the editor stay in sync.
+  function buildDefaultSchema(settings) {
+    var s = settings || {};
+    var name = s.store_name || 'Your Store';
+    return {
+      version: '2.0',
+      globalTheme: {
+        preset: 'base',
+        colors: {
+          primary: '#111111', primaryText: '#ffffff', secondary: '#555555',
+          accent: '#C8A96E', background: '#ffffff', surface: '#f7f5f1',
+          text: '#111111', textMuted: '#7a7468', border: 'rgba(0,0,0,0.1)',
+        },
+        typography: {
+          headingFont: 'inherit', bodyFont: 'inherit',
+          baseFontSize: 16, headingWeight: 700, bodyWeight: 400,
+          lineHeight: 1.6, letterSpacing: 0,
+        },
+        spacing: {
+          containerMaxWidth: 1200, sectionVerticalPadding: 80,
+          borderRadius: 4, cardBorderRadius: 4, elementGap: 16,
+        },
+        customCSS: '',
+      },
+      pages: {
+        index: {
+          id: 'index', name: 'Home', slug: 'index.html',
+          sections: [
+            {
+              id: 'd-header', type: 'header', visible: true, locked: true, layout: {},
+              settings: {
+                storeName: name, showCartIcon: true, sticky: true,
+                navLinks: [{ label: 'Shop', url: '/products.html' }, { label: 'About', url: '#' }],
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-hero', type: 'hero', visible: true, layout: {},
+              settings: {
+                headline:      s.hero_title    || 'Made for everyday',
+                subheadline:   s.hero_subtitle || 'A modern collection of essentials, designed to last.',
+                kicker:        'New Collection',
+                primaryButton: { label: s.hero_cta || 'Shop the Collection', url: '/products.html' },
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-features', type: 'features', visible: true, layout: {},
+              settings: { columns: 3, cardStyle: 'plain', cardAlign: 'center' },
+              blocks: [
+                { id: 'df1', type: 'feature', visible: true, settings: { heading: 'Free Shipping',   description: 'On every order over $75.', icon: '01' } },
+                { id: 'df2', type: 'feature', visible: true, settings: { heading: 'Easy Returns',    description: '30-day, no questions.',     icon: '02' } },
+                { id: 'df3', type: 'feature', visible: true, settings: { heading: 'Secure Checkout', description: 'Encrypted via Stripe.',     icon: '03' } },
+              ],
+              customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-products', type: 'product-grid', visible: true, layout: {},
+              settings: { heading: 'New Arrivals', subheading: 'A curated selection of our latest pieces.', columns: 4, limit: 8, showAddToCart: true },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-newsletter', type: 'newsletter', visible: true, layout: {},
+              settings: { heading: 'Join the list', description: 'Hear about new arrivals first.', buttonText: 'Subscribe', placeholder: 'you@example.com' },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            {
+              id: 'd-footer', type: 'footer', visible: true, locked: true, layout: {},
+              settings: {
+                aboutText:     s.store_description || 'A thoughtfully made collection — shipped fast and built to last.',
+                copyrightText: '© ' + new Date().getFullYear() + ' ' + name + '. All rights reserved.',
+              },
+              blocks: [
+                { id: 'dfc1', type: 'footer-column', visible: true, settings: { heading: 'Shop',    links: [{ label: 'All Products', url: '/products.html' }] } },
+                { id: 'dfc2', type: 'footer-column', visible: true, settings: { heading: 'Help',    links: [{ label: 'Contact', url: '#' }, { label: 'Shipping', url: '#' }, { label: 'Returns', url: '#' }] } },
+                { id: 'dfc3', type: 'footer-column', visible: true, settings: { heading: 'Company', links: [{ label: 'About',   url: '#' }] } },
+              ],
+              customCSS: '', customClasses: '',
+            },
+          ],
+        },
+      },
+    };
+  }
+
   // Standalone (non-editor) load: pull the saved schema from the public
   // settings endpoint and render it. Editor mode (parent !== window) is
   // already handled via the `bst:schema` postMessage above, so this branch
@@ -1587,12 +1872,20 @@
     fetch(apiBase + '/settings/public', { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (body) {
-        var raw = body && body.ok && body.data && body.data.page_sections;
-        if (!raw) return;
-        try { applySchema(JSON.parse(raw)); }
-        catch (e) { console.error('Bad page_sections JSON:', e); }
+        var data = body && body.ok && body.data;
+        var raw  = data && data.page_sections;
+        if (raw) {
+          try { applySchema(JSON.parse(raw)); return; }
+          catch (e) { console.error('Bad page_sections JSON:', e); }
+        }
+        // No saved schema (or it failed to parse) — render a polished
+        // default so the storefront isn't a blank canvas.
+        applySchema(buildDefaultSchema(data));
       })
-      .catch(function () { /* network error: leave canvas empty */ });
+      .catch(function () {
+        // Network error: still render a default rather than nothing.
+        applySchema(buildDefaultSchema());
+      });
   }
 
 })();
