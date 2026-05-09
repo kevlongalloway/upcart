@@ -100,6 +100,10 @@ async function writeSettings(
 export const publicSettings = new Hono<{ Bindings: Bindings }>();
 
 publicSettings.get("/", async (c) => {
+  // No caching: the storefront fetches this on every page load to pick up the
+  // latest editor save. A stale cache here means saved edits invisibly lag
+  // behind on customer browsers, which is exactly the bug we're avoiding.
+  c.header("Cache-Control", "no-store");
   try {
     const rows = await readSettings(c.env.DB, PUBLIC_KEYS);
     return c.json(ok({
@@ -180,7 +184,25 @@ const updateSchema = z
   })
   .strict();
 
-adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
+adminSettings.put(
+  "/",
+  zValidator("json", updateSchema, (result, c) => {
+    if (!result.success) {
+      // Without an error hook, @hono/zod-validator returns the raw ZodError
+      // object as JSON, which the editor stringifies into "[object Object]".
+      // Flatten it into a human-readable message + machine-readable details.
+      const flat = result.error.flatten();
+      const fieldMessages = Object.entries(flat.fieldErrors)
+        .map(([k, v]) => `${k}: ${(v ?? []).join(", ")}`)
+        .join("; ");
+      const message =
+        flat.formErrors.join("; ") ||
+        fieldMessages ||
+        "Invalid request body.";
+      return c.json(err(message, flat), 400);
+    }
+  }),
+  async (c) => {
   const body = c.req.valid("json");
   const tenantId = c.env.TENANT_ID || "";
 

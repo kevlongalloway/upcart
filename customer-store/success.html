@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Order Confirmed — Demo Store</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- theme.js + store-renderer.js render the merchant-edited header/footer
+       chrome into the slot divs in <body> below. -->
+  <script src="config.js"></script>
+  <script src="theme.js"></script>
+  <script src="store-renderer.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -17,47 +22,15 @@
       flex-direction: column;
     }
 
-    /* Nav */
-    nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      padding: 28px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    @media (min-width: 640px) { nav { padding: 28px 40px; } }
-
-    .nav-mark {
-      font-family: 'Space Mono', monospace;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-decoration: none;
-      color: #1a1a1a;
-    }
-    .nav-links { display: flex; gap: 32px; }
-    .nav-links a {
-      font-size: 10px;
-      color: #1a1a1a;
-      text-decoration: none;
-      letter-spacing: 0.1em;
-      opacity: 0.6;
-      text-transform: uppercase;
-      transition: opacity 0.2s;
-    }
-    .nav-links a:hover { opacity: 1; }
-
     /* Main */
     main {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 120px 24px 80px;
+      padding: 56px 24px 80px;
     }
-    @media (min-width: 640px) { main { padding: 120px 40px 80px; } }
+    @media (min-width: 640px) { main { padding: 64px 40px 80px; } }
 
     .confirmation {
       max-width: 520px;
@@ -131,46 +104,11 @@
     }
     .btn-continue:hover { opacity: 0.8; }
 
-    /* Footer */
-    footer {
-      background: #2a2a2a;
-      color: #f5f5f5;
-      padding: 60px 24px 36px;
-    }
-    @media (min-width: 640px) { footer { padding: 60px 40px 36px; } }
-    .footer-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding-bottom: 40px;
-      border-bottom: 1px solid rgba(245,245,245,0.1);
-      margin-bottom: 28px;
-      flex-wrap: wrap;
-      gap: 24px;
-    }
-    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
-    .footer-links a {
-      font-size: 10px;
-      color: #f5f5f5;
-      text-decoration: none;
-      letter-spacing: 0.1em;
-      opacity: 0.6;
-      text-transform: uppercase;
-      transition: opacity 0.2s;
-    }
-    .footer-links a:hover { opacity: 1; }
-    .footer-copy { font-size: 9px; opacity: 0.4; letter-spacing: 0.05em; }
   </style>
 </head>
 <body>
 
-  <nav>
-    <a class="nav-mark" href="index.html">Store</a>
-    <div class="nav-links">
-      <a href="products.html">Shop</a>
-      <a href="cart.html" class="cart-nav-link">Cart</a>
-    </div>
-  </nav>
+  <div id="uc-storefront-header"></div>
 
   <main>
     <div class="confirmation">
@@ -188,21 +126,8 @@
     </div>
   </main>
 
-  <footer>
-    <div class="footer-top">
-      <div>
-        <p style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;" data-store-name>Your Store</p>
-      </div>
-      <div class="footer-links">
-        <a href="#">Help</a>
-        <a href="#">Returns</a>
-        <a href="#">Contact</a>
-      </div>
-    </div>
-    <p class="footer-copy">© 2026 <span data-store-name>Your Store</span>. All rights reserved.</p>
-  </footer>
+  <div id="uc-storefront-footer"></div>
 
-  <script src="config.js"></script>
   <script src="cart.js"></script>
   <script>
     // Clear the cart — payment was successful

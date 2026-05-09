@@ -61,7 +61,7 @@ No requests are proxied through Express.
 | `#/discounts` | Discounts list |
 | `#/discounts/new` | Create discount code |
 | `#/discounts/:id/edit` | Edit discount code |
-| `#/theme` | Storefront theme editor (preset + brand colors + logo) |
+| `/store-editor/` | Storefront customizer (theme, sections, blocks, layout — full visual editor) |
 
 All non-`/login` routes require a valid JWT; a 401 from the merchant's
 worker clears the session and redirects to `/login`.

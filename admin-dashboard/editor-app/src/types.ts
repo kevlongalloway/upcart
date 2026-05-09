@@ -251,6 +251,7 @@ export type SectionType =
   | 'hero'
   | 'product-grid'
   | 'product-carousel'
+  | 'filter-product-grid'
   | 'gallery'
   | 'testimonials'
   | 'info'
