@@ -172,6 +172,11 @@ const REGISTRY: Record<SectionType, SectionDef> = {
       imageUrl:      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1400&q=85&auto=format&fit=crop',
       imageAlt:      'The Spring Edit — featured campaign',
       imageCaption:  'Photographed in studio · Édition I',
+      // Shown inside the photo column when no imageUrl is supplied. Three
+      // separate lines so merchants can rebrand the placeholder without
+      // touching the storefront renderer.
+      imagePlaceholderEyebrow: 'An introduction to',
+      imagePlaceholderMeta:    'Volume I — Édition Studio',
       showStats:     true,
       stats: [
         { value: '47',     label: 'New Arrivals'   },
@@ -221,7 +226,12 @@ const REGISTRY: Record<SectionType, SectionDef> = {
       { key: 'subheadline',  label: 'Subheadline',  type: 'textarea', placeholder: 'Short description…' },
       { key: 'imageUrl',     label: 'Hero image',   type: 'image' },
       { key: 'imageAlt',     label: 'Image alt text', type: 'text' },
+      { key: 'imageCaption', label: 'Image caption', type: 'text', placeholder: 'Photographed in studio · Édition I' },
+      // Placeholder copy shown inside the photo column when no image is set.
+      { key: 'imagePlaceholderEyebrow', label: 'Placeholder eyebrow', type: 'text', placeholder: 'An introduction to' },
+      { key: 'imagePlaceholderMeta',    label: 'Placeholder meta line', type: 'text', placeholder: 'Volume I — Édition Studio' },
       { key: 'seasonMarker', label: 'Vertical season marker', type: 'text', placeholder: 'SS 26' },
+      { key: 'issueLabel',   label: 'Kicker issue label', type: 'text', placeholder: 'Volume I' },
       { key: 'showStats',    label: 'Show stat strip', type: 'toggle' },
       { key: 'primaryButton',      label: 'Primary button',    type: 'button-style' },
       { key: 'showSecondaryButton', label: 'Show secondary button', type: 'toggle' },

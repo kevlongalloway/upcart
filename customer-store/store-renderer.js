@@ -238,15 +238,17 @@
         // empty white box.
         const photoEmptyClass = s.imageUrl ? '' : ' uc-hero-photo-empty';
         const storeNameForFallback = (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store';
+        const placeholderEyebrow = typeof s.imagePlaceholderEyebrow === 'string' ? s.imagePlaceholderEyebrow : 'An introduction to';
+        const placeholderMeta    = typeof s.imagePlaceholderMeta    === 'string' ? s.imagePlaceholderMeta    : 'Volume I — Édition Studio';
         const photo = s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
               class="uc-hero-photo-img"
               onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
           : `<div class="uc-hero-photo-fallback">
-              <span class="uc-hero-photo-eyebrow">An introduction to</span>
+              ${placeholderEyebrow ? `<span class="uc-hero-photo-eyebrow">${placeholderEyebrow}</span>` : ''}
               <span class="uc-hero-photo-name" data-store-name>${storeNameForFallback}</span>
               <span class="uc-hero-photo-rule"></span>
-              <span class="uc-hero-photo-meta">Volume I — Édition Studio</span>
+              ${placeholderMeta ? `<span class="uc-hero-photo-meta">${placeholderMeta}</span>` : ''}
             </div>`;
         // Photo overlay chrome: paginated badge + corner caption tying the
         // image into the editorial frame.
