@@ -214,13 +214,14 @@
 
     'hero': (sec) => {
       const s = sec.settings;
-      const heading      = s.heading    || s.headline    || '';
+      const heading      = s.heading    || s.headline    || 'Welcome';
       const headingItal  = s.headlineItalic || s.headingItalic || '';
       const subheading   = s.subheading || s.subheadline || '';
-      const kicker       = s.kicker     || s.eyebrow     || '';
-      const seasonMarker = s.seasonMarker || '';
-      const showSecondary = s.showSecondaryButton !== false;
-      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
+      // Editorial chrome — kicker line, season marker — defines the look.
+      // Fall back to ARCH-style defaults so legacy schemas (without these
+      // fields) still paint as ARCH instead of a half-styled hero.
+      const kicker       = s.kicker     || s.eyebrow     || 'New Arrivals';
+      const seasonMarker = typeof s.seasonMarker === 'string' ? s.seasonMarker : '';
       const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 400;
 
       // ─── ARCH split layout ─────────────────────────────────────────────
@@ -230,20 +231,23 @@
       if ((s.layout || 'split') === 'split') {
         const stats = Array.isArray(s.stats) ? s.stats : [];
         const showStats = s.showStats !== false && stats.length > 0;
+        // Photo column: real image when supplied, otherwise a tasteful
+        // ecru-on-cream placeholder with a thin accent rule so the split
+        // layout still reads as intentional editorial chrome instead of an
+        // empty white box.
+        const photoEmptyClass = s.imageUrl ? '' : ' uc-hero-photo-empty';
         const photo = s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
-              style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.style.display='none'">`
-          : `<div style="width:100%;height:100%;background:var(--uc-surface)"></div>`;
+              style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
+          : '';
         // data-hero-title sits on an inner span so settings.hero_title can
         // overwrite just the main wordmark while the italic accent
         // (settings.hero_italic / section.headlineItalic) stays untouched.
         const headingHtml = `<h1 class="uc-hero-headline" style="font-family:var(--uc-heading-font);font-size:clamp(40px,4.5vw,72px);font-weight:700;line-height:.95;letter-spacing:-.03em;margin:0 0 28px;color:var(--uc-text)"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;color:var(--uc-text-muted);font-size:.72em">${headingItal}</span>` : ''}</h1>`;
         const subHtml = subheading ? `<p data-hero-subtitle style="font-size:14px;line-height:1.6;color:var(--uc-text-muted);margin-bottom:24px;max-width:420px">${subheading}</p>` : '';
-        const kickerHtml = kicker
-          ? `<div class="uc-hero-kicker" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--uc-text-muted);margin-bottom:20px;display:flex;align-items:center;gap:10px">
-              <span style="display:block;width:28px;height:1px;background:var(--uc-accent)"></span>${kicker}
-            </div>`
-          : '';
+        const kickerHtml = `<div class="uc-hero-kicker" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--uc-text-muted);margin-bottom:20px;display:flex;align-items:center;gap:10px">
+              <span style="display:block;width:28px;height:1px;background:var(--uc-accent);flex-shrink:0"></span>${kicker}
+            </div>`;
         const seasonHtml = seasonMarker
           ? `<span class="uc-hero-season" aria-hidden="true" style="position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--uc-border)">${seasonMarker}</span>`
           : '';
@@ -253,20 +257,34 @@
             </div>`).join('')}
           </div>` : '';
 
+        // ARCH editorial CTA: text link with arrow + thin underline. Pulls
+        // label/url from the merchant's primaryButton (or legacy hero_cta /
+        // ctaLabel fields) but ignores backgroundColor / borderRadius from
+        // older schemas so we never render a stranded white button or a
+        // default browser link. The merchant can still rename / repoint it
+        // through the Primary button field in the editor.
+        const primary  = s.primaryButton || {};
+        const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop Now';
+        const ctaUrl   = primary.url   || s.ctaUrl   || '/products';
+        const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        const ctaHtml  = `<a href="${ctaUrl}" data-hero-cta class="uc-hero-cta" style="display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--uc-text);border-bottom:1px solid var(--uc-text);padding-bottom:2px;width:fit-content;text-decoration:none;font-family:var(--uc-body-font);transition:gap .25s,color .2s,border-color .2s">${ctaLabel}${arrowSvg}</a>`;
+
         return `<section class="uc-hero uc-hero-split" style="position:relative;height:${minH}px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;background:${s.backgroundColor||'var(--uc-surface)'}">
-          <div class="uc-hero-photo" style="position:relative;overflow:hidden;border-right:1px solid var(--uc-border)">${photo}</div>
+          <div class="uc-hero-photo${photoEmptyClass}" style="position:relative;overflow:hidden;border-right:1px solid var(--uc-border);background:var(--uc-bg)">${photo}</div>
           <div class="uc-hero-text" style="background:var(--uc-surface);display:flex;flex-direction:column;justify-content:flex-end;padding:44px 48px;position:relative;${showStats ? 'padding-bottom:60px;' : ''}">
             ${seasonHtml}
             ${kickerHtml}
             ${headingHtml}
             ${subHtml}
-            ${btns ? `<div style="display:flex;gap:12px;flex-wrap:wrap">${btns}</div>` : ''}
+            ${ctaHtml}
             ${statsHtml}
           </div>
         </section>`;
       }
 
       // ─── Classic full-bleed layout (preserved for merchants who flip back) ──
+      const showSecondary = s.showSecondaryButton !== false;
+      const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
       const mediaHtml = s.mediaType === 'video' && s.videoUrl
         ? `<video src="${s.videoUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'"></video>`
         : s.imageUrl
@@ -418,17 +436,28 @@
 
     'gallery': (sec) => {
       const s = sec.settings;
+      // Each tile renders the merchant's image when set; otherwise a cream
+      // ecru-tile placeholder so legacy gallery seeds (with empty image
+      // blocks) don't render as harsh dark logo plates.
       const items = (sec.blocks || []).filter(b => (b.type === 'gallery-image' || b.type === 'gallery-item') && b.visible !== false)
-        .map(b => `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
-          <img src="${b.settings.url||b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
-            style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
-            onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
-        </div>`).join('');
+        .map(b => {
+          const url = b.settings.url || b.settings.imageUrl || '';
+          const tile = url
+            ? `<img src="${url}" alt="${b.settings.alt||''}" loading="lazy"
+                style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;display:block;transition:transform .3s"
+                onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"
+                onerror="this.parentElement.classList.add('uc-gallery-empty');this.style.display='none'">`
+            : '';
+          const emptyCls = url ? '' : ' uc-gallery-empty';
+          return `<div class="uc-gallery-item${emptyCls}" style="overflow:hidden;border-radius:var(--uc-card-radius);background:var(--uc-surface);border:1px solid var(--uc-border);height:${s.imageHeight||280}px;position:relative">
+            ${tile}
+            ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
+          </div>`;
+        }).join('');
       return `<section class="uc-gallery">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          <div style="display:grid;grid-template-columns:repeat(${s.columns||3},1fr);gap:var(--uc-gap)">${items || ''}</div>`, sec.layout)}
+          ${s.heading ? `<h2 class="uc-section-title" style="font-family:var(--uc-heading-font);font-weight:var(--uc-heading-weight);font-size:clamp(28px,5vw,52px);margin-bottom:24px">${s.heading}</h2>` : ''}
+          <div class="uc-gallery-grid" style="display:grid;grid-template-columns:repeat(${s.columns||3},1fr);gap:var(--uc-gap)">${items || ''}</div>`, sec.layout)}
       </section>`;
     },
 
@@ -702,6 +731,26 @@
 
     /* ── Hero (ARCH split) ───────────────────────────────────────── */
     .uc-hero-split:hover .uc-hero-photo img { transform: scale(1.03); }
+    /* Empty / missing hero image: subtle ecru-on-cream pattern with a thin
+       accent rule down the centre so the split layout still reads as
+       intentional editorial chrome. */
+    .uc-hero-photo-empty {
+      background:
+        linear-gradient(180deg, transparent 0, transparent calc(50% - 1px), var(--uc-border) calc(50%), transparent calc(50% + 1px)) center/40px 60px no-repeat,
+        repeating-linear-gradient(135deg, var(--uc-bg) 0 18px, var(--uc-surface) 18px 36px) !important;
+    }
+    .uc-hero-cta:hover { gap: 16px !important; color: var(--uc-accent) !important; border-color: var(--uc-accent) !important; }
+
+    /* ── Gallery empty tile placeholder ─────────────────────────── */
+    .uc-gallery-empty {
+      background:
+        repeating-linear-gradient(135deg, var(--uc-bg) 0 18px, var(--uc-surface) 18px 36px) !important;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .uc-gallery-empty::after {
+      content: ''; display: block;
+      width: 36px; height: 1px; background: var(--uc-accent);
+    }
     @media (max-width: 700px) {
       .uc-hero-split { grid-template-columns: 1fr !important; height: auto !important; }
       .uc-hero-split .uc-hero-photo { height: 220px !important; border-right: none !important; border-bottom: 1px solid var(--uc-border) !important; }
@@ -1023,16 +1072,24 @@
   const HEADER_SECTION_TYPES = ['announcement-bar', 'header', 'nav'];
   const FOOTER_SECTION_TYPES = ['footer'];
 
+  // Section types whose renderers own their own chrome (background, padding,
+  // borders) end-to-end. For these the saved layout's wrapper padding/bg is
+  // ignored so legacy schemas don't bracket the ARCH hero / header / footer
+  // with a stale white frame and 120px of padding.
+  const SELF_CHROMED = new Set(['hero', 'header', 'nav', 'announcement-bar', 'footer']);
+
   function renderSectionWrapper(sec) {
     const renderer = RENDERERS[sec.type];
     if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
 
-    // Apply section layout background, padding, min-height
+    // Apply section layout background, padding, min-height — except for
+    // self-chromed sections (see SELF_CHROMED above).
+    const selfChromed = SELF_CHROMED.has(sec.type);
     const layout   = sec.layout || {};
-    const bg       = layout.background ? bgToCss(layout.background) : '';
-    const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
+    const bg       = !selfChromed && layout.background ? bgToCss(layout.background) : '';
+    const padding  = !selfChromed && layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
     const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
-    const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
+    const minH     = !selfChromed && layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
     const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
 
     const inner = renderer(sec);

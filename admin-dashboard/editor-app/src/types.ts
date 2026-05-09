@@ -196,8 +196,8 @@ export const DEFAULT_GLOBAL_THEME: GlobalTheme = {
     border:      '#DDD9D1',
   },
   typography: {
-    headingFont:   'Bodoni Moda',
-    bodyFont:      'Instrument Sans',
+    headingFont:   'Playfair Display',
+    bodyFont:      'Inter',
     baseFontSize:  14,
     headingWeight: 700,
     bodyWeight:    400,
