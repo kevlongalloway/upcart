@@ -193,8 +193,12 @@ export const DEFAULT_GLOBAL_THEME: GlobalTheme = {
     border:      'rgba(0,0,0,0.1)',
   },
   typography: {
-    headingFont:   'inherit',
-    bodyFont:      'inherit',
+    // 'system' renders as the platform's default UI font stack (San Francisco
+    // / Segoe UI / Roboto / etc.). Avoid 'inherit' as a default — it cascades
+    // up to the browser's <html> default (Times New Roman) and makes a
+    // freshly provisioned store look unstyled.
+    headingFont:   'system',
+    bodyFont:      'system',
     baseFontSize:  16,
     headingWeight: 700,
     bodyWeight:    400,

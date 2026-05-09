@@ -129,7 +129,7 @@ export function themeToCssVars(theme: GlobalTheme): string {
 const loadedFonts = new Set<string>();
 
 export function loadGoogleFont(family: string): void {
-  if (!family || family === 'inherit' || loadedFonts.has(family)) return;
+  if (!family || family === 'inherit' || family === 'system' || loadedFonts.has(family)) return;
   loadedFonts.add(family);
   const link = document.createElement('link');
   link.rel  = 'stylesheet';

@@ -9,65 +9,82 @@
 
   /* ── CSS helpers ──────────────────────────────────────────────────────── */
 
+  // System font stack used as the default body/heading font when the merchant
+  // hasn't picked a Google Font. The previous default of `inherit` cascaded
+  // up to the browser default (Times New Roman in most browsers), which made
+  // freshly provisioned stores look unstyled — see DEPLOY.md "Default look".
+  const SYSTEM_FONT_STACK =
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif';
+
+  function fontStack(value) {
+    if (!value || value === 'inherit' || value === 'system') return SYSTEM_FONT_STACK;
+    return `'${value}', ` + SYSTEM_FONT_STACK;
+  }
+
   function bgToCss(bg) {
-    if (!bg) return '';
+    if (!bg || !bg.type) return '';
     switch (bg.type) {
       case 'gradient':
         return bg.gradientType === 'radial'
           ? `background: radial-gradient(circle, ${bg.gradientFrom}, ${bg.gradientTo});`
           : `background: linear-gradient(${bg.gradientAngle}deg, ${bg.gradientFrom}, ${bg.gradientTo});`;
       case 'image':
-        if (!bg.imageUrl) return `background-color: ${bg.color};`;
+        if (!bg.imageUrl) return bg.color ? `background-color: ${bg.color};` : '';
         return [
           `background-image: url(${JSON.stringify(bg.imageUrl)});`,
-          `background-size: ${bg.backgroundSize};`,
-          `background-position: ${bg.backgroundPosition};`,
+          `background-size: ${bg.backgroundSize || 'cover'};`,
+          `background-position: ${bg.backgroundPosition || 'center center'};`,
           `background-repeat: no-repeat;`,
           bg.parallax ? 'background-attachment: fixed;' : '',
         ].join('\n');
       case 'video':
-        return `background-color: ${bg.color};`;
+        return bg.color ? `background-color: ${bg.color};` : '';
       default:
-        return `background-color: ${bg.color};`;
+        return bg.color ? `background-color: ${bg.color};` : '';
     }
   }
 
   function spacingToCss(sp, prop) {
     if (!sp) return '';
-    return `${prop}: ${sp.top}px ${sp.right}px ${sp.bottom}px ${sp.left}px;`;
+    const t = sp.top    || 0;
+    const r = sp.right  || 0;
+    const b = sp.bottom || 0;
+    const l = sp.left   || 0;
+    if (!t && !r && !b && !l) return '';
+    return `${prop}: ${t}px ${r}px ${b}px ${l}px;`;
   }
 
   function themeToCssVars(theme) {
-    const c  = theme.colors;
-    const t  = theme.typography;
-    const sp = theme.spacing;
+    const c  = (theme && theme.colors)     || {};
+    const t  = (theme && theme.typography) || {};
+    const sp = (theme && theme.spacing)    || {};
     return `
-      --uc-primary:       ${c.primary};
-      --uc-primary-text:  ${c.primaryText};
-      --uc-secondary:     ${c.secondary};
-      --uc-accent:        ${c.accent};
-      --uc-bg:            ${c.background};
-      --uc-surface:       ${c.surface};
-      --uc-text:          ${c.text};
-      --uc-text-muted:    ${c.textMuted};
-      --uc-border:        ${c.border};
-      --uc-heading-font:  ${t.headingFont === 'inherit' ? 'inherit' : `'${t.headingFont}', sans-serif`};
-      --uc-body-font:     ${t.bodyFont   === 'inherit' ? 'inherit' : `'${t.bodyFont}',   sans-serif`};
-      --uc-base-font-size: ${t.baseFontSize}px;
-      --uc-heading-weight: ${t.headingWeight};
-      --uc-body-weight:    ${t.bodyWeight};
-      --uc-line-height:    ${t.lineHeight};
-      --uc-letter-spacing: ${t.letterSpacing}em;
-      --uc-container-max:  ${sp.containerMaxWidth}px;
-      --uc-section-pad:    ${sp.sectionVerticalPadding}px;
-      --uc-radius:         ${sp.borderRadius}px;
-      --uc-card-radius:    ${sp.cardBorderRadius}px;
-      --uc-gap:            ${sp.elementGap}px;
+      --uc-primary:       ${c.primary      || '#111111'};
+      --uc-primary-text:  ${c.primaryText  || '#ffffff'};
+      --uc-secondary:     ${c.secondary    || '#555555'};
+      --uc-accent:        ${c.accent       || '#f5c000'};
+      --uc-bg:            ${c.background   || '#ffffff'};
+      --uc-surface:       ${c.surface      || '#f5f5f5'};
+      --uc-text:          ${c.text         || '#111111'};
+      --uc-text-muted:    ${c.textMuted    || '#888888'};
+      --uc-border:        ${c.border       || 'rgba(0,0,0,0.1)'};
+      --uc-heading-font:  ${fontStack(t.headingFont)};
+      --uc-body-font:     ${fontStack(t.bodyFont)};
+      --uc-base-font-size: ${t.baseFontSize  || 16}px;
+      --uc-heading-weight: ${t.headingWeight || 700};
+      --uc-body-weight:    ${t.bodyWeight    || 400};
+      --uc-line-height:    ${t.lineHeight    || 1.6};
+      --uc-letter-spacing: ${t.letterSpacing || 0}em;
+      --uc-container-max:  ${sp.containerMaxWidth      || 1200}px;
+      --uc-section-pad:    ${sp.sectionVerticalPadding || 80}px;
+      --uc-radius:         ${sp.borderRadius     || 4}px;
+      --uc-card-radius:    ${sp.cardBorderRadius || 4}px;
+      --uc-gap:            ${sp.elementGap       || 16}px;
     `;
   }
 
   function loadGoogleFont(family) {
-    if (!family || family === 'inherit') return;
+    if (!family || family === 'inherit' || family === 'system') return;
     const id = 'gf-' + family.replace(/\s+/g, '-').toLowerCase();
     if (document.getElementById(id)) return;
     const link = document.createElement('link');
@@ -98,18 +115,37 @@
 
   function renderButton(btn) {
     if (!btn || !btn.label) return '';
-    const target = btn.openInNewTab ? ' target="_blank" rel="noreferrer"' : '';
+    const variant      = btn.variant || 'solid';
+    const isHollow     = variant === 'outline' || variant === 'ghost';
+    // Fall back to the global theme CSS vars whenever the section didn't
+    // specify per-button colors. This keeps freshly-seeded sections from
+    // rendering an unstyled (purple, underlined) `<a>` because the saved
+    // schema only has `{ label, url }`.
+    const bgColor      = isHollow ? 'transparent'
+                                  : (btn.backgroundColor || 'var(--uc-primary)');
+    const textColor    = isHollow ? (btn.borderColor || btn.textColor || 'var(--uc-primary)')
+                                  : (btn.textColor   || 'var(--uc-primary-text)');
+    const borderColor  = btn.borderColor || (isHollow ? 'var(--uc-primary)' : 'transparent');
+    const borderWidth  = (btn.borderWidth != null ? btn.borderWidth : (isHollow ? 1 : 0));
+    const borderRadius = (btn.borderRadius != null ? btn.borderRadius : 4);
+    const paddingX     = btn.paddingX || 24;
+    const paddingY     = btn.paddingY || 12;
+    const fontSize     = btn.fontSize || 14;
+    const fontWeight   = btn.fontWeight || 600;
+    const target       = btn.openInNewTab ? ' target="_blank" rel="noreferrer"' : '';
     const style  = [
-      `background-color:${btn.variant === 'outline' || btn.variant === 'ghost' ? 'transparent' : btn.backgroundColor}`,
-      `color:${btn.variant === 'outline' || btn.variant === 'ghost' ? btn.borderColor : btn.textColor}`,
-      `border:${btn.borderWidth}px solid ${btn.borderColor}`,
-      `border-radius:${btn.borderRadius}px`,
-      `padding:${btn.paddingY}px ${btn.paddingX}px`,
-      `font-size:${btn.fontSize}px`,
-      `font-weight:${btn.fontWeight}`,
-      `display:inline-flex;align-items:center;justify-content:center`,
+      `background-color:${bgColor}`,
+      `color:${textColor}`,
+      `border:${borderWidth}px solid ${borderColor}`,
+      `border-radius:${borderRadius}px`,
+      `padding:${paddingY}px ${paddingX}px`,
+      `font-size:${fontSize}px`,
+      `font-weight:${fontWeight}`,
+      `font-family:inherit`,
+      `text-decoration:${variant === 'link' ? 'underline' : 'none'}`,
+      `display:inline-flex;align-items:center;justify-content:center;cursor:pointer`,
+      `transition:opacity .15s,transform .15s`,
       btn.fullWidth ? 'width:100%' : '',
-      btn.variant === 'link' ? 'text-decoration:underline' : '',
     ].filter(Boolean).join(';');
     return `<a href="${btn.url || '#'}"${target} class="uc-btn" style="${style}">${btn.label}</a>`;
   }
@@ -345,16 +381,25 @@
 
     'gallery': (sec) => {
       const s = sec.settings;
+      // Render a flat surface placeholder for blocks whose merchant hasn't
+      // uploaded an image yet, otherwise the page paints broken-image icons.
       const items = (sec.blocks || []).filter(b => (b.type === 'gallery-image' || b.type === 'gallery-item') && b.visible !== false)
-        .map(b => `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
-          <img src="${b.settings.url||b.settings.imageUrl||''}" alt="${b.settings.alt||''}" loading="lazy"
-            style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
-            onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
-        </div>`).join('');
+        .map(b => {
+          const src = b.settings.url || b.settings.imageUrl || '';
+          const media = src
+            ? `<img src="${src}" alt="${b.settings.alt||''}" loading="lazy"
+                 style="width:100%;height:${s.imageHeight||280}px;object-fit:cover;transition:transform .3s"
+                 onerror="this.style.display='none'"
+                 onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">`
+            : `<div style="width:100%;height:${s.imageHeight||280}px;background:var(--uc-surface);display:flex;align-items:center;justify-content:center;color:var(--uc-text-muted);font-size:12px;letter-spacing:.1em;text-transform:uppercase">Image</div>`;
+          return `<div class="uc-gallery-item" style="overflow:hidden;border-radius:var(--uc-card-radius)">
+            ${media}
+            ${b.settings.caption ? `<p style="padding:8px 0;font-size:13px;color:var(--uc-text-muted)">${b.settings.caption}</p>` : ''}
+          </div>`;
+        }).join('');
       return `<section class="uc-gallery">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
+          ${s.heading ? `<h2 class="uc-section-title" style="margin-bottom:24px">${s.heading}</h2>` : ''}
           <div style="display:grid;grid-template-columns:repeat(${s.columns||3},1fr);gap:var(--uc-gap)">${items || ''}</div>`, sec.layout)}
       </section>`;
     },
