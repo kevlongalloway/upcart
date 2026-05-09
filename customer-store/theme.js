@@ -13,33 +13,35 @@
   /* ── Theme definitions ───────────────────────────────────────────────────── */
   var THEMES = {
 
-    // ── Base ──────────────────────────────────────────────────────────────────
-    // Default theme. System fonts only — zero external deps, no broken-network
-    // FOUC. Designed as the neutral starting point that merchants customize on
-    // top of via the editor (colors, fonts, sections). Keep this minimal.
+    // ── Base (ARCH) ───────────────────────────────────────────────────────────
+    // Default theme: editorial fashion — Bodoni Moda display, Instrument Sans
+    // body, warm ecru background with camel accents. This is the starting
+    // point every new tenant lands on; merchants tune colors / fonts /
+    // sections from the editor on top of these defaults.
     base: {
-      fonts: null,
+      fonts: 'https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,700;1,6..96,400;1,6..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;1,400&display=swap',
       vars: [
-        '--font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--font-hero:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--color-bg:#ffffff',
-        '--color-text:#111111',
-        '--color-muted:#6b6b6b',
-        '--color-surface:#f5f5f5',
-        '--color-surface-border:#e8e8e8',
-        '--color-border:rgba(0,0,0,0.08)',
-        '--color-border-mid:rgba(0,0,0,0.14)',
-        '--color-accent:#111111',
-        '--color-accent-soft:rgba(17,17,17,0.08)',
-        '--color-danger:#b84c4c',
-        '--color-ticker-bg:#111111',
-        '--color-ticker-text:#ffffff',
-        '--color-footer-bg:#111111',
-        '--color-footer-text:#ffffff',
-        '--color-footer-border:rgba(255,255,255,0.12)',
-        '--color-btn-bg:#111111',
-        '--color-btn-text:#ffffff',
+        '--font-body:"Instrument Sans",system-ui,sans-serif',
+        '--font-display:"Bodoni Moda","Times New Roman",serif',
+        '--font-hero:"Bodoni Moda","Times New Roman",serif',
+        '--color-bg:#F5F2EC',
+        '--color-text:#1A1710',
+        '--color-muted:#8C8779',
+        '--color-surface:#FDFCF9',
+        '--color-surface-border:#DDD9D1',
+        '--color-border:#DDD9D1',
+        '--color-border-mid:rgba(26,23,16,0.18)',
+        '--color-accent:#C8A96E',
+        '--color-accent-d:#9E7D45',
+        '--color-accent-soft:rgba(200,169,110,0.16)',
+        '--color-danger:#B84C4C',
+        '--color-ticker-bg:#1A1710',
+        '--color-ticker-text:#FDFCF9',
+        '--color-footer-bg:#1A1710',
+        '--color-footer-text:#FDFCF9',
+        '--color-footer-border:rgba(255,255,255,0.08)',
+        '--color-btn-bg:#1A1710',
+        '--color-btn-text:#FDFCF9',
       ],
     },
 
@@ -297,6 +299,15 @@
     var evt = new CustomEvent('bst:settings', { detail: settings });
     document.dispatchEvent(evt);
   }
+
+  // Expose a re-apply hook so store-renderer.js can repopulate
+  // [data-store-name] / [data-hero-title] / etc. on the new DOM after it
+  // re-renders sections from the saved schema. Without this, dynamic
+  // sections rendered after the initial /settings/public fetch would never
+  // pick up store name / logo / hero copy from the live settings.
+  window.applyStoreBrand = function () {
+    if (window.STORE_SETTINGS) applyBrandOverrides(window.STORE_SETTINGS);
+  };
 
   function contrastText(hex) {
     var r = parseInt(hex.slice(1, 3), 16);

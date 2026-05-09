@@ -89,13 +89,15 @@ export interface EditorActions {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 // Seeded section types — every brand-new tenant lands in the editor with
-// these four sections already populated, in this exact order. Stable IDs let
-// us keep the seed reproducible across reloads without relying on nanoid().
+// the ARCH editorial layout already populated, in this exact order. Stable
+// IDs let us keep the seed reproducible across reloads without relying on
+// nanoid(). The shop sits on the home page so customers can browse without
+// hopping to /products.html.
 const DEFAULT_SECTION_SEEDS: Array<{ id: string; type: SectionType }> = [
-  { id: 'seed-header',  type: 'header'  },
-  { id: 'seed-hero',    type: 'hero'    },
-  { id: 'seed-gallery', type: 'gallery' },
-  { id: 'seed-footer',  type: 'footer'  },
+  { id: 'seed-header',  type: 'header'              },
+  { id: 'seed-hero',    type: 'hero'                },
+  { id: 'seed-shop',    type: 'filter-product-grid' },
+  { id: 'seed-footer',  type: 'footer'              },
 ];
 
 function buildSeededSection(id: string, type: SectionType): Section {
