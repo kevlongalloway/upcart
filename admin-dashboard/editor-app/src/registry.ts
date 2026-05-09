@@ -19,10 +19,13 @@ import {
 } from './types';
 
 // ── Shared default values ─────────────────────────────────────────────────
+// Tuned to the editorial-luxe palette (warm cream / ink / brass) so section
+// seeds blend with the global theme out of the box. Merchants can still
+// pick any colour.
 
-const whiteBg: Background   = { ...BG, color: '#ffffff' };
-const darkBg:  Background   = { ...BG, color: '#111111' };
-const surfaceBg: Background = { ...BG, color: '#f5f5f5' };
+const whiteBg: Background   = { ...BG, color: '#F4EFE6' };  // page ecru
+const darkBg:  Background   = { ...BG, color: '#161310' };  // ink (footer / announcement)
+const surfaceBg: Background = { ...BG, color: '#FBF7EE' };  // cream surface (cards / lifted blocks)
 
 function sectionPad(v = 80, h = 24): Spacing { return { top: v, right: h, bottom: v, left: h }; }
 
@@ -60,10 +63,13 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'Megaphone',
     category:    'structure',
     defaultSettings: {
-      text:      'Free shipping on all orders over $50 🎉',
-      textColor: '#ffffff',
-      linkText:  '',
-      linkUrl:   '',
+      text:      'Complimentary worldwide shipping on orders over $200',
+      textColor: '#FBF7EE',
+      backgroundColor: '#161310',
+      linkText:  'Discover',
+      linkUrl:   '/products.html',
+      height:    12,
+      fontSize:  11,
     },
     defaultLayout: {
       padding:    { top: 10, right: 24, bottom: 10, left: 24 },
@@ -88,29 +94,40 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'PanelTop',
     category:    'structure',
     defaultSettings: {
-      storeName:       'My Store',
+      storeName:       'Maison',
       logoUrl:         '',
-      // The header ships with a basic system-font wordmark by default. Merchants
-      // pick a display font from the global theme; they shouldn't need to fight
-      // a stylized default to get a plain logo.
-      logoFont:        'system',           // 'system' | 'display'
+      // Editorial luxe ships with a centered wordmark in the display serif.
+      // Merchants can swap to a system wordmark if they prefer a sans logo.
+      logoFont:        'display',          // 'system' | 'display'
+      logoLayout:      'centered',         // 'left' | 'centered'
+      logoSize:        24,
+      logoSpacing:     '.16em',
       showCartIcon:    true,
       showSearchIcon:  true,
-      showAccountIcon: false,
+      showAccountIcon: true,
       showWishlistIcon: false,
       showHamburger:   true,               // mobile-only menu toggle
       navLinks:        [
-        { label: 'Shop',  url: '/products' },
-        { label: 'About', url: '#'         },
+        { label: 'New In',     url: '/products.html' },
+        { label: 'Collection', url: '/products.html' },
+        { label: 'Editorial',  url: '#'              },
+      ],
+      navLinksRight:   [
+        { label: 'Atelier', url: '#' },
+        { label: 'Journal', url: '#' },
       ],
       sticky:          true,
       transparent:     false,
-      textColor:       '#111111',
+      textColor:       '#161310',
+      linkColor:       '#807767',
+      linkSize:        11,
+      linkSpacing:     28,
+      height:          72,
     },
     defaultLayout: {
       width:      'full',
-      padding:    { top: 0, right: 24, bottom: 0, left: 24 },
-      background: { ...whiteBg },
+      padding:    { top: 0, right: 40, bottom: 0, left: 40 },
+      background: { ...BG, color: '#FBF7EE' },
     },
     defaultBlocks:  [],
     settingsFields: [
@@ -139,47 +156,73 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   hero: {
     type:        'hero',
     name:        'Hero Banner',
-    description: 'Full-width banner with headline, subheadline, and CTA buttons.',
+    description: 'Editorial split banner with photo + headline + stats strip.',
     icon:        'LayoutTemplate',
     category:    'content',
     defaultSettings: {
-      headline:    'Welcome to Our Store',
-      subheadline: 'Discover our curated collection of premium products.',
+      // Editorial split layout: photo on the left, ink-on-cream text on the
+      // right. Merchants can flip back to a classic full-bleed hero via `layout`.
+      layout:        'split',
+      kicker:        'The Spring Edit',
+      issueLabel:    'Volume I',
+      headline:      'A study in',
+      headlineItalic: 'quiet luxury.',
+      subheadline:   'Considered pieces, photographed in natural light. Built in small runs, shipped from the studio.',
+      seasonMarker:  'SS · 2026',
+      imageUrl:      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1400&q=85&auto=format&fit=crop',
+      imageAlt:      'The Spring Edit — featured campaign',
+      imageCaption:  'Photographed in studio · Édition I',
+      showStats:     true,
+      stats: [
+        { value: '47',     label: 'New Arrivals'   },
+        { value: 'Free',   label: 'Worldwide Ship' },
+        { value: '30-Day', label: 'Returns'        },
+      ],
       headlineTypography: {
-        ...TYPO, fontSize: 52, fontWeight: 700, color: '#ffffff', textAlign: 'left',
+        ...TYPO, fontSize: 80, fontWeight: 500, color: '#161310', textAlign: 'left',
       },
       subheadlineTypography: {
-        ...TYPO, fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.8)', textAlign: 'left',
+        ...TYPO, fontSize: 16, fontWeight: 400, color: '#807767', textAlign: 'left',
       },
       primaryButton: {
-        ...BTN, label: 'Shop Now', url: '/products', backgroundColor: '#ffffff', textColor: '#111111',
-        hoverBackgroundColor: '#f0f0f0',
+        ...BTN, label: 'Shop the Edit', url: '/products.html', variant: 'solid',
+        backgroundColor: '#161310', textColor: '#FBF7EE', borderColor: '#161310',
+        paddingX: 28, paddingY: 16, fontSize: 11,
+        hoverBackgroundColor: '#8C6128', hoverTextColor: '#FBF7EE',
       },
-      showSecondaryButton: false,
+      showSecondaryButton: true,
       secondaryButton: {
-        ...BTN, label: 'Learn More', url: '#', variant: 'outline',
-        backgroundColor: 'transparent', textColor: '#ffffff', borderColor: '#ffffff',
-        hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+        ...BTN, label: 'Read the Journal', url: '#', variant: 'link',
+        backgroundColor: 'transparent', textColor: '#161310', borderColor: '#161310',
+        borderWidth: 0, paddingX: 0, paddingY: 4, fontSize: 11,
       },
-      contentMaxWidth:  640,
+      contentMaxWidth:  560,
       showScrollIndicator: false,
     },
     defaultLayout: {
       width:      'full',
-      padding:    { top: 120, right: 40, bottom: 120, left: 40 },
-      // Default is a clean dark surface — no remote image URL so the base
-      // theme never ships with a broken hot-linked image. Merchants opt in
-      // to a hero photo via the editor.
+      padding:    { top: 0, right: 0, bottom: 0, left: 0 },
       background: {
-        ...BG, type: 'color', color: '#1a1a1a',
+        ...BG, type: 'color', color: '#FBF7EE',
       },
-      minHeight:  480,
+      minHeight:  680,
       contentAlign: 'left',
     },
     defaultBlocks:  [],
     settingsFields: [
-      { key: 'headline',     label: 'Headline',    type: 'text', placeholder: 'Welcome…' },
-      { key: 'subheadline',  label: 'Subheadline', type: 'textarea', placeholder: 'Short description…' },
+      { key: 'layout',       label: 'Hero layout', type: 'select',
+        options: [
+          { value: 'split',   label: 'Split (photo + text)' },
+          { value: 'classic', label: 'Classic (full-bleed)' },
+        ] },
+      { key: 'kicker',       label: 'Kicker',       type: 'text',     placeholder: 'New Season Arrivals' },
+      { key: 'headline',     label: 'Headline',     type: 'text',     placeholder: 'The Coat' },
+      { key: 'headlineItalic', label: 'Italic accent (optional)', type: 'text', placeholder: 'Issue.' },
+      { key: 'subheadline',  label: 'Subheadline',  type: 'textarea', placeholder: 'Short description…' },
+      { key: 'imageUrl',     label: 'Hero image',   type: 'image' },
+      { key: 'imageAlt',     label: 'Image alt text', type: 'text' },
+      { key: 'seasonMarker', label: 'Vertical season marker', type: 'text', placeholder: 'SS 26' },
+      { key: 'showStats',    label: 'Show stat strip', type: 'toggle' },
       { key: 'primaryButton',      label: 'Primary button',    type: 'button-style' },
       { key: 'showSecondaryButton', label: 'Show secondary button', type: 'toggle' },
       { key: 'secondaryButton',    label: 'Secondary button',   type: 'button-style',
@@ -199,17 +242,18 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'LayoutGrid',
     category:    'commerce',
     defaultSettings: {
-      heading:          'Featured Products',
-      subheading:       '',
-      columns:          3,
-      limit:            6,
+      eyebrow:          'New Arrivals',
+      heading:          'The Edit, Spring 2026.',
+      subheading:       'A curated selection — hand-photographed, dispatched from the atelier.',
+      columns:          4,
+      limit:            8,
       showPrice:        true,
-      showAddToCart:    false,
+      showAddToCart:    true,
       imageAspectRatio: '3/4',
-      cardBorderRadius: 4,
+      cardBorderRadius: 0,
       showViewAll:      true,
-      viewAllText:      'View All Products',
-      viewAllUrl:       '/products',
+      viewAllText:      'See the Whole Collection',
+      viewAllUrl:       '/products.html',
     },
     defaultLayout: {
       padding:    sectionPad(),
@@ -292,7 +336,7 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'SlidersHorizontal',
     category:    'commerce',
     defaultSettings: {
-      heading:        'Shop',
+      heading:        '',
       collection:     '',         // optional collection slug to scope the query
       limit:          48,
       columns:        4,
@@ -305,7 +349,7 @@ const REGISTRY: Record<SectionType, SectionDef> = {
       categories:     ['All Items', 'Outerwear', 'Knitwear', 'Trousers', 'Footwear', 'Accessories'],
       sizes:          ['XS', 'S', 'M', 'L', 'XL'],
       priceMin:       0,
-      priceMax:       1000,
+      priceMax:       1200,
     },
     defaultLayout: {
       padding:    sectionPad(40),
@@ -400,33 +444,34 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   // ── Testimonials ──────────────────────────────────────────────────────
   testimonials: {
     type:        'testimonials',
-    name:        'Testimonials',
-    description: 'Customer reviews displayed as carousel or grid.',
+    name:        'Press / Testimonials',
+    description: 'Editorial quote cards for press mentions or customer reviews.',
     icon:        'Quote',
     category:    'engagement',
     defaultSettings: {
-      heading:          'What Our Customers Say',
-      layout:           'carousel',
+      eyebrow:          'In The Press',
+      heading:          'What people are saying.',
+      layout:           'grid',
       columns:          3,
-      autoplay:         true,
+      autoplay:         false,
       autoplayInterval: 5000,
       showRating:       true,
-      showAvatar:       true,
+      showAvatar:       false,
     },
     defaultLayout: {
-      padding:    sectionPad(),
+      padding:    sectionPad(96, 24),
       background: { ...surfaceBg },
     },
     defaultBlocks: [
       { type: 'testimonial', visible: true, settings: {
-        quote: '"Absolutely love my purchase! The quality exceeded my expectations."',
-        author: 'Sarah M.', role: 'Verified Buyer', avatarUrl: '', rating: 5 } },
+        quote: 'A masterclass in restraint — the kind of quiet design that makes everything else look loud.',
+        author: 'Vogue Living', role: 'Editor’s Pick', avatarUrl: '', rating: 5 } },
       { type: 'testimonial', visible: true, settings: {
-        quote: '"Fast shipping and beautiful packaging. Will definitely order again."',
-        author: 'James L.', role: 'Verified Buyer', avatarUrl: '', rating: 5 } },
+        quote: 'Pieces that age like good wood — softer, more yours, with every season.',
+        author: 'Monocle', role: 'Issue 184', avatarUrl: '', rating: 5 } },
       { type: 'testimonial', visible: true, settings: {
-        quote: '"Outstanding customer service. They went above and beyond."',
-        author: 'Emily R.', role: 'Verified Buyer', avatarUrl: '', rating: 5 } },
+        quote: 'Rarely do we recommend an entire collection. This is the rare exception.',
+        author: 'Kinfolk', role: 'The Style Issue', avatarUrl: '', rating: 5 } },
     ],
     settingsFields: [
       { key: 'heading', label: 'Section heading', type: 'text' },
@@ -470,18 +515,19 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'AlignLeft',
     category:    'content',
     defaultSettings: {
-      layout:      'image-right',
-      image:       '',
-      imageRadius: 8,
+      layout:      'image-left',
+      image:       'https://images.unsplash.com/photo-1581375074612-d1fd0e661aeb?w=1100&q=85&auto=format&fit=crop',
+      imageRadius: 0,
       imageShadow: false,
-      heading:     'Our Story',
-      headingTypography: { ...TYPO, fontSize: 36, fontWeight: 700, color: '' },
-      body:        '<p>Tell your brand story here. What makes you unique? What values drive your business? Share what your customers care about.</p>',
+      eyebrow:     'Our Story',
+      heading:     'Founded on a single, slow idea.',
+      headingTypography: { ...TYPO, fontSize: 44, fontWeight: 500, color: '' },
+      body:        '<p>We began in a sunlit studio with a small loom and a deep dissatisfaction with disposable luxury. Today, every piece we make starts in the same room — drafted by hand, prototyped over weeks, refined until it disappears into the wardrobe.</p>',
       showCta:     true,
-      ctaButton:   { ...BTN, label: 'Learn More', url: '#' },
+      ctaButton:   { ...BTN, label: 'Inside the Atelier', url: '#', variant: 'link', backgroundColor: 'transparent', textColor: '#161310', borderColor: '#161310', borderWidth: 0, paddingX: 0, paddingY: 4, fontSize: 11 },
     },
     defaultLayout: {
-      padding:    sectionPad(),
+      padding:    sectionPad(96, 24),
       background: { ...whiteBg },
     },
     defaultBlocks:  [],
@@ -508,13 +554,14 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   // ── Features / Benefits ───────────────────────────────────────────────
   features: {
     type:        'features',
-    name:        'Features / Benefits',
-    description: 'Icon + text grid showcasing product features or brand benefits.',
+    name:        'House Promises',
+    description: 'Numbered editorial promises (e.g. shipping, returns, materials).',
     icon:        'Sparkles',
     category:    'content',
     defaultSettings: {
-      heading:     'Why Choose Us',
-      subheading:  '',
+      eyebrow:     'The House',
+      heading:     'A practice, not a product.',
+      subheading:  'Three quiet promises that shape every piece we send.',
       columns:     3,
       iconColor:   '',
       iconSize:    40,
@@ -522,16 +569,16 @@ const REGISTRY: Record<SectionType, SectionDef> = {
       cardStyle:   'plain',
     },
     defaultLayout: {
-      padding:    sectionPad(),
-      background: { ...whiteBg },
+      padding:    sectionPad(96, 24),
+      background: { ...surfaceBg },
     },
     defaultBlocks: [
       { type: 'feature', visible: true, settings: {
-        icon: 'Truck', heading: 'Free Shipping', description: 'On all orders over $50' } },
+        heading: 'Considered Materials', description: 'Sourced from family-run mills in Italy, Portugal, and Japan.' } },
       { type: 'feature', visible: true, settings: {
-        icon: 'ShieldCheck', heading: 'Secure Payment', description: 'SSL encrypted checkout' } },
+        heading: 'Made in Small Runs',   description: 'Limited editions, never restocked — rarity by intention.' } },
       { type: 'feature', visible: true, settings: {
-        icon: 'RotateCcw', heading: 'Easy Returns', description: '30-day hassle-free returns' } },
+        heading: 'Shipped from Studio',  description: 'Hand-checked, carbon-neutral worldwide delivery within 48 hours.' } },
     ],
     settingsFields: [
       { key: 'heading',    label: 'Heading',    type: 'text' },
@@ -623,22 +670,23 @@ const REGISTRY: Record<SectionType, SectionDef> = {
   // ── Newsletter Signup ─────────────────────────────────────────────────
   newsletter: {
     type:        'newsletter',
-    name:        'Newsletter Signup',
-    description: 'Email capture form with heading and description.',
+    name:        'Le Journal (Newsletter)',
+    description: 'Editorial email capture with eyebrow, italic description, and inline form.',
     icon:        'Mail',
     category:    'engagement',
     defaultSettings: {
-      heading:        'Stay in the Loop',
-      description:    'Subscribe for exclusive deals, new arrivals, and insider updates.',
-      placeholder:    'Enter your email address',
+      eyebrow:        'Le Journal',
+      heading:        'Letters from the studio.',
+      description:    'A monthly note on what we’re making, where we’re looking, and the rare pieces we never list publicly.',
+      placeholder:    'your@email.com',
       buttonText:     'Subscribe',
-      disclaimer:     'No spam. Unsubscribe anytime.',
+      disclaimer:     'No noise. Unsubscribe anytime.',
       layout:         'centered',
-      inputRadius:    4,
+      inputRadius:    0,
     },
     defaultLayout: {
-      padding:    sectionPad(),
-      background: { ...surfaceBg },
+      padding:    sectionPad(96, 24),
+      background: { ...whiteBg },
     },
     defaultBlocks:  [],
     settingsFields: [
@@ -843,27 +891,51 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     category:    'structure',
     defaultSettings: {
       logoUrl:      '',
-      aboutText:    'Quality products with exceptional service.',
-      showSocial:   true,
+      storeName:    'Maison',
+      // Editorial brand tagline; reads as muted grey beneath the wordmark.
+      aboutText:    'Considered clothing for the discerning few. Crafted with precision, worn with intention.',
+      showSocial:   false,
       socialLinks: {
         instagram: '', twitter: '', facebook: '', tiktok: '', youtube: '',
       },
-      copyrightText: `© ${new Date().getFullYear()} My Store. All rights reserved.`,
+      copyrightText:  `© ${new Date().getFullYear()} Maison. All rights reserved.`,
+      legalLineText:  'Privacy · Terms · Accessibility',
       copyrightColor: '',
+      backgroundColor: '#161310',
+      textColor:       '#FBF7EE',
     },
     defaultLayout: {
       width: 'full',
-      padding: { top: 64, right: 40, bottom: 40, left: 40 },
-      background: { ...darkBg },
+      padding: { top: 80, right: 48, bottom: 36, left: 48 },
+      background: { ...BG, color: '#FBF7EE' },
     },
     defaultBlocks: [
       { type: 'footer-column', visible: true, settings: {
-        heading: 'Quick Links',
-        links: [{ label: 'Home', url: '/' }, { label: 'Shop', url: '/products' }, { label: 'Cart', url: '/cart' }],
+        heading: 'Shop',
+        links: [
+          { label: 'New In',     url: '/products.html' },
+          { label: 'Outerwear',  url: '/products.html' },
+          { label: 'Knitwear',   url: '/products.html' },
+          { label: 'Gift Cards', url: '#' },
+        ],
       } },
       { type: 'footer-column', visible: true, settings: {
-        heading: 'Support',
-        links: [{ label: 'FAQ', url: '#' }, { label: 'Returns', url: '#' }, { label: 'Contact', url: '#' }],
+        heading: 'Atelier',
+        links: [
+          { label: 'Our Story',      url: '#' },
+          { label: 'Sustainability', url: '#' },
+          { label: 'Stockists',      url: '#' },
+          { label: 'Press',          url: '#' },
+        ],
+      } },
+      { type: 'footer-column', visible: true, settings: {
+        heading: 'Help',
+        links: [
+          { label: 'Shipping & Returns', url: '#' },
+          { label: 'Size Guide',         url: '#' },
+          { label: 'Care Instructions',  url: '#' },
+          { label: 'Contact',            url: '#' },
+        ],
       } },
     ],
     settingsFields: [
