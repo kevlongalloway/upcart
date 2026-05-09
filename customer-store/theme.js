@@ -13,35 +13,39 @@
   /* ── Theme definitions ───────────────────────────────────────────────────── */
   var THEMES = {
 
-    // ── Base (ARCH-styled, universal fonts) ──────────────────────────────────
-    // Default theme: editorial fashion layout from the ARCH spec, but with
-    // universal Playfair Display + Inter typography so it works as a generic
-    // starting point for any merchant rather than feeling locked-in to one
-    // specific brand voice. The palette stays warm ecru / ink / camel.
+    // ── Base (Editorial luxe — Fraunces + Inter Tight) ───────────────────────
+    // The default theme that ships with every brand-new tenant. Designed to
+    // feel like a high-end editorial / luxury brand the moment a merchant
+    // lands on it: warm cream paper, ink-dark type, restrained brass accent,
+    // Fraunces (variable serif w/ optical sizes) for display + Inter Tight
+    // for UI. Painted synchronously so there is zero FOUC on first visit.
     base: {
-      fonts: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap',
+      fonts: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@300;400;500;600;700&display=swap',
       vars: [
-        '--font-body:"Inter",system-ui,-apple-system,sans-serif',
-        '--font-display:"Playfair Display","Times New Roman",Georgia,serif',
-        '--font-hero:"Playfair Display","Times New Roman",Georgia,serif',
-        '--color-bg:#F5F2EC',
-        '--color-text:#1A1710',
-        '--color-muted:#8C8779',
-        '--color-surface:#FDFCF9',
-        '--color-surface-border:#DDD9D1',
-        '--color-border:#DDD9D1',
-        '--color-border-mid:rgba(26,23,16,0.18)',
-        '--color-accent:#C8A96E',
-        '--color-accent-d:#9E7D45',
-        '--color-accent-soft:rgba(200,169,110,0.16)',
+        '--font-body:"Inter Tight","Inter",system-ui,-apple-system,sans-serif',
+        '--font-display:"Fraunces","Times New Roman",Georgia,serif',
+        '--font-hero:"Fraunces","Times New Roman",Georgia,serif',
+        // Warm paper-cream → deep ink. Slightly desaturated vs ARCH so brass
+        // pops and product photography does the talking.
+        '--color-bg:#F4EFE6',
+        '--color-text:#161310',
+        '--color-muted:#807767',
+        '--color-surface:#FBF7EE',
+        '--color-surface-border:#E4DCC9',
+        '--color-border:#E4DCC9',
+        '--color-border-mid:rgba(22,19,16,0.14)',
+        // Brass / antique gold — used for thin rules, hover states, accents.
+        '--color-accent:#B8884A',
+        '--color-accent-d:#8C6128',
+        '--color-accent-soft:rgba(184,136,74,0.14)',
         '--color-danger:#B84C4C',
-        '--color-ticker-bg:#1A1710',
-        '--color-ticker-text:#FDFCF9',
-        '--color-footer-bg:#1A1710',
-        '--color-footer-text:#FDFCF9',
-        '--color-footer-border:rgba(255,255,255,0.08)',
-        '--color-btn-bg:#1A1710',
-        '--color-btn-text:#FDFCF9',
+        '--color-ticker-bg:#161310',
+        '--color-ticker-text:#FBF7EE',
+        '--color-footer-bg:#161310',
+        '--color-footer-text:#FBF7EE',
+        '--color-footer-border:rgba(251,247,238,0.10)',
+        '--color-btn-bg:#161310',
+        '--color-btn-text:#FBF7EE',
       ],
     },
 

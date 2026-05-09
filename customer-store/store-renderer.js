@@ -218,13 +218,14 @@
       const headingItal  = s.headlineItalic || s.headingItalic || '';
       const subheading   = s.subheading || s.subheadline || '';
       // Editorial chrome — kicker line, season marker — defines the look.
-      // Fall back to ARCH-style defaults so legacy schemas (without these
-      // fields) still paint as ARCH instead of a half-styled hero.
-      const kicker       = s.kicker     || s.eyebrow     || 'New Arrivals';
+      // Fall back to refined defaults so legacy schemas (without these fields)
+      // still paint correctly instead of a half-styled hero.
+      const kicker       = s.kicker     || s.eyebrow     || 'The New Arrivals';
       const seasonMarker = typeof s.seasonMarker === 'string' ? s.seasonMarker : '';
-      const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 400;
+      const issueLabel   = s.issueLabel || s.editionLabel || '';
+      const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 640;
 
-      // ─── ARCH split layout ─────────────────────────────────────────────
+      // ─── Editorial split layout ────────────────────────────────────────
       // Photo on the left, ink-on-cream copy + stats strip on the right with
       // a thin vertical rule between them. Falls back gracefully when the
       // merchant hasn't supplied a hero image.
@@ -236,54 +237,83 @@
         // layout still reads as intentional editorial chrome instead of an
         // empty white box.
         const photoEmptyClass = s.imageUrl ? '' : ' uc-hero-photo-empty';
+        const storeNameForFallback = (window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store';
         const photo = s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${(s.imageAlt||'').replace(/"/g,'&quot;')}" loading="eager"
-              style="width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:brightness(.92) contrast(1.04);transition:transform 8s ease" onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
+              class="uc-hero-photo-img"
+              onerror="this.parentElement.classList.add('uc-hero-photo-empty');this.style.display='none'">`
           : `<div class="uc-hero-photo-fallback">
-              <span class="uc-hero-photo-eyebrow">Welcome to</span>
-              <span class="uc-hero-photo-name" data-store-name>${(window.STORE_SETTINGS && window.STORE_SETTINGS.store_name) || 'Your Store'}</span>
+              <span class="uc-hero-photo-eyebrow">An introduction to</span>
+              <span class="uc-hero-photo-name" data-store-name>${storeNameForFallback}</span>
               <span class="uc-hero-photo-rule"></span>
+              <span class="uc-hero-photo-meta">Volume I — Édition Studio</span>
             </div>`;
+        // Photo overlay chrome: paginated badge + corner caption tying the
+        // image into the editorial frame.
+        const photoOverlay = `
+          <span class="uc-hero-photo-badge" aria-hidden="true">
+            <span class="uc-hero-photo-badge-rule"></span>
+            <span class="uc-hero-photo-badge-num">N°01</span>
+          </span>
+          <span class="uc-hero-photo-caption" aria-hidden="true">${(s.imageCaption || 'Photographed in studio · Édition I').replace(/"/g,'&quot;')}</span>
+        `;
+
+        // Headline: large display serif, hairline italic accent below.
         // data-hero-title sits on an inner span so settings.hero_title can
         // overwrite just the main wordmark while the italic accent
         // (settings.hero_italic / section.headlineItalic) stays untouched.
-        const headingHtml = `<h1 class="uc-hero-headline" style="font-family:var(--uc-heading-font);font-size:clamp(40px,4.5vw,72px);font-weight:700;line-height:.95;letter-spacing:-.03em;margin:0 0 28px;color:var(--uc-text)"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;color:var(--uc-text-muted);font-size:.72em">${headingItal}</span>` : ''}</h1>`;
-        const subHtml = subheading ? `<p data-hero-subtitle style="font-size:14px;line-height:1.6;color:var(--uc-text-muted);margin-bottom:24px;max-width:420px">${subheading}</p>` : '';
-        const kickerHtml = `<div class="uc-hero-kicker" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--uc-text-muted);margin-bottom:20px;display:flex;align-items:center;gap:10px">
-              <span style="display:block;width:28px;height:1px;background:var(--uc-accent);flex-shrink:0"></span>${kicker}
+        const headingHtml = `<h1 class="uc-hero-headline">
+            <span class="uc-hero-headline-main" data-hero-title>${heading}</span>
+            ${headingItal ? `<span class="uc-hero-headline-italic">${headingItal}</span>` : ''}
+          </h1>`;
+        const subHtml = subheading
+          ? `<p class="uc-hero-sub" data-hero-subtitle>${subheading}</p>`
+          : '';
+        const kickerHtml = `<div class="uc-hero-kicker">
+              <span class="uc-hero-kicker-rule"></span>
+              <span class="uc-hero-kicker-text">${kicker}</span>
+              ${issueLabel ? `<span class="uc-hero-kicker-issue">${issueLabel}</span>` : ''}
             </div>`;
         const seasonHtml = seasonMarker
-          ? `<span class="uc-hero-season" aria-hidden="true" style="position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--uc-border)">${seasonMarker}</span>`
+          ? `<span class="uc-hero-season" aria-hidden="true">${seasonMarker}</span>`
           : '';
-        const statsHtml = showStats ? `<div class="uc-hero-stats" style="position:absolute;bottom:0;left:0;right:0;display:flex;border-top:1px solid var(--uc-border)">
-            ${stats.map((st, i) => `<div class="uc-hero-stat" style="flex:1;padding:10px 16px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--uc-text-muted);${i < stats.length - 1 ? 'border-right:1px solid var(--uc-border)' : ''}">
-              <strong style="display:block;font-size:15px;font-family:var(--uc-heading-font);font-weight:400;color:var(--uc-text);letter-spacing:0;margin-bottom:1px">${st.value||''}</strong>${st.label||''}
+        const statsHtml = showStats ? `<div class="uc-hero-stats">
+            ${stats.map((st, i) => `<div class="uc-hero-stat${i < stats.length - 1 ? ' uc-hero-stat--rule' : ''}">
+              <strong class="uc-hero-stat-val">${st.value||''}</strong>
+              <span class="uc-hero-stat-lbl">${st.label||''}</span>
             </div>`).join('')}
           </div>` : '';
 
-        // ARCH editorial CTA: text link with arrow + thin underline. Pulls
-        // label/url from the merchant's primaryButton (or legacy hero_cta /
-        // ctaLabel fields) but ignores backgroundColor / borderRadius from
-        // older schemas so we never render a stranded white button or a
-        // default browser link. The merchant can still rename / repoint it
-        // through the Primary button field in the editor.
-        const primary  = s.primaryButton || {};
-        const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop Now';
+        // Editorial CTA pair: a primary text-link with arrow and a thin
+        // secondary "Read the journal" link. Pulls label/url from the
+        // merchant's primaryButton (or legacy hero_cta / ctaLabel fields)
+        // but ignores backgroundColor / borderRadius from older schemas so
+        // we never render a stranded white button or default browser link.
+        const primary  = s.primaryButton   || {};
+        const secondary = s.secondaryButton || {};
+        const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop the Edit';
         // /products collides with the API route on the tenant worker; the
-        // static products *page* is served at /products.html. Use that as the
-        // CTA target so clicks don't fall through to the JSON API.
+        // static products *page* is served at /products.html.
         const ctaUrl   = primary.url   || s.ctaUrl   || '/products.html';
-        const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-        const ctaHtml  = `<a href="${ctaUrl}" data-hero-cta class="uc-hero-cta" style="display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--uc-text);border-bottom:1px solid var(--uc-text);padding-bottom:2px;width:fit-content;text-decoration:none;font-family:var(--uc-body-font);transition:gap .25s,color .2s,border-color .2s">${ctaLabel}${arrowSvg}</a>`;
+        const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        const showSecondary = s.showSecondaryButton !== false && (secondary.label || s.secondaryLabel);
+        const secondaryLabel = secondary.label || s.secondaryLabel || 'Read the Journal';
+        const secondaryUrl   = secondary.url   || s.secondaryUrl   || '#';
+        const ctaHtml  = `<div class="uc-hero-cta-row">
+          <a href="${ctaUrl}" data-hero-cta class="uc-hero-cta">${ctaLabel}${arrowSvg}</a>
+          ${showSecondary ? `<a href="${secondaryUrl}" class="uc-hero-cta-secondary">${secondaryLabel}</a>` : ''}
+        </div>`;
 
-        return `<section class="uc-hero uc-hero-split" style="position:relative;height:${minH}px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;background:${s.backgroundColor||'var(--uc-surface)'}">
-          <div class="uc-hero-photo${photoEmptyClass}" style="position:relative;overflow:hidden;border-right:1px solid var(--uc-border);background:var(--uc-bg)">${photo}</div>
-          <div class="uc-hero-text" style="background:var(--uc-surface);display:flex;flex-direction:column;justify-content:flex-end;padding:44px 48px;position:relative;${showStats ? 'padding-bottom:60px;' : ''}">
+        return `<section class="uc-hero uc-hero-split" style="--uc-hero-min:${minH}px;background:${s.backgroundColor||'var(--uc-surface)'}">
+          <div class="uc-hero-photo${photoEmptyClass}">${photo}${photoOverlay}</div>
+          <div class="uc-hero-text${showStats ? ' uc-hero-text--with-stats' : ''}">
             ${seasonHtml}
-            ${kickerHtml}
-            ${headingHtml}
-            ${subHtml}
-            ${ctaHtml}
+            <div class="uc-hero-text-inner">
+              ${kickerHtml}
+              ${headingHtml}
+              ${subHtml}
+              ${ctaHtml}
+            </div>
             ${statsHtml}
           </div>
         </section>`;
@@ -318,9 +348,14 @@
       const showATC    = s.showAddToCart !== false;
       const heading    = s.heading || '';
       const subheading = s.subheading || '';
+      const eyebrow    = s.eyebrow || (heading ? 'The Edit' : '');
+      const showViewAll = s.showViewAll !== false;
+      const viewAllText = s.viewAllText || 'View All';
+      const viewAllUrl  = s.viewAllUrl  || '/products.html';
       return `<section class="uc-product-grid">
         ${wrapContainer(`
           ${heading || subheading ? `<div class="uc-pg-head">
+            ${eyebrow ? `<span class="uc-section-eyebrow">${eyebrow}</span>` : ''}
             ${heading ? `<h2 class="uc-section-title">${heading}</h2>` : ''}
             ${subheading ? `<p class="uc-section-sub">${subheading}</p>` : ''}
           </div>` : ''}
@@ -332,7 +367,12 @@
                data-uc-show-atc="${showATC ? '1' : '0'}"
                style="--uc-pg-cols:${cols}">
             <p class="uc-pg-state" data-uc-pg-state>Loading products…</p>
-          </div>`, sec.layout)}
+          </div>
+          ${showViewAll ? `<div class="uc-pg-cta-wrap">
+            <a class="uc-pg-cta" href="${viewAllUrl}">${viewAllText}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+          </div>` : ''}`, sec.layout)}
       </section>`;
     },
 
@@ -486,19 +526,26 @@
     'testimonials': (sec) => {
       const s = sec.settings;
       const items = (sec.blocks || []).filter(b => b.type === 'testimonial' && b.visible !== false)
-        .map(b => `<div style="background:var(--uc-surface);padding:24px;border-radius:var(--uc-card-radius);border:1px solid var(--uc-border)">
-          ${s.showRating !== false ? `<div style="color:var(--uc-accent);font-size:20px;margin-bottom:8px">${'★'.repeat(b.settings.rating||5)}</div>` : ''}
-          <p style="font-size:15px;line-height:1.6;margin-bottom:16px">${b.settings.quote||b.settings.text||''}</p>
-          <div style="display:flex;align-items:center;gap:12px">
-            ${s.showAvatar !== false && b.settings.avatarUrl ? `<img src="${b.settings.avatarUrl}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover">` : ''}
-            <div><p style="font-weight:600;font-size:13px">${b.settings.author||''}</p>
-            <p style="font-size:12px;color:var(--uc-text-muted)">${b.settings.role||''}</p></div>
-          </div>
-        </div>`).join('');
+        .map(b => `<figure class="uc-testimonial">
+          <span class="uc-testimonial-mark" aria-hidden="true">&ldquo;</span>
+          ${s.showRating !== false ? `<span class="uc-testimonial-rating" aria-label="Rated ${b.settings.rating||5} out of 5">${'★'.repeat(b.settings.rating||5)}</span>` : ''}
+          <blockquote class="uc-testimonial-quote">${b.settings.quote||b.settings.text||''}</blockquote>
+          <figcaption class="uc-testimonial-attr">
+            ${s.showAvatar !== false && b.settings.avatarUrl ? `<img src="${b.settings.avatarUrl}" alt="" class="uc-testimonial-avatar">` : ''}
+            <div>
+              <span class="uc-testimonial-author">${b.settings.author||''}</span>
+              ${b.settings.role ? `<span class="uc-testimonial-role">${b.settings.role}</span>` : ''}
+            </div>
+          </figcaption>
+        </figure>`).join('');
       return `<section class="uc-testimonials">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--uc-gap)">${items||''}</div>`, sec.layout)}
+          <div class="uc-testimonials-head">
+            ${s.eyebrow ? `<span class="uc-section-eyebrow">${s.eyebrow}</span>` : ''}
+            ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
+            ${s.subheading ? `<p class="uc-section-sub">${s.subheading}</p>` : ''}
+          </div>
+          <div class="uc-testimonials-grid">${items||''}</div>`, sec.layout)}
       </section>`;
     },
 
@@ -531,33 +578,33 @@
 
     'features': (sec) => {
       const s = sec.settings;
-      const cardBg = s.cardStyle === 'plain' ? 'transparent'
-                   : s.cardStyle === 'filled' ? 'var(--uc-surface)' : 'var(--uc-surface)';
-      const cardBorder = s.cardStyle === 'bordered' ? '1px solid var(--uc-border)' : 'none';
-      const cardShadow = s.cardStyle === 'shadow' ? 'box-shadow:0 4px 12px rgba(0,0,0,.08);' : '';
-      const items = (sec.blocks || []).filter(b => b.type === 'feature' && b.visible !== false)
-        .map(b => {
-          // Registry block uses `icon` (Lucide name string), `heading`, `description`.
-          // Older renderer used `iconUrl`/`emoji` and `title`. Support both.
-          const iconHtml = b.settings.iconUrl
-            ? `<img src="${b.settings.iconUrl}" alt="" style="width:${s.iconSize||40}px;height:${s.iconSize||40}px;margin-bottom:12px">`
-            : b.settings.emoji
-            ? `<div style="font-size:${s.iconSize||36}px;margin-bottom:12px">${b.settings.emoji}</div>`
-            : b.settings.icon
-            ? `<div style="font-size:${(s.iconSize||40)*0.6}px;color:${s.iconColor||'var(--uc-accent)'};margin-bottom:12px;font-weight:600">${b.settings.icon}</div>`
-            : '';
-          const heading = b.settings.heading || b.settings.title || '';
-          return `<div style="text-align:${s.cardAlign||'left'};padding:${s.cardPadding||24}px;background:${cardBg};border-radius:var(--uc-card-radius);border:${cardBorder};${cardShadow}">
+      const blocks = (sec.blocks || []).filter(b => b.type === 'feature' && b.visible !== false);
+      const items = blocks.map((b, i) => {
+        const idx = String(i + 1).padStart(2, '0');
+        // Allow merchants to override with a custom icon string, otherwise use
+        // the editorial numbered prefix that defines this layout.
+        const iconHtml = b.settings.iconUrl
+          ? `<img src="${b.settings.iconUrl}" alt="" class="uc-feature-icon-img">`
+          : `<span class="uc-feature-num">${b.settings.icon || idx}</span>`;
+        const heading = b.settings.heading || b.settings.title || '';
+        return `<div class="uc-feature-card">
+          <div class="uc-feature-top">
             ${iconHtml}
-            <h3 style="font-size:${s.titleSize||18}px;font-weight:600;margin-bottom:8px">${heading}</h3>
-            <p style="font-size:${s.bodySize||14}px;line-height:1.6;color:var(--uc-text-muted)">${b.settings.description||''}</p>
-          </div>`;
-        }).join('');
+            <span class="uc-feature-rule"></span>
+          </div>
+          <h3 class="uc-feature-heading">${heading}</h3>
+          <p class="uc-feature-body">${b.settings.description||''}</p>
+        </div>`;
+      }).join('');
+      const cols = parseInt(s.columns, 10) || 3;
       return `<section class="uc-features">
         ${wrapContainer(`
-          ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
-          ${s.subheading ? `<p class="uc-section-sub">${s.subheading}</p>` : ''}
-          <div style="display:grid;grid-template-columns:repeat(${s.columns||'auto-fit'},${s.columns?'1fr':'minmax(220px,1fr)'});gap:var(--uc-gap)">${items||''}</div>`, sec.layout)}
+          ${s.eyebrow || s.heading ? `<div class="uc-features-head">
+            ${s.eyebrow ? `<span class="uc-section-eyebrow">${s.eyebrow}</span>` : ''}
+            ${s.heading ? `<h2 class="uc-section-title">${s.heading}</h2>` : ''}
+            ${s.subheading ? `<p class="uc-section-sub">${s.subheading}</p>` : ''}
+          </div>` : ''}
+          <div class="uc-features-grid" style="--uc-feat-cols:${cols}">${items||''}</div>`, sec.layout)}
       </section>`;
     },
 
@@ -588,17 +635,19 @@
       // Registry uses `description` and `buttonText`; older renderer used `subheading` and `buttonLabel`.
       const description = s.description || s.subheading || '';
       const buttonText  = s.buttonText  || s.buttonLabel || 'Subscribe';
-      const inputRadius = s.inputRadius != null ? s.inputRadius + 'px' : 'var(--uc-radius)';
       return `<section class="uc-newsletter">
-        ${wrapContainer(`<div style="text-align:center;max-width:560px;margin:0 auto">
-          ${s.heading ? `<h2 style="font-size:${s.headingSize||32}px;font-weight:var(--uc-heading-weight);margin-bottom:12px">${s.heading}</h2>` : ''}
-          ${description ? `<p style="font-size:16px;color:var(--uc-text-muted);margin-bottom:24px">${description}</p>` : ''}
-          <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-            <input type="email" placeholder="${s.placeholder||'Enter your email'}"
-              style="flex:1;min-width:200px;padding:12px 16px;border:1px solid var(--uc-border);border-radius:${inputRadius};background:var(--uc-surface);color:var(--uc-text);font-size:14px;outline:none">
-            <button type="submit" style="padding:12px 24px;background:var(--uc-primary);color:var(--uc-primary-text);border:none;border-radius:${inputRadius};font-weight:600;cursor:pointer;font-size:14px">${buttonText}</button>
+        ${wrapContainer(`<div class="uc-newsletter-card">
+          <div class="uc-newsletter-rule" aria-hidden="true"></div>
+          ${s.eyebrow ? `<span class="uc-section-eyebrow" style="justify-content:center">${s.eyebrow}</span>` : `<span class="uc-section-eyebrow uc-newsletter-eyebrow">Le Journal</span>`}
+          ${s.heading ? `<h2 class="uc-newsletter-heading">${s.heading}</h2>` : ''}
+          ${description ? `<p class="uc-newsletter-desc">${description}</p>` : ''}
+          <form onsubmit="return false" class="uc-newsletter-form">
+            <input type="email" placeholder="${s.placeholder||'your@email.com'}" class="uc-newsletter-input">
+            <button type="submit" class="uc-newsletter-btn">${buttonText}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
           </form>
-          ${s.disclaimer ? `<p style="font-size:12px;color:var(--uc-text-muted);margin-top:12px">${s.disclaimer}</p>` : ''}
+          ${s.disclaimer ? `<p class="uc-newsletter-disclaimer">${s.disclaimer}</p>` : ''}
         </div>`, sec.layout)}
       </section>`;
     },
@@ -739,7 +788,15 @@
     /* ── Header chrome ───────────────────────────────────────────── */
     .uc-header-icon { transition: opacity .15s, color .15s; }
     .uc-header-icon:hover { color: var(--uc-accent); opacity: 1; }
+    .uc-nav-link { position: relative; transition: color .2s; }
+    .uc-nav-link::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: -4px;
+      height: 1px; background: currentColor;
+      transform: scaleX(0); transform-origin: right;
+      transition: transform .35s cubic-bezier(.7,0,.3,1);
+    }
     .uc-nav-link:hover { color: var(--uc-text) !important; }
+    .uc-nav-link:hover::after { transform: scaleX(1); transform-origin: left; }
     .uc-header-hamburger { display: none; }
     @media (max-width: 900px) {
       .uc-header-links { display: none !important; }
@@ -749,41 +806,221 @@
       .uc-header-centered .uc-header-right .uc-header-links { display: none !important; }
     }
 
-    /* ── Hero (ARCH split) ───────────────────────────────────────── */
-    .uc-hero-split:hover .uc-hero-photo img { transform: scale(1.03); }
+    /* ── Hero (editorial split) ──────────────────────────────────── */
+    .uc-hero-split {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      min-height: var(--uc-hero-min, 640px);
+      overflow: hidden;
+    }
+    .uc-hero-photo {
+      position: relative; overflow: hidden;
+      border-right: 1px solid var(--uc-border);
+      background: var(--uc-bg);
+    }
+    .uc-hero-photo-img {
+      width: 100%; height: 100%; object-fit: cover;
+      object-position: center 30%;
+      filter: brightness(.94) contrast(1.05) saturate(1.02);
+      transform: scale(1.04);
+      transition: transform 14s ease-out, filter .6s ease;
+    }
+    .uc-hero-split:hover .uc-hero-photo-img { transform: scale(1.10); }
+
+    .uc-hero-photo-badge {
+      position: absolute; top: 28px; left: 28px;
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      background: rgba(251,247,238,0.92);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      color: var(--uc-text);
+      font-family: var(--uc-body-font);
+      font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    }
+    .uc-hero-photo-badge-rule {
+      display: inline-block; width: 22px; height: 1px;
+      background: var(--uc-accent);
+    }
+    .uc-hero-photo-badge-num { font-weight: 500; }
+
+    .uc-hero-photo-caption {
+      position: absolute; bottom: 24px; left: 28px; right: 28px;
+      font-family: var(--uc-body-font);
+      font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+      color: rgba(251,247,238,.82);
+      text-shadow: 0 1px 12px rgba(0,0,0,.35);
+    }
+
     /* Empty / missing hero image: warm gradient + store wordmark so a brand
        new merchant who hasn't uploaded a hero image still sees an inviting,
        branded fallback instead of an empty striped panel. */
     .uc-hero-photo-empty {
       background:
-        radial-gradient(120% 80% at 30% 20%, var(--uc-surface) 0%, var(--uc-bg) 60%, var(--uc-surface) 100%) !important;
+        radial-gradient(140% 100% at 30% 25%, var(--uc-surface) 0%, var(--uc-bg) 55%, #ECE3D0 100%) !important;
     }
+    .uc-hero-photo-empty .uc-hero-photo-badge,
+    .uc-hero-photo-empty .uc-hero-photo-caption { display: none; }
     .uc-hero-photo-fallback {
       position: absolute; inset: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 18px; padding: 32px;
+      gap: 22px; padding: 48px;
       text-align: center;
     }
     .uc-hero-photo-eyebrow {
-      font-size: 10px; letter-spacing: .25em; text-transform: uppercase;
+      font-family: var(--uc-body-font);
+      font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
       color: var(--uc-text-muted);
     }
     .uc-hero-photo-name {
       font-family: var(--uc-heading-font);
-      font-size: clamp(36px, 5vw, 64px);
-      font-weight: 600;
-      letter-spacing: .04em;
-      line-height: 1.05;
+      font-feature-settings: "ss01";
+      font-size: clamp(40px, 5.5vw, 72px);
+      font-weight: 500;
+      letter-spacing: -.005em;
+      line-height: 1;
       color: var(--uc-text);
-      max-width: 90%;
-      text-transform: uppercase;
+      max-width: 92%;
     }
     .uc-hero-photo-rule {
-      display: block; width: 48px; height: 1px;
-      background: var(--uc-accent, var(--uc-text));
-      opacity: .6;
+      display: block; width: 56px; height: 1px;
+      background: var(--uc-accent);
+      opacity: .9;
     }
-    .uc-hero-cta:hover { gap: 16px !important; color: var(--uc-accent) !important; border-color: var(--uc-accent) !important; }
+    .uc-hero-photo-meta {
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-size: 14px; color: var(--uc-text-muted);
+      letter-spacing: .01em;
+    }
+
+    .uc-hero-text {
+      background: var(--uc-surface);
+      display: flex; flex-direction: column;
+      padding: 56px 64px 56px 72px;
+      position: relative;
+    }
+    .uc-hero-text--with-stats { padding-bottom: 80px; }
+    .uc-hero-text-inner {
+      margin-top: auto;
+      max-width: 540px;
+    }
+
+    .uc-hero-season {
+      position: absolute; right: 24px; top: 50%;
+      transform: translateY(-50%) rotate(90deg); transform-origin: center;
+      font-family: var(--uc-body-font);
+      font-size: 10px; letter-spacing: .35em; text-transform: uppercase;
+      color: var(--uc-text-muted); opacity: .55;
+      white-space: nowrap;
+    }
+
+    .uc-hero-kicker {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 28px;
+      font-family: var(--uc-body-font);
+      font-size: 10px; letter-spacing: .26em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+    }
+    .uc-hero-kicker-rule {
+      display: inline-block; width: 32px; height: 1px;
+      background: var(--uc-accent);
+      flex-shrink: 0;
+    }
+    .uc-hero-kicker-text { color: var(--uc-text); font-weight: 500; }
+    .uc-hero-kicker-issue {
+      margin-left: auto;
+      padding-left: 14px;
+      border-left: 1px solid var(--uc-border);
+      color: var(--uc-text-muted);
+    }
+
+    .uc-hero-headline {
+      font-family: var(--uc-heading-font);
+      font-feature-settings: "ss01", "lnum";
+      font-size: clamp(48px, 6vw, 92px);
+      font-weight: 500;
+      line-height: .95;
+      letter-spacing: -.02em;
+      margin: 0 0 28px;
+      color: var(--uc-text);
+    }
+    .uc-hero-headline-main { display: block; }
+    .uc-hero-headline-italic {
+      display: block;
+      font-style: italic;
+      font-weight: 400;
+      color: var(--uc-text-muted);
+      font-size: .68em;
+      letter-spacing: -.012em;
+      margin-top: 4px;
+    }
+
+    .uc-hero-sub {
+      font-family: var(--uc-body-font);
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--uc-text-muted);
+      margin: 0 0 36px;
+      max-width: 460px;
+    }
+
+    .uc-hero-cta-row {
+      display: flex; align-items: center; gap: 28px;
+      flex-wrap: wrap;
+    }
+    .uc-hero-cta {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 16px 28px;
+      background: var(--uc-text); color: var(--uc-bg);
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background .25s ease, color .25s ease, gap .3s ease, letter-spacing .3s ease;
+    }
+    .uc-hero-cta:hover {
+      background: var(--uc-accent); color: var(--uc-bg);
+      gap: 18px; letter-spacing: .26em;
+    }
+    .uc-hero-cta svg { transition: transform .3s ease; }
+    .uc-hero-cta:hover svg { transform: translateX(3px); }
+    .uc-hero-cta-secondary {
+      display: inline-flex; align-items: center;
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--uc-text);
+      text-decoration: none;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--uc-border-mid, var(--uc-border));
+      transition: border-color .25s, color .25s;
+    }
+    .uc-hero-cta-secondary:hover { color: var(--uc-accent); border-color: var(--uc-accent); }
+
+    .uc-hero-stats {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      display: flex; border-top: 1px solid var(--uc-border);
+      background: var(--uc-surface);
+    }
+    .uc-hero-stat {
+      flex: 1;
+      padding: 16px 22px;
+      font-family: var(--uc-body-font);
+      font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--uc-text-muted);
+    }
+    .uc-hero-stat--rule { border-right: 1px solid var(--uc-border); }
+    .uc-hero-stat-val {
+      display: block;
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-weight: 500;
+      font-size: 22px;
+      color: var(--uc-text);
+      letter-spacing: -.01em;
+      margin-bottom: 4px;
+    }
+    .uc-hero-stat-lbl { display: block; }
 
     /* ── Gallery empty tile placeholder ─────────────────────────── */
     .uc-gallery-empty {
@@ -795,70 +1032,90 @@
       content: ''; display: block;
       width: 36px; height: 1px; background: var(--uc-accent);
     }
-    @media (max-width: 700px) {
-      .uc-hero-split { grid-template-columns: 1fr !important; height: auto !important; }
-      .uc-hero-split .uc-hero-photo { height: 220px !important; border-right: none !important; border-bottom: 1px solid var(--uc-border) !important; }
-      .uc-hero-split .uc-hero-text { padding: 28px 24px 60px !important; }
-      .uc-hero-split .uc-hero-season { display: none !important; }
+
+    @media (max-width: 1024px) {
+      .uc-hero-text { padding: 48px 48px; }
+    }
+    @media (max-width: 760px) {
+      .uc-hero-split { grid-template-columns: 1fr !important; min-height: auto !important; }
+      .uc-hero-split .uc-hero-photo { height: 380px; border-right: none; border-bottom: 1px solid var(--uc-border); }
+      .uc-hero-text { padding: 40px 28px 80px; }
+      .uc-hero-text--with-stats { padding-bottom: 92px; }
+      .uc-hero-season { display: none; }
+      .uc-hero-photo-badge { top: 16px; left: 16px; padding: 8px 12px; font-size: 9px; }
+      .uc-hero-photo-caption { left: 16px; right: 16px; bottom: 14px; font-size: 9px; }
+      .uc-hero-headline { font-size: clamp(40px, 11vw, 64px); }
+      .uc-hero-stat-val { font-size: 18px; }
+      .uc-hero-stat { padding: 12px 14px; }
     }
 
-    /* ── Footer (refined, light) ─────────────────────────────────── */
+    /* ── Footer (works on light or dark bg via currentColor) ─────── */
     .uc-footer {
-      padding: 72px 48px 28px;
-      border-top: 1px solid var(--uc-border);
+      padding: 96px 48px 36px;
       font-family: var(--uc-body-font);
     }
     .uc-footer .uc-footer-grid {
       display: grid;
       grid-template-columns: 1.6fr 1fr 1fr 1fr;
       gap: 56px;
-      padding-bottom: 48px;
+      padding-bottom: 56px;
+      border-bottom: 1px solid currentColor;
+      border-bottom-color: rgba(255,255,255,0.10);
     }
-    .uc-footer-brand { max-width: 280px; }
+    .uc-footer[style*="surface"] .uc-footer-grid,
+    .uc-footer[style*="F4EFE6"] .uc-footer-grid,
+    .uc-footer[style*="FBF7EE"] .uc-footer-grid {
+      border-bottom-color: var(--uc-border);
+    }
+    .uc-footer-brand { max-width: 320px; }
     .uc-footer-wordmark {
       font-family: var(--uc-heading-font);
-      font-size: 22px; font-weight: 600;
-      letter-spacing: .04em;
-      margin-bottom: 14px;
-      color: var(--uc-text);
+      font-size: 28px; font-weight: 500;
+      letter-spacing: -.005em;
+      margin-bottom: 18px;
+      color: currentColor;
     }
-    .uc-footer-logo-img { height: 32px; width: auto; margin-bottom: 14px; }
+    .uc-footer-logo-img { height: 36px; width: auto; margin-bottom: 18px; }
     .uc-footer-tagline {
-      font-size: 13px; line-height: 1.7;
-      color: var(--uc-text-muted);
+      font-size: 13px; line-height: 1.75;
+      color: currentColor; opacity: .7;
       margin: 0;
+      max-width: 320px;
     }
     .uc-footer-col-title {
-      font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
-      color: var(--uc-text-muted);
-      font-weight: 600;
-      margin-bottom: 18px;
+      font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+      color: currentColor; opacity: .55;
+      font-weight: 500;
+      margin-bottom: 22px;
     }
-    .uc-footer-links { display: flex; flex-direction: column; gap: 10px; }
+    .uc-footer-links { display: flex; flex-direction: column; gap: 12px; }
     .uc-footer-link, .uc-footer-content {
-      font-size: 13px; color: var(--uc-text);
+      font-size: 13px; color: currentColor;
       text-decoration: none;
-      transition: color .15s, opacity .15s;
-      opacity: .75;
+      transition: opacity .2s, color .2s;
+      opacity: .82;
+      letter-spacing: .01em;
     }
     .uc-footer-link:hover { opacity: 1; color: var(--uc-accent); }
     .uc-footer-bottom {
       display: flex; justify-content: space-between; align-items: center;
       flex-wrap: wrap; gap: 14px;
-      padding-top: 22px;
-      border-top: 1px solid var(--uc-border);
+      padding-top: 28px;
     }
-    .uc-footer-copy { font-size: 11px; color: var(--uc-text-muted); letter-spacing: .04em; }
-    .uc-footer-social { display: flex; gap: 18px; }
+    .uc-footer-copy {
+      font-size: 11px; color: currentColor; opacity: .5;
+      letter-spacing: .08em;
+    }
+    .uc-footer-social { display: flex; gap: 22px; }
     .uc-footer-social a {
-      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-      color: var(--uc-text-muted); text-decoration: none;
-      transition: color .15s;
+      font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+      color: currentColor; opacity: .55; text-decoration: none;
+      transition: opacity .2s, color .2s;
     }
-    .uc-footer-social a:hover { color: var(--uc-text); }
+    .uc-footer-social a:hover { opacity: 1; color: var(--uc-accent); }
     @media (max-width: 900px) {
-      .uc-footer { padding: 48px 24px 24px; }
-      .uc-footer .uc-footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; padding-bottom: 32px; }
+      .uc-footer { padding: 64px 24px 28px; }
+      .uc-footer .uc-footer-grid { grid-template-columns: 1fr 1fr; gap: 36px; padding-bottom: 36px; }
     }
     @media (max-width: 600px) {
       .uc-footer .uc-footer-grid { grid-template-columns: 1fr; gap: 28px; }
@@ -1015,39 +1272,287 @@
 
     .uc-product-card {
       display: block; text-decoration: none; color: inherit;
-      background: var(--uc-surface);
-      border: 1px solid var(--uc-border);
+      background: transparent;
+      border: none;
       border-radius: var(--uc-card-radius);
-      overflow: hidden;
-      transition: transform .3s cubic-bezier(.16,1,.3,1), border-color .2s;
+      overflow: visible;
+      transition: transform .35s cubic-bezier(.16,1,.3,1);
       position: relative;
     }
-    .uc-product-card:hover { transform: translateY(-2px); border-color: var(--uc-text); }
-    .uc-product-card:hover .uc-product-img img { transform: scale(1.04); }
+    .uc-product-card:hover .uc-product-img img { transform: scale(1.05); }
+    .uc-product-card:hover .uc-product-img::after { opacity: 1; }
     .uc-product-card:hover .uc-product-atc { opacity: 1; transform: translateY(0); }
+    .uc-product-card:hover .uc-product-name { color: var(--uc-accent-d, var(--uc-accent)); }
     .uc-product-img {
       aspect-ratio: 3/4;
-      background: var(--uc-bg);
+      background: var(--uc-surface);
       overflow: hidden;
       position: relative;
+      border-radius: var(--uc-card-radius);
     }
-    .uc-product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.16,1,.3,1); }
-    .uc-product-info { padding: 16px 14px 20px; }
-    .uc-product-name { font-family: var(--uc-heading-font); font-size: 17px; font-weight: 400; line-height: 1.25; margin-bottom: 8px; }
-    .uc-product-price { font-size: 13px; color: var(--uc-text); }
+    .uc-product-img::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 55%, rgba(22,19,16,0.18) 100%);
+      opacity: 0; transition: opacity .3s ease;
+      pointer-events: none;
+    }
+    .uc-product-img img {
+      width: 100%; height: 100%; object-fit: cover;
+      transition: transform .8s cubic-bezier(.16,1,.3,1), filter .3s ease;
+    }
+    .uc-product-info { padding: 18px 2px 4px; }
+    .uc-product-name {
+      font-family: var(--uc-heading-font);
+      font-size: 17px; font-weight: 400; line-height: 1.3;
+      margin-bottom: 6px;
+      letter-spacing: -.005em;
+      transition: color .2s ease;
+    }
+    .uc-product-price {
+      font-family: var(--uc-body-font);
+      font-size: 12px; letter-spacing: .04em;
+      color: var(--uc-text-muted);
+    }
     .uc-product-atc {
-      position: absolute; left: 12px; right: 12px; bottom: 12px;
-      padding: 10px 12px;
-      background: var(--uc-surface); color: var(--uc-text);
-      border: none; cursor: pointer;
+      position: absolute; left: 16px; right: 16px; bottom: 16px;
+      padding: 13px 16px;
+      background: var(--uc-bg); color: var(--uc-text);
+      border: 1px solid transparent;
+      cursor: pointer;
       font: inherit; font-size: 10px; font-weight: 500;
-      letter-spacing: .12em; text-transform: uppercase;
-      border-radius: var(--uc-radius);
-      opacity: 0; transform: translateY(6px);
-      transition: opacity .2s, transform .2s, background .2s, color .2s;
+      letter-spacing: .22em; text-transform: uppercase;
+      opacity: 0; transform: translateY(8px);
+      transition: opacity .25s ease, transform .25s ease, background .25s, color .25s;
     }
-    .uc-product-atc:hover { background: var(--uc-accent); color: var(--uc-primary-text); }
+    .uc-product-atc:hover { background: var(--uc-text); color: var(--uc-bg); }
     @media (hover: none) { .uc-product-atc { opacity: 1; transform: none; } }
+
+    /* ── Decorative section frame: brass eyebrow rule above titles ─ */
+    .uc-pg-head, .uc-features > div > .uc-container, .uc-newsletter > div > .uc-container,
+    .uc-info > div, .uc-categories > div > .uc-container, .uc-testimonials > div > .uc-container { position: relative; }
+
+    /* ── Product grid head + view-all CTA ───────────────────────── */
+    .uc-pg-head {
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto 56px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .uc-pg-head .uc-section-sub { text-align: center; }
+    .uc-pg-cta-wrap {
+      display: flex; justify-content: center;
+      margin-top: 56px;
+    }
+    .uc-pg-cta {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 14px 0;
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--uc-text);
+      text-decoration: none;
+      border-bottom: 1px solid var(--uc-text);
+      transition: color .25s, gap .3s, border-color .25s;
+    }
+    .uc-pg-cta:hover { color: var(--uc-accent); border-color: var(--uc-accent); gap: 18px; }
+
+    /* ── Features (numbered editorial cards) ────────────────────── */
+    .uc-features-head {
+      max-width: 640px;
+      margin: 0 auto 64px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .uc-features-head .uc-section-sub { text-align: center; }
+    .uc-features-grid {
+      display: grid;
+      grid-template-columns: repeat(var(--uc-feat-cols, 3), 1fr);
+      gap: 0;
+      border-top: 1px solid var(--uc-border);
+      border-bottom: 1px solid var(--uc-border);
+    }
+    .uc-feature-card {
+      padding: 44px 36px;
+      border-right: 1px solid var(--uc-border);
+      transition: background .3s ease;
+    }
+    .uc-feature-card:last-child { border-right: none; }
+    .uc-feature-card:hover { background: var(--uc-surface); }
+    .uc-feature-top {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 22px;
+    }
+    .uc-feature-num {
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--uc-accent);
+      letter-spacing: -.01em;
+    }
+    .uc-feature-icon-img { width: 28px; height: 28px; object-fit: contain; }
+    .uc-feature-rule {
+      flex: 1; height: 1px;
+      background: var(--uc-border);
+    }
+    .uc-feature-heading {
+      font-family: var(--uc-heading-font);
+      font-size: 22px; font-weight: 500; line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--uc-text);
+      letter-spacing: -.01em;
+    }
+    .uc-feature-body {
+      font-family: var(--uc-body-font);
+      font-size: 14px; line-height: 1.65;
+      color: var(--uc-text-muted);
+      margin: 0;
+    }
+    @media (max-width: 900px) {
+      .uc-features-grid { grid-template-columns: 1fr !important; }
+      .uc-feature-card { border-right: none; border-bottom: 1px solid var(--uc-border); padding: 32px 24px; }
+      .uc-feature-card:last-child { border-bottom: none; }
+    }
+
+    /* ── Testimonials (editorial quote cards) ───────────────────── */
+    .uc-testimonials-head {
+      text-align: center; max-width: 640px;
+      margin: 0 auto 56px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .uc-testimonials-head .uc-section-sub { text-align: center; }
+    .uc-testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 28px;
+    }
+    .uc-testimonial {
+      position: relative;
+      padding: 40px 32px 32px;
+      background: var(--uc-bg);
+      border: 1px solid var(--uc-border);
+      transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
+      margin: 0;
+    }
+    .uc-testimonial:hover {
+      transform: translateY(-2px);
+      border-color: var(--uc-accent);
+      box-shadow: 0 18px 48px -28px rgba(22,19,16,0.28);
+    }
+    .uc-testimonial-mark {
+      position: absolute; top: -10px; left: 22px;
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-size: 96px; line-height: 1;
+      color: var(--uc-accent);
+      pointer-events: none;
+    }
+    .uc-testimonial-rating {
+      display: block;
+      color: var(--uc-accent);
+      font-size: 14px; letter-spacing: .12em;
+      margin-bottom: 18px;
+    }
+    .uc-testimonial-quote {
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-weight: 400;
+      font-size: 18px; line-height: 1.55;
+      letter-spacing: -.005em;
+      color: var(--uc-text);
+      margin: 0 0 28px;
+      quotes: none;
+    }
+    .uc-testimonial-quote::before, .uc-testimonial-quote::after { content: none; }
+    .uc-testimonial-attr {
+      display: flex; align-items: center; gap: 14px;
+      padding-top: 20px;
+      border-top: 1px solid var(--uc-border);
+    }
+    .uc-testimonial-avatar {
+      width: 40px; height: 40px;
+      object-fit: cover; border-radius: 50%;
+    }
+    .uc-testimonial-author {
+      display: block;
+      font-family: var(--uc-body-font);
+      font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--uc-text);
+    }
+    .uc-testimonial-role {
+      display: block;
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .1em;
+      color: var(--uc-text-muted);
+      margin-top: 3px;
+    }
+
+    /* ── Newsletter (editorial centered card) ───────────────────── */
+    .uc-newsletter-card {
+      max-width: 600px; margin: 0 auto;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+      position: relative;
+    }
+    .uc-newsletter-rule {
+      width: 1px; height: 56px;
+      background: var(--uc-accent);
+      margin-bottom: 28px;
+    }
+    .uc-newsletter-eyebrow { justify-content: center; }
+    .uc-newsletter-heading {
+      font-family: var(--uc-heading-font);
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -.018em;
+      margin: 0 0 14px;
+      color: var(--uc-text);
+    }
+    .uc-newsletter-desc {
+      font-family: var(--uc-heading-font);
+      font-style: italic;
+      font-weight: 400;
+      font-size: 16px; line-height: 1.6;
+      color: var(--uc-text-muted);
+      margin: 0 0 36px;
+      max-width: 460px;
+    }
+    .uc-newsletter-form {
+      display: flex; align-items: stretch;
+      width: 100%; max-width: 460px;
+      border: 1px solid var(--uc-text);
+      background: var(--uc-bg);
+    }
+    .uc-newsletter-input {
+      flex: 1; min-width: 0;
+      padding: 16px 18px;
+      border: none; outline: none;
+      background: transparent; color: var(--uc-text);
+      font: inherit; font-family: var(--uc-body-font);
+      font-size: 13px; letter-spacing: .04em;
+    }
+    .uc-newsletter-input::placeholder { color: var(--uc-text-muted); letter-spacing: .04em; }
+    .uc-newsletter-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 22px;
+      background: var(--uc-text); color: var(--uc-bg);
+      border: none;
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .25s, color .25s, gap .3s;
+    }
+    .uc-newsletter-btn:hover { background: var(--uc-accent); gap: 14px; }
+    .uc-newsletter-disclaimer {
+      font-family: var(--uc-body-font);
+      font-size: 11px; letter-spacing: .08em;
+      color: var(--uc-text-muted);
+      margin: 22px 0 0;
+    }
+    @media (max-width: 600px) {
+      .uc-newsletter-form { flex-direction: column; }
+      .uc-newsletter-btn { justify-content: center; }
+    }
 
     .uc-shop-grid.uc-view-list .uc-product-card { display: grid; grid-template-columns: 140px 1fr; }
     .uc-shop-grid.uc-view-list .uc-product-img { aspect-ratio: auto; height: 100%; }
@@ -1249,8 +1754,10 @@
       `.uc-w-wide  { max-width: 1440px; }\n` +
       `.uc-w-contained { max-width: var(--uc-container-max); }\n` +
       `.uc-w-narrow { max-width: 720px; }\n` +
-      `.uc-section-title { font-size: clamp(1.75rem, 3.5vw, 2.75rem); font-weight: var(--uc-heading-weight); line-height: 1.1; letter-spacing: -.01em; margin-bottom: 12px; }\n` +
-      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; line-height: 1.6; }\n` +
+      `.uc-section-title { font-family: var(--uc-heading-font); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 500; line-height: 1.04; letter-spacing: -.022em; margin-bottom: 14px; }\n` +
+      `.uc-section-eyebrow { display: inline-flex; align-items: center; gap: 12px; font-family: var(--uc-body-font); font-size: 10px; letter-spacing: .26em; text-transform: uppercase; color: var(--uc-text-muted); margin-bottom: 18px; }\n` +
+      `.uc-section-eyebrow::before { content: ''; display: inline-block; width: 28px; height: 1px; background: var(--uc-accent); }\n` +
+      `.uc-section-sub { font-family: var(--uc-heading-font); font-style: italic; font-weight: 400; font-size: 1.15rem; color: var(--uc-text-muted); margin-bottom: 48px; line-height: 1.55; max-width: 520px; }\n` +
       `.uc-prose { font-size: var(--uc-base-font-size); line-height: 1.8; }\n` +
       `.uc-prose h2 { font-size: 1.5em; margin: 1.5em 0 .5em; }\n` +
       `.uc-prose p { margin: 0 0 1em; }\n` +
@@ -1780,25 +2287,39 @@
   // provisioning-service/src/defaults/store-schema.ts so the live storefront
   // and the editor stay in sync.
   function buildDefaultSchema(settings) {
-    var s = settings || {};
-    var name = s.store_name || 'Your Store';
+    var s    = settings || {};
+    var name = s.store_name || 'Maison';
+    var year = new Date().getFullYear();
     return {
       version: '2.0',
       globalTheme: {
         preset: 'base',
         colors: {
-          primary: '#111111', primaryText: '#ffffff', secondary: '#555555',
-          accent: '#C8A96E', background: '#ffffff', surface: '#f7f5f1',
-          text: '#111111', textMuted: '#7a7468', border: 'rgba(0,0,0,0.1)',
+          primary:    '#161310',
+          primaryText:'#FBF7EE',
+          secondary:  '#807767',
+          accent:     '#B8884A',
+          background: '#F4EFE6',
+          surface:    '#FBF7EE',
+          text:       '#161310',
+          textMuted:  '#807767',
+          border:     '#E4DCC9',
         },
         typography: {
-          headingFont: 'inherit', bodyFont: 'inherit',
-          baseFontSize: 16, headingWeight: 700, bodyWeight: 400,
-          lineHeight: 1.6, letterSpacing: 0,
+          headingFont:   'Fraunces',
+          bodyFont:      'Inter Tight',
+          baseFontSize:  15,
+          headingWeight: 600,
+          bodyWeight:    400,
+          lineHeight:    1.6,
+          letterSpacing: 0,
         },
         spacing: {
-          containerMaxWidth: 1200, sectionVerticalPadding: 80,
-          borderRadius: 4, cardBorderRadius: 4, elementGap: 16,
+          containerMaxWidth:      1320,
+          sectionVerticalPadding: 96,
+          borderRadius:           0,
+          cardBorderRadius:       0,
+          elementGap:             20,
         },
         customCSS: '',
       },
@@ -1806,54 +2327,163 @@
         index: {
           id: 'index', name: 'Home', slug: 'index.html',
           sections: [
+            // ── 1. Slim editorial announcement bar ──────────────────
+            {
+              id: 'd-announce', type: 'announcement-bar', visible: true, locked: true, layout: {},
+              settings: {
+                text: 'Complimentary worldwide shipping on orders over $200',
+                linkText: 'Discover',
+                linkUrl: '/products.html',
+                backgroundColor: '#161310',
+                textColor: '#FBF7EE',
+                height: 12,
+                fontSize: 11,
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            // ── 2. Centered editorial header ────────────────────────
             {
               id: 'd-header', type: 'header', visible: true, locked: true, layout: {},
               settings: {
-                storeName: name, showCartIcon: true, sticky: true,
-                navLinks: [{ label: 'Shop', url: '/products.html' }, { label: 'About', url: '#' }],
+                storeName: name,
+                logoFont: 'display',
+                logoLayout: 'centered',
+                logoSize: 24,
+                logoSpacing: '.16em',
+                showCartIcon: true,
+                showSearchIcon: true,
+                showAccountIcon: true,
+                sticky: true,
+                navLinks: [
+                  { label: 'New In',     url: '/products.html' },
+                  { label: 'Collection', url: '/products.html' },
+                  { label: 'Editorial',  url: '#' },
+                ],
+                navLinksRight: [
+                  { label: 'Atelier', url: '#' },
+                  { label: 'Journal', url: '#' },
+                ],
+                linkSpacing: 28,
               },
               blocks: [], customCSS: '', customClasses: '',
             },
+            // ── 3. Editorial split hero ─────────────────────────────
             {
-              id: 'd-hero', type: 'hero', visible: true, layout: {},
+              id: 'd-hero', type: 'hero', visible: true, layout: { width: 'full', minHeight: 680, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
               settings: {
-                headline:      s.hero_title    || 'Made for everyday',
-                subheadline:   s.hero_subtitle || 'A modern collection of essentials, designed to last.',
-                kicker:        'New Collection',
-                primaryButton: { label: s.hero_cta || 'Shop the Collection', url: '/products.html' },
+                layout: 'split',
+                kicker:        'The Spring Edit',
+                issueLabel:    'Volume I',
+                headline:      s.hero_title    || 'A study in',
+                headlineItalic:                   'quiet luxury.',
+                subheadline:   s.hero_subtitle || 'Considered pieces, photographed in natural light. Built in small runs, shipped from the studio.',
+                seasonMarker:  'SS · ' + year,
+                imageUrl:      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1400&q=85&auto=format&fit=crop',
+                imageAlt:      'The Spring Edit — featured campaign',
+                imageCaption:  'Photographed in studio · Édition I',
+                showStats:     true,
+                stats: [
+                  { value: '47',     label: 'New Arrivals'   },
+                  { value: 'Free',   label: 'Worldwide Ship' },
+                  { value: '30-Day', label: 'Returns'        },
+                ],
+                primaryButton:   { label: s.hero_cta || 'Shop the Edit', url: '/products.html' },
+                showSecondaryButton: true,
+                secondaryButton: { label: 'Read the Journal', url: '#' },
               },
               blocks: [], customCSS: '', customClasses: '',
             },
+            // ── 4. Numbered editorial features (luxury rituals) ─────
             {
-              id: 'd-features', type: 'features', visible: true, layout: {},
-              settings: { columns: 3, cardStyle: 'plain', cardAlign: 'center' },
+              id: 'd-features', type: 'features', visible: true,
+              layout: { padding: { top: 96, right: 24, bottom: 96, left: 24 }, background: { type: 'color', color: '#FBF7EE' } },
+              settings: {
+                columns: 3,
+                eyebrow: 'The House',
+                heading: 'A practice, not a product.',
+                subheading: 'Three quiet promises that shape every piece we send.',
+              },
               blocks: [
-                { id: 'df1', type: 'feature', visible: true, settings: { heading: 'Free Shipping',   description: 'On every order over $75.', icon: '01' } },
-                { id: 'df2', type: 'feature', visible: true, settings: { heading: 'Easy Returns',    description: '30-day, no questions.',     icon: '02' } },
-                { id: 'df3', type: 'feature', visible: true, settings: { heading: 'Secure Checkout', description: 'Encrypted via Stripe.',     icon: '03' } },
+                { id: 'df1', type: 'feature', visible: true, settings: { heading: 'Considered Materials', description: 'Sourced from family-run mills in Italy, Portugal, and Japan.' } },
+                { id: 'df2', type: 'feature', visible: true, settings: { heading: 'Made in Small Runs',    description: 'Limited editions, never restocked — rarity by intention.' } },
+                { id: 'df3', type: 'feature', visible: true, settings: { heading: 'Shipped from Studio',   description: 'Hand-checked, carbon-neutral worldwide delivery within 48 hours.' } },
               ],
               customCSS: '', customClasses: '',
             },
+            // ── 5. The featured edit (product grid) ─────────────────
             {
               id: 'd-products', type: 'product-grid', visible: true, layout: {},
-              settings: { heading: 'New Arrivals', subheading: 'A curated selection of our latest pieces.', columns: 4, limit: 8, showAddToCart: true },
+              settings: {
+                eyebrow: 'New Arrivals',
+                heading: 'The Edit, Spring ' + year + '.',
+                subheading: 'A curated selection — hand-photographed, dispatched from the atelier.',
+                columns: 4, limit: 8, showAddToCart: true,
+                showViewAll: true, viewAllText: 'See the Whole Collection', viewAllUrl: '/products.html',
+              },
               blocks: [], customCSS: '', customClasses: '',
             },
+            // ── 6. Brand story (info section) ───────────────────────
             {
-              id: 'd-newsletter', type: 'newsletter', visible: true, layout: {},
-              settings: { heading: 'Join the list', description: 'Hear about new arrivals first.', buttonText: 'Subscribe', placeholder: 'you@example.com' },
+              id: 'd-info', type: 'info', visible: true,
+              layout: { padding: { top: 96, right: 24, bottom: 96, left: 24 }, background: { type: 'color', color: '#F4EFE6' } },
+              settings: {
+                layout: 'image-left',
+                image: 'https://images.unsplash.com/photo-1581375074612-d1fd0e661aeb?w=1100&q=85&auto=format&fit=crop',
+                imageRadius: 0,
+                eyebrow: 'Our Story',
+                heading: 'Founded on a single, slow idea.',
+                body: '<p>We began in a sunlit studio with a small loom and a deep dissatisfaction with disposable luxury. Today, every piece we make starts in the same room — drafted by hand, prototyped over weeks, refined until it disappears into the wardrobe.</p>',
+                showCta: true,
+                ctaButton: { label: 'Inside the Atelier', url: '#', variant: 'link', backgroundColor: 'transparent', textColor: '#161310', borderColor: '#161310', borderWidth: 0, paddingX: 0, paddingY: 4, fontSize: 11 },
+              },
               blocks: [], customCSS: '', customClasses: '',
             },
+            // ── 7. Press / testimonials ─────────────────────────────
+            {
+              id: 'd-press', type: 'testimonials', visible: true,
+              layout: { padding: { top: 96, right: 24, bottom: 96, left: 24 }, background: { type: 'color', color: '#FBF7EE' } },
+              settings: {
+                eyebrow: 'In The Press',
+                heading: 'What people are saying.',
+                showAvatar: false,
+                showRating: true,
+              },
+              blocks: [
+                { id: 'dp1', type: 'testimonial', visible: true, settings: { quote: 'A masterclass in restraint — the kind of quiet design that makes everything else look loud.', author: 'Vogue Living', role: 'Editor’s Pick',     rating: 5 } },
+                { id: 'dp2', type: 'testimonial', visible: true, settings: { quote: 'Pieces that age like good wood — softer, more yours, with every season.',                          author: 'Monocle',      role: 'Issue 184',        rating: 5 } },
+                { id: 'dp3', type: 'testimonial', visible: true, settings: { quote: 'Rarely do we recommend an entire collection. This is the rare exception.',                       author: 'Kinfolk',      role: 'The Style Issue',  rating: 5 } },
+              ],
+              customCSS: '', customClasses: '',
+            },
+            // ── 8. Newsletter (Le Journal) ──────────────────────────
+            {
+              id: 'd-newsletter', type: 'newsletter', visible: true,
+              layout: { padding: { top: 96, right: 24, bottom: 96, left: 24 }, background: { type: 'color', color: '#F4EFE6' } },
+              settings: {
+                eyebrow: 'Le Journal',
+                heading: 'Letters from the studio.',
+                description: 'A monthly note on what we’re making, where we’re looking, and the rare pieces we never list publicly.',
+                placeholder: 'your@email.com',
+                buttonText: 'Subscribe',
+                disclaimer: 'No noise. Unsubscribe anytime.',
+              },
+              blocks: [], customCSS: '', customClasses: '',
+            },
+            // ── 9. Footer (dark ink) ────────────────────────────────
             {
               id: 'd-footer', type: 'footer', visible: true, locked: true, layout: {},
               settings: {
-                aboutText:     s.store_description || 'A thoughtfully made collection — shipped fast and built to last.',
-                copyrightText: '© ' + new Date().getFullYear() + ' ' + name + '. All rights reserved.',
+                storeName:       name,
+                aboutText:       s.store_description || 'Considered clothing for the discerning few. Crafted with precision, worn with intention.',
+                copyrightText:   '© ' + year + ' ' + name + '. All rights reserved.',
+                legalLineText:   'Privacy · Terms · Accessibility',
+                backgroundColor: '#161310',
+                textColor:       '#FBF7EE',
               },
               blocks: [
-                { id: 'dfc1', type: 'footer-column', visible: true, settings: { heading: 'Shop',    links: [{ label: 'All Products', url: '/products.html' }] } },
-                { id: 'dfc2', type: 'footer-column', visible: true, settings: { heading: 'Help',    links: [{ label: 'Contact', url: '#' }, { label: 'Shipping', url: '#' }, { label: 'Returns', url: '#' }] } },
-                { id: 'dfc3', type: 'footer-column', visible: true, settings: { heading: 'Company', links: [{ label: 'About',   url: '#' }] } },
+                { id: 'dfc1', type: 'footer-column', visible: true, settings: { heading: 'Shop',    links: [{ label: 'New In',         url: '/products.html' }, { label: 'Outerwear',  url: '/products.html' }, { label: 'Knitwear', url: '/products.html' }, { label: 'Gift Cards', url: '#' }] } },
+                { id: 'dfc2', type: 'footer-column', visible: true, settings: { heading: 'Atelier', links: [{ label: 'Our Story',      url: '#' }, { label: 'Sustainability', url: '#' }, { label: 'Stockists', url: '#' }, { label: 'Press',     url: '#' }] } },
+                { id: 'dfc3', type: 'footer-column', visible: true, settings: { heading: 'Help',    links: [{ label: 'Shipping & Returns', url: '#' }, { label: 'Size Guide', url: '#' }, { label: 'Care Instructions', url: '#' }, { label: 'Contact', url: '#' }] } },
               ],
               customCSS: '', customClasses: '',
             },
