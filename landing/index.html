@@ -5,6 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Upcart — Your Store, Built to Scale</title>
+<!-- Set at deploy time by your CI/CD pipeline: -->
+<!-- <meta name="upcart-stripe-pk" content="pk_live_..."> -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700;800;900&display=swap" rel="stylesheet">
@@ -788,7 +790,7 @@ margin: 0 auto 1rem;
 }
 
 /* Theme picker */
-.theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .theme-card {
 border-radius: 6px;
 overflow: hidden;
@@ -894,7 +896,7 @@ border: 1px solid var(--border-default);
 }
 
 @media (max-width: 480px) {
-.theme-grid { grid-template-columns: repeat(3, 1fr); }
+.theme-grid { grid-template-columns: repeat(2, 1fr); }
 .step-line  { width: 28px; }
 }
 
@@ -1552,6 +1554,8 @@ nav { padding: 0 20px; }
     <div class="step-dot" id="dot-2">2</div>
     <div class="step-line" id="line-2-3"></div>
     <div class="step-dot" id="dot-3">3</div>
+    <div class="step-line" id="line-3-4"></div>
+    <div class="step-dot" id="dot-4">4</div>
   </div>
 
   <!-- Card -->
@@ -1646,8 +1650,19 @@ nav { padding: 0 20px; }
             <label class="form-label mb-2">Storefront theme</label>
             <div class="theme-grid" id="theme-grid">
 
-              <label class="theme-card selected" data-theme="mono">
-                <input type="radio" name="store-theme" value="mono" checked>
+              <label class="theme-card selected" data-theme="base">
+                <input type="radio" name="store-theme" value="base" checked>
+                <div class="theme-preview" style="background:#ffffff">
+                  <div class="theme-preview-bar w100" style="background:#111111"></div>
+                  <div class="theme-preview-bar w70"  style="background:#111111"></div>
+                  <div class="theme-preview-bar w50"  style="background:#111111"></div>
+                  <div class="theme-preview-btn" style="background:#111111"></div>
+                </div>
+                <div class="theme-label" style="background:#f5f5f5;color:#111111">Base</div>
+              </label>
+
+              <label class="theme-card" data-theme="mono">
+                <input type="radio" name="store-theme" value="mono">
                 <div class="theme-preview" style="background:#f5f5f5">
                   <div class="theme-preview-bar w100" style="background:#1a1a1a"></div>
                   <div class="theme-preview-bar w70"  style="background:#1a1a1a"></div>
@@ -1758,15 +1773,57 @@ nav { padding: 0 20px; }
         </form>
       </div>
 
-      <!-- ══ Step 3: Payments ══ -->
+      <!-- ══ Step 3: Verify email ══ -->
       <div class="step-panel" id="panel-3">
-        <div class="step-title">Payments</div>
-        <div class="step-subtitle">
-          We handle all payment processing. After your store is live, you'll connect your
-          bank account via Stripe to receive payouts.
-        </div>
+        <div class="step-title">Verify your email</div>
+        <div class="step-subtitle" id="otp-subtitle">We sent a 6-digit code to your email. Enter it below to continue.</div>
         <form id="form-3" novalidate>
-          <div class="mb-1">
+          <div class="mb-3">
+            <label class="form-label" for="otp-code">Verification code <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="otp-code"
+              placeholder="123456" maxlength="6" inputmode="numeric"
+              autocomplete="one-time-code" required
+              style="font-size:1.5rem;letter-spacing:0.3em;text-align:center">
+            <div class="invalid-feedback" id="otp-feedback">Please enter the 6-digit code we sent you.</div>
+          </div>
+          <div class="mb-3 text-center">
+            <button type="button" class="btn btn-link btn-sm p-0" id="resend-btn"
+              style="color:var(--text-muted);font-size:0.78rem">
+              Didn't get the code? <span style="color:var(--gold)">Resend</span>
+            </button>
+            <span id="resend-cooldown" class="d-none" style="font-size:0.78rem;color:var(--text-muted)">
+              Resend available in <span id="resend-countdown">60</span>s
+            </span>
+          </div>
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-2">
+              <i class="bi bi-arrow-left me-1"></i>Back
+            </button>
+            <button type="submit" class="btn btn-primary px-4" id="verify-btn">
+              Verify <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ══ Step 4: Payments ══ -->
+      <div class="step-panel" id="panel-4">
+        <div class="step-title">Verify payment method</div>
+        <div class="step-subtitle">
+          We place a $1 authorization hold to confirm your card is valid — it's
+          released immediately once your store is live. No charge will appear.
+        </div>
+        <form id="form-4" novalidate>
+          <!-- Card input mounted by Stripe.js -->
+          <div class="mb-3">
+            <label class="form-label" style="font-size:0.82rem">Card details</label>
+            <div id="card-element"
+                 style="background:var(--bg-base);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;transition:border-color 0.2s">
+            </div>
+            <div id="card-errors" class="mt-2" style="font-size:0.78rem;color:#f87171;min-height:1.2em"></div>
+          </div>
+
+          <div class="mb-3">
             <div class="card" style="background:var(--bg-base);border:1px solid var(--border-default)">
               <div class="card-body py-3 px-3">
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -1774,20 +1831,21 @@ nav { padding: 0 20px; }
                   <span class="fw-semibold" style="font-size:0.85rem">How it works</span>
                 </div>
                 <ul class="mb-0 ps-3" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+                  <li>A $1 hold is placed to verify your card — released right away</li>
                   <li>No API keys needed — we manage payments for you</li>
                   <li>Customers pay securely via Stripe checkout</li>
-                  <li>Funds are held until the order is marked as delivered</li>
                   <li>Withdraw to your bank anytime, or set up auto-payouts</li>
                 </ul>
               </div>
             </div>
           </div>
+
           <div class="d-flex justify-content-between mt-4">
-            <button type="button" class="btn btn-secondary px-3" id="back-to-2">
+            <button type="button" class="btn btn-secondary px-3" id="back-to-3">
               <i class="bi bi-arrow-left me-1"></i>Back
             </button>
             <button type="submit" class="btn btn-primary px-4" id="finish-btn">
-              Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>
+              Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>
             </button>
           </div>
         </form>
@@ -1942,6 +2000,7 @@ nav { padding: 0 20px; }
   </div>
 </div>
 
+<script src="https://js.stripe.com/v3/"></script>
 <script>
   // Nav scroll
   const nav = document.getElementById('main-nav');
@@ -1996,7 +2055,65 @@ nav { padding: 0 20px; }
     subdomain: '',
     subdomainAvailable: false,
     theme: 'mono',
+    payment_intent_id: '',
+    payment_method_id: '',
+    verification_token_id: '',
   };
+
+  // ── Stripe Elements (card for $1 auth) ────────────────────────────────────
+  let stripeInstance = null;
+  let cardElement    = null;
+
+  async function initStripeElements() {
+    if (stripeInstance) return; // already initialized
+
+    // Prefer a meta tag injected at deploy time; fall back to fetching from
+    // the provisioning service so the card loads without a CI/CD build step.
+    const pkMeta = document.querySelector('meta[name="upcart-stripe-pk"]');
+    let pk = pkMeta?.content || '';
+    if (!pk) {
+      try {
+        const cfgRes = await fetch(`${PROVISION_URL}/provision/config`);
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          pk = cfg?.data?.stripe_publishable_key || '';
+        }
+      } catch (e) {
+        console.warn('Could not fetch Stripe config:', e);
+      }
+    }
+    if (!pk) {
+      console.warn('Stripe publishable key not found — card element will not mount.');
+      return;
+    }
+
+    stripeInstance = Stripe(pk);
+    const elements = stripeInstance.elements();
+    cardElement = elements.create('card', {
+      style: {
+        base: {
+          color:            '#ffffff',
+          fontFamily:       'Inter, Helvetica, Arial, sans-serif',
+          fontSize:         '14px',
+          fontWeight:       '400',
+          '::placeholder':  { color: '#71717A' },
+          iconColor:        '#A1A1AA',
+        },
+        invalid: { color: '#f87171', iconColor: '#f87171' },
+      },
+    });
+    cardElement.mount('#card-element');
+    cardElement.on('change', ({ error }) => {
+      const el = document.getElementById('card-errors');
+      el.textContent = error ? error.message : '';
+    });
+    cardElement.on('focus', () => {
+      document.getElementById('card-element').style.borderColor = '#C9A227';
+    });
+    cardElement.on('blur', () => {
+      document.getElementById('card-element').style.borderColor = 'var(--border-default)';
+    });
+  }
 
   document.getElementById('theme-grid').addEventListener('click', e => {
     const card = e.target.closest('.theme-card');
@@ -2035,7 +2152,7 @@ nav { padding: 0 20px; }
     document.getElementById('step-indicator').style.display = '';
     document.getElementById(`panel-${step}`).classList.add('active');
 
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 4; i++) {
       const dot = document.getElementById(`dot-${i}`);
       dot.classList.remove('active', 'done');
       if (i < step) {
@@ -2051,6 +2168,7 @@ nav { padding: 0 20px; }
 
     document.getElementById('line-1-2').classList.toggle('done', step > 1);
     document.getElementById('line-2-3').classList.toggle('done', step > 2);
+    document.getElementById('line-3-4').classList.toggle('done', step > 3);
   }
 
   let subdomainTimer = null;
@@ -2146,7 +2264,7 @@ nav { padding: 0 20px; }
     goToStep(2);
   });
 
-  document.getElementById('form-2').addEventListener('submit', e => {
+  document.getElementById('form-2').addEventListener('submit', async e => {
     e.preventDefault();
     const emailEl    = document.getElementById('admin-email');
     const usernameEl = document.getElementById('admin-username');
@@ -2184,17 +2302,186 @@ nav { padding: 0 20px; }
     if (!valid) return;
 
     wizardState.admin = { email, username, password };
-    goToStep(3);
+
+    // Send OTP to the provided email before advancing to the verification step.
+    const nextBtn = e.target.querySelector('button[type="submit"]');
+    nextBtn.disabled = true;
+    nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending code…';
+
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/send-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ identifier: email, channel: 'email' }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Failed to send verification code.');
+      wizardState.verification_token_id = body.data.token_id;
+      document.getElementById('otp-subtitle').textContent =
+        `We sent a 6-digit code to ${email}. Enter it below to continue.`;
+      document.getElementById('otp-code').value = '';
+      document.getElementById('otp-feedback').textContent = 'Please enter the 6-digit code we sent you.';
+      startResendCooldown();
+      goToStep(3);
+    } catch (sendErr) {
+      showError(sendErr.message);
+    } finally {
+      nextBtn.disabled = false;
+      nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
+    }
   });
 
+  // ── Resend cooldown timer ─────────────────────────────────────────────────
+  let resendTimer = null;
+  function startResendCooldown(seconds = 60) {
+    const btn      = document.getElementById('resend-btn');
+    const cooldown = document.getElementById('resend-cooldown');
+    const counter  = document.getElementById('resend-countdown');
+    btn.classList.add('d-none');
+    cooldown.classList.remove('d-none');
+    let remaining = seconds;
+    counter.textContent = remaining;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      remaining -= 1;
+      counter.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(resendTimer);
+        cooldown.classList.add('d-none');
+        btn.classList.remove('d-none');
+      }
+    }, 1000);
+  }
+
+  document.getElementById('resend-btn').addEventListener('click', async () => {
+    const email = wizardState.admin.email;
+    if (!email) return;
+    document.getElementById('resend-btn').disabled = true;
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/send-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ identifier: email, channel: 'email' }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Failed to resend code.');
+      wizardState.verification_token_id = body.data.token_id;
+      document.getElementById('otp-code').value = '';
+      startResendCooldown();
+    } catch (resendErr) {
+      showError(resendErr.message);
+    } finally {
+      document.getElementById('resend-btn').disabled = false;
+    }
+  });
+
+  // ── Step 3: OTP verification ──────────────────────────────────────────────
   document.getElementById('form-3').addEventListener('submit', async e => {
     e.preventDefault();
+    const codeEl   = document.getElementById('otp-code');
+    const feedback = document.getElementById('otp-feedback');
+    const btn      = document.getElementById('verify-btn');
+    const code     = codeEl.value.trim().replace(/\D/g, '');
+
+    codeEl.classList.remove('is-invalid');
+    if (!code || code.length !== 6) {
+      feedback.textContent = 'Please enter the 6-digit code we sent you.';
+      codeEl.classList.add('is-invalid');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying…';
+
+    try {
+      const res  = await fetch(`${PROVISION_URL}/provision/verify-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ token_id: wizardState.verification_token_id, code }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        feedback.textContent = body.error || 'Incorrect code. Please try again.';
+        codeEl.classList.add('is-invalid');
+        return;
+      }
+      // Email verified — advance to payment step.
+      goToStep(4);
+      initStripeElements();
+    } catch (verifyErr) {
+      showError(verifyErr.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Verify <i class="bi bi-arrow-right ms-1"></i>';
+    }
+  });
+
+  // ── Step 4: Payment ───────────────────────────────────────────────────────
+  document.getElementById('form-4').addEventListener('submit', async e => {
+    e.preventDefault();
     wizardState.stripe_publishable_key = '';
+
+    const btn = document.getElementById('finish-btn');
+    const cardErrEl = document.getElementById('card-errors');
+
+    if (!stripeInstance || !cardElement) {
+      showError('Payment processing is not available. Please refresh and try again.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying card…';
+    cardErrEl.textContent = '';
+
+    try {
+      // 1. Ask the provisioning service to create a $1 manual-capture PaymentIntent.
+      const piRes = await fetch(`${PROVISION_URL}/provision/verify-payment`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          currency: wizardState.store.currency || 'usd',
+          email:    wizardState.admin.email,
+        }),
+      });
+      const piBody = await piRes.json();
+      if (!piRes.ok || !piBody.ok) throw new Error(piBody.error || 'Could not initialize payment verification.');
+
+      const { client_secret, payment_intent_id } = piBody.data;
+
+      // 2. Confirm the PaymentIntent with the card (authorize-only, no capture).
+      const { error, paymentIntent } = await stripeInstance.confirmCardPayment(client_secret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: { email: wizardState.admin.email },
+        },
+      });
+
+      if (error) {
+        cardErrEl.textContent = error.message;
+        btn.disabled = false;
+        btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
+        return;
+      }
+
+      // PaymentIntent is now `requires_capture` — card authorized, hold placed.
+      wizardState.payment_intent_id = paymentIntent.id;
+      wizardState.payment_method_id = (typeof paymentIntent.payment_method === 'string')
+        ? paymentIntent.payment_method
+        : (paymentIntent.payment_method?.id ?? '');
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
+      showError(err.message);
+      return;
+    }
+
+    // 3. Proceed to provision now that the card is verified.
     await submitProvision();
   });
 
   document.getElementById('back-to-1').addEventListener('click', () => goToStep(1));
   document.getElementById('back-to-2').addEventListener('click', () => goToStep(2));
+  document.getElementById('back-to-3').addEventListener('click', () => goToStep(3));
 
   const PSTEPS = ['pstep-db', 'pstep-storage', 'pstep-worker', 'pstep-domain', 'pstep-ready'];
 
@@ -2258,6 +2545,9 @@ nav { padding: 0 20px; }
           store:                  wizardState.store,
           admin:                  wizardState.admin,
           stripe_publishable_key: wizardState.stripe_publishable_key,
+          payment_intent_id:      wizardState.payment_intent_id,
+          payment_method_id:      wizardState.payment_method_id,
+          verification_token_id:  wizardState.verification_token_id,
         }),
       });
       const body = await res.json();
@@ -2265,9 +2555,9 @@ nav { padding: 0 20px; }
       tenantId = body.data.tenant_id;
       applyStatus(body.data.status);
     } catch (err) {
-      goToStep(3);
+      goToStep(4);
       btn.disabled = false;
-      btn.innerHTML = 'Launch my store <i class="bi bi-rocket-takeoff ms-1"></i>';
+      btn.innerHTML = 'Start free trial <i class="bi bi-rocket-takeoff ms-1"></i>';
       showError(err.message);
       return;
     }

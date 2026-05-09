@@ -34,14 +34,58 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use("*", logger());
 
-// Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-app.use("*", secureHeaders());
+// Security headers — X-Frame-Options disabled so the storefront can be loaded
+// in the admin dashboard's visual theme customizer iframe. The store is a
+// public page, so framing it from the dashboard is not a security concern.
+app.use("*", secureHeaders({ xFrameOptions: false }));
 
 // CORS — must come before CSRF so that preflight requests are handled first.
 app.use("*", corsMiddleware());
 
 // CSRF origin check — configured via CSRF_ENABLED in wrangler.toml.
 app.use("*", csrfMiddleware());
+
+// ─── Store suspension check ───────────────────────────────────────────────────
+// The provisioning service sets TENANT_STATUS = "suspended" via the Cloudflare
+// Secrets API when billing lapses. All requests are short-circuited here with a
+// 402 Payment Required page so the store degrades gracefully instead of showing
+// partial / broken UI.
+app.use("*", async (c, next) => {
+  if (c.env.TENANT_STATUS === "suspended") {
+    return c.html(
+      `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Store Suspended</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+         background:#0f0f0f;color:#e5e5e5;display:flex;align-items:center;
+         justify-content:center;min-height:100vh;padding:1.5rem}
+    .card{background:#1a1a1a;border:1px solid #333;border-radius:12px;
+          max-width:420px;width:100%;padding:2.5rem;text-align:center}
+    .icon{font-size:2.5rem;margin-bottom:1rem}
+    h1{font-size:1.4rem;font-weight:700;margin-bottom:0.75rem}
+    p{color:#a1a1aa;font-size:0.9rem;line-height:1.6}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔒</div>
+    <h1>Store Temporarily Suspended</h1>
+    <p>This store is currently unavailable due to a billing issue.
+       If you are the store owner, please log in to your dashboard
+       to update your payment method and restore access.</p>
+  </div>
+</body>
+</html>`,
+      402
+    );
+  }
+  return next();
+});
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 

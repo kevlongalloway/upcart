@@ -20,6 +20,11 @@ database_id   = "b748b0fe-5002-477f-815b-ee1fab4e81a2"
 binding     = "WORKER_BUNDLES"
 bucket_name = "upcart-worker-bundles"
 
+# ─── Scheduled triggers ───────────────────────────────────────────────────────
+# Runs the trial-expiry reminder job and deprovision check daily at 10:00 UTC.
+[triggers]
+crons = ["0 10 * * *"]
+
 # ─── Public vars ──────────────────────────────────────────────────────────────
 [vars]
 # Your root domain. Stores are deployed as <subdomain>.<BASE_DOMAIN>
@@ -51,7 +56,24 @@ CORS_ORIGINS = "https://upcart.online,https://www.upcart.online,https://dashboar
 # "acmecorp". Provisioning will throw if this is empty.
 CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
 
-# ─── Secrets (set via `wrangler secret put`) ─────────────────────────────────
+# Stripe Price ID for the platform subscription plan.
+# Create a recurring price in Stripe dashboard → Products → Add product, then
+# paste the price ID here (e.g. "price_1Abc123..."). Used at provisioning time
+# to create each new tenant's 90-day trialing subscription. Leave blank to skip
+# subscription creation at provisioning (it can be set up later).
+STRIPE_PRICE_ID = ""
+
+# Set to "true" to require phone/SMS verification during signup (requires Twilio
+# credentials). Set to "false" to skip SMS verification and use email only.
+# Change to "true" once Twilio is configured and a verified number is purchased.
+REQUIRE_SMS_VERIFICATION = "false"
+
+# ─── Secrets (set via `wrangler secret put` or the Cloudflare dashboard) ─────
+# Navigate to: Workers & Pages → upcart-provisioning → Settings → Variables
+# Toggle "Encrypt" for each value to store it as a secret.
+#
+# Alternatively, use the CLI:  wrangler secret put <NAME>
+#
 # The following secrets must be set before deploying:
 #
 #   # Cloudflare (required)
@@ -65,6 +87,21 @@ CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
 #   wrangler secret put STRIPE_SECRET_KEY       (sk_live_... or sk_test_...)
 #   wrangler secret put STRIPE_WEBHOOK_SECRET   (whsec_... — single platform endpoint)
 #   wrangler secret put STRIPE_PUBLISHABLE_KEY  (pk_live_... or pk_test_...)
+#
+#   # Identity verification — used to send email/SMS OTPs during signup.
+#   # Without these, the OTP endpoints return 503; provisioning is blocked.
+#
+#   # Resend (email OTP)
+#   # Create an API key at https://resend.com/api-keys
+#   wrangler secret put RESEND_API_KEY          (re_...)
+#
+#   # Twilio (SMS OTP)
+#   # Find Account SID and Auth Token at https://console.twilio.com
+#   # TWILIO_FROM_NUMBER must be a verified Twilio number in E.164 format,
+#   # e.g. "+15551234567". You can also use a Messaging Service SID ("MG...").
+#   wrangler secret put TWILIO_ACCOUNT_SID      (AC...)
+#   wrangler secret put TWILIO_AUTH_TOKEN       (your auth token)
+#   wrangler secret put TWILIO_FROM_NUMBER      (+1...)
 #
 # Find your account ID: Cloudflare dashboard → right sidebar
 # Find your zone ID:    Cloudflare dashboard → upcart.online → right sidebar

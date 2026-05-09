@@ -1,0 +1,84 @@
+name = "upcart-admin-service"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat_v2"]
+
+# ─── D1 — admin RBAC database ────────────────────────────────────────────────
+# Stores admin users, roles, permissions, role assignments, and the audit log.
+# Create with:
+#   wrangler d1 create upcart-admin-db
+# Then paste the returned database_id below and run:
+#   wrangler d1 migrations apply upcart-admin-db --remote
+[[d1_databases]]
+binding       = "DB"
+database_name = "upcart-admin-db"
+database_id   = ""   # ← fill in after `wrangler d1 create`
+
+# ─── D1 — provisioning database (cross-binding for full-provision CRUD) ──────
+# This is the SAME database used by the provisioning-service. Binding it here
+# lets the admin-service read/update/delete tenant rows without taking on an
+# HTTP round-trip. The database_id must match provisioning-service/wrangler.toml
+# (binding = "DB" there). Cloudflare D1 supports the same database being bound
+# to multiple Workers.
+[[d1_databases]]
+binding       = "PROVISIONING_DB"
+database_name = "upcart-provisioning-db"
+database_id   = "b748b0fe-5002-477f-815b-ee1fab4e81a2"
+
+# ─── R2 — compiled store worker bundles (read-only for POST /provisions) ─────
+# Same bucket the provisioning-service uses to deploy new tenant workers.
+# Bound here so admin-create can deploy the latest store bundle.
+[[r2_buckets]]
+binding     = "WORKER_BUNDLES"
+bucket_name = "upcart-worker-bundles"
+
+# ─── Public vars ─────────────────────────────────────────────────────────────
+[vars]
+# Root domain — used to derive store URLs (<subdomain>.<BASE_DOMAIN>).
+BASE_DOMAIN = "upcart.online"
+
+# Worker script name prefix; must match provisioning-service so admin-managed
+# provisions are deployed under the same naming scheme.
+WORKER_SCRIPT_PREFIX = "upcart-store"
+
+# R2 object key for the compiled store worker bundle.
+WORKER_BUNDLE_KEY = "store-worker.js"
+
+# CORS origins for the admin/employee portal frontend. Comma-separated.
+# Add localhost entries for local development.
+CORS_ORIGINS = "https://admin.upcart.online,https://portal.upcart.online"
+
+# Account-level workers.dev subdomain — needed when admin-create deploys a
+# fresh worker and wants to probe its /health before considering provisioning
+# complete. Mirrors provisioning-service.
+CF_WORKERS_SUBDOMAIN = "kevlongalloway1999m"
+
+# JWT lifetime in seconds. Default: 8 hours.
+JWT_TTL_SECONDS = "28800"
+
+# ─── Secrets (set via `wrangler secret put` or the Cloudflare dashboard) ─────
+#
+#   # Required for JWT signing (generate with `openssl rand -hex 32`).
+#   wrangler secret put JWT_SECRET
+#
+#   # Cloudflare API credentials — same scopes as the provisioning-service.
+#   wrangler secret put CF_ACCOUNT_ID
+#   wrangler secret put CF_API_TOKEN
+#   wrangler secret put CF_ZONE_ID
+#
+#   # First-superadmin bootstrap. If `admin_users` is empty AND BOOTSTRAP_EMAIL
+#   # matches the login attempt, the password is verified against
+#   # BOOTSTRAP_PASSWORD_HASH (PBKDF2 "salt:hash") and a superadmin row is
+#   # created on the fly. Once a superadmin exists the bootstrap path is
+#   # disabled — rotate or remove the secret afterwards.
+#   wrangler secret put BOOTSTRAP_EMAIL
+#   wrangler secret put BOOTSTRAP_PASSWORD_HASH
+#
+#   # Stripe — required for /subscriptions endpoints (change plan, cancel,
+#   # reactivate) and for /plans endpoints to denormalise amount/currency/
+#   # interval from a Stripe Price ID. Same key the provisioning-service uses.
+#   wrangler secret put STRIPE_SECRET_KEY
+#
+#   # Identity providers used when admin-create issues store credentials by
+#   # email (optional — leave blank to skip).
+#   wrangler secret put RESEND_API_KEY

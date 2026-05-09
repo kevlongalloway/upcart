@@ -205,6 +205,17 @@ const Api = {
   // Theme / store settings — read and write what the storefront renders.
   getSettings()      { return this._fetch('/admin/settings'); },
   updateSettings(d)  { return this._fetch('/admin/settings', { method: 'PUT', body: JSON.stringify(d) }); },
+
+  // Stripe Connect
+  getConnectStatus()                    { return this._fetch('/connect/status'); },
+  startConnectOnboarding(return_url, refresh_url) {
+    return this._fetch('/connect/onboard', { method: 'POST', body: JSON.stringify({ return_url, refresh_url }) });
+  },
+  getConnectBalance()                   { return this._fetch('/connect/balance'); },
+  requestWithdrawal(amount)             { return this._fetch('/connect/withdraw', { method: 'POST', body: JSON.stringify({ amount }) }); },
+  getWithdrawals()                      { return this._fetch('/connect/withdrawals'); },
+  getAutoWithdraw()                     { return this._fetch('/connect/auto-withdraw'); },
+  updateAutoWithdraw(d)                 { return this._fetch('/connect/auto-withdraw', { method: 'PUT', body: JSON.stringify(d) }); },
 };
 
 // ── Toast ───────────────────────────────────────────────────────
@@ -338,8 +349,8 @@ function renderNavbar() {
   const hash          = location.hash.replace(/^#/, '');
   const onOrders      = hash.startsWith('/orders');
   const onDiscounts   = hash.startsWith('/discounts');
-  const onTheme       = hash.startsWith('/theme') || hash.startsWith('/settings');
-  const onProducts    = !onOrders && !onDiscounts && !onTheme;
+  const onPayouts     = hash.startsWith('/payouts');
+  const onProducts    = !onOrders && !onDiscounts && !onPayouts;
   const ctx           = Auth.getContext() || {};
   const storeName     = escHtml(ctx.store_name || 'Your Store');
   const storeUrl      = ctx.store_url ? escHtml(ctx.store_url) : null;
@@ -371,8 +382,13 @@ function renderNavbar() {
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onTheme ? 'active' : ''}" href="#/theme">
-                <i class="bi bi-palette"></i><span class="nav-label ms-1">Theme</span>
+              <a class="nav-link py-1 px-2 ${onPayouts ? 'active' : ''}" href="#/payouts">
+                <i class="bi bi-cash-stack"></i><span class="nav-label ms-1">Payouts</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link py-1 px-2" href="/store-editor/" title="Edit theme, sections, colors, fonts, and layout">
+                <i class="bi bi-palette2"></i><span class="nav-label ms-1">Customize</span>
               </a>
             </li>
           </ul>
@@ -385,8 +401,117 @@ function renderNavbar() {
           </button>
         </div>
       </div>
-    </nav>`;
+    </nav>
+    <div id="connect-banner"></div>`;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Connect Banner
+// ═══════════════════════════════════════════════════════════════
+// Injected below the navbar on every authenticated page. Fetches
+// GET /connect/status once per page load (non-blocking) and renders:
+//   • Nothing if charges_enabled = true (onboarding complete)
+//   • A warning banner with a "Set up payouts" CTA otherwise
+//   • An info banner when the account has pending verification items
+const ConnectBanner = {
+  _containerId: 'connect-banner',
+
+  // Returns the placeholder div that views should embed after renderNavbar().
+  placeholder() {
+    return `<div id="${this._containerId}"></div>`;
+  },
+
+  // Call this after rendering a page. Fetches status async; updates the
+  // banner in place without blocking the rest of the page from rendering.
+  async mount() {
+    const container = document.getElementById(this._containerId);
+    if (!container) return;
+
+    let status;
+    try {
+      status = await Api.getConnectStatus();
+    } catch {
+      // If Connect status can't be fetched, show nothing rather than an error.
+      return;
+    }
+
+    // charges_enabled = true means onboarding is fully complete — no banner.
+    if (status.charges_enabled) return;
+
+    const returnUrl   = `${location.origin}${location.pathname}#/payouts`;
+    const refreshUrl  = returnUrl;
+
+    if (!status.connected) {
+      // No Connect account at all — primary CTA to start onboarding.
+      container.innerHTML = `
+        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+          <span class="flex-grow-1 small">
+            <strong>Complete your payout setup to accept live payments.</strong>
+            Connect Stripe to receive payouts and route funds to your bank account.
+          </span>
+          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
+            Set up payouts
+          </button>
+        </div>`;
+    } else if (status.requirements && status.requirements.currently_due && status.requirements.currently_due.length > 0) {
+      // Onboarding started but Stripe needs more info.
+      const reason = status.requirements.disabled_reason
+        ? escHtml(status.requirements.disabled_reason)
+        : 'additional information required';
+      container.innerHTML = `
+        <div class="alert alert-danger d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
+          <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
+          <span class="flex-grow-1 small">
+            <strong>Action required:</strong> Stripe needs more information to enable payments (${reason}).
+          </span>
+          <button class="btn btn-sm btn-danger fw-semibold flex-shrink-0" id="connect-onboard-btn">
+            Complete setup
+          </button>
+        </div>`;
+    } else if (status.requirements && status.requirements.pending_verification && status.requirements.pending_verification.length > 0) {
+      // Stripe is reviewing submitted info — no action needed.
+      container.innerHTML = `
+        <div class="alert alert-info d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert">
+          <i class="bi bi-hourglass-split flex-shrink-0"></i>
+          <span class="flex-grow-1 small">
+            <strong>Stripe is reviewing your account.</strong>
+            Live payments will be enabled once verification is complete (usually a few minutes).
+          </span>
+        </div>`;
+      return; // No button needed.
+    } else {
+      // Connected but charges not yet enabled — nudge to finish onboarding.
+      container.innerHTML = `
+        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+          <span class="flex-grow-1 small">
+            <strong>Payout setup incomplete.</strong>
+            Finish Stripe onboarding to enable live payments and payouts.
+          </span>
+          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
+            Finish setup
+          </button>
+        </div>`;
+    }
+
+    const btn = document.getElementById('connect-onboard-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading…';
+      try {
+        const result = await Api.startConnectOnboarding(returnUrl, refreshUrl);
+        window.location.href = result.url;
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Set up payouts';
+        Toast.error(e.message || 'Failed to start onboarding');
+      }
+    });
+  },
+};
 
 // ═══════════════════════════════════════════════════════════════
 // View: Login
@@ -2584,150 +2709,235 @@ const DiscountFormView = {
   },
 };
 
-// ═══════════════════════════════════════════════════════════════
-// View: Theme / Storefront
-// ═══════════════════════════════════════════════════════════════
-// Live theme editor. Writes theme name + brand colors + logo URL to the
-// tenant's store_settings; the storefront fetches /settings/public at boot
-// and applies the values with CSS custom properties (no rebuild required).
-const ThemeView = {
-  _themes: [
-    { id: 'mono',     name: 'Mono',     desc: 'Editorial, monospace, light',  bg: '#f5f5f5', text: '#1a1a1a', btn: '#1a1a1a' },
-    { id: 'minimal',  name: 'Minimal',  desc: 'Clean white, Inter, corporate', bg: '#ffffff', text: '#111111', btn: '#111111' },
-    { id: 'boutique', name: 'Boutique', desc: 'Cream, serif, luxury fashion',  bg: '#faf7f2', text: '#2c1810', btn: '#2c1810' },
-    { id: 'bold',     name: 'Bold',     desc: 'Dark, gold accent, streetwear', bg: '#0a0a0a', text: '#f0f0f0', btn: '#f5c000' },
-    { id: 'studio',   name: 'Studio',   desc: 'Warm, DM Serif, artisan',       bg: '#f5f0ea', text: '#2d2419', btn: '#c4603a' },
-  ],
+function cssEscUrl(url) {
+  return String(url).replace(/"/g, '%22').replace(/'/g, '%27');
+}
 
+// ═══════════════════════════════════════════════════════════════
+// View: Payouts
+// ═══════════════════════════════════════════════════════════════
+// Shows Stripe Connect status, available/pending balance, a withdrawal
+// form, and recent payout history. If the merchant hasn't completed
+// onboarding the view renders the "Set up payouts" CTA inline.
+const PayoutsView = {
   render() {
     return `
       ${renderNavbar()}
       <div class="container-fluid py-4">
         <div class="d-flex align-items-center justify-content-between mb-4">
           <div>
-            <h3 class="fw-bold mb-1">Storefront Theme</h3>
-            <p class="text-secondary small mb-0">Pick a preset, tune your brand colors, and add a logo. Changes go live instantly.</p>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" id="theme-reset">
-              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
-            </button>
-            <button class="btn btn-primary" id="theme-save">
-              <i class="bi bi-check2 me-1"></i>Save &amp; publish
-            </button>
+            <h3 class="fw-bold mb-1">Payouts</h3>
+            <p class="text-secondary small mb-0">Manage your Stripe Connect account and withdraw your earnings.</p>
           </div>
         </div>
 
-        <div id="theme-loading" class="text-center py-5">
+        <div id="payouts-loading" class="text-center py-5">
           <div class="spinner-border"></div>
         </div>
+        <div id="payouts-content" class="d-none"></div>
+        <div id="payouts-error" class="alert alert-danger d-none"></div>
+      </div>`;
+  },
 
-        <div id="theme-content" class="d-none">
-          <div class="row g-4">
-            <div class="col-lg-7">
-              <div class="card mb-4">
-                <div class="card-body">
-                  <h6 class="fw-semibold mb-3">1. Choose a preset</h6>
-                  <div class="row g-3" id="theme-presets">
-                    ${this._themes.map(t => `
-                      <div class="col-6 col-md-4">
-                        <button type="button"
-                                class="theme-preset w-100 p-0 border-0 bg-transparent"
-                                data-theme="${t.id}">
-                          <div class="theme-swatch"
-                               style="background:${t.bg};color:${t.text};border:2px solid transparent">
-                            <div class="theme-swatch-bar" style="background:${t.btn}"></div>
-                            <div class="p-3 text-start">
-                              <div class="fw-bold">${t.name}</div>
-                              <div class="small" style="opacity:.7">${t.desc}</div>
-                            </div>
-                          </div>
-                        </button>
-                      </div>
-                    `).join('')}
-                  </div>
-                </div>
-              </div>
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
 
-              <div class="card mb-4">
-                <div class="card-body">
-                  <h6 class="fw-semibold mb-3">2. Brand colors</h6>
-                  <p class="small text-secondary mb-3">These override the preset's accent colors on your storefront.</p>
-                  <div class="row g-3">
-                    <div class="col-sm-6">
-                      <label class="form-label small fw-semibold" for="theme-primary">Primary (buttons, links)</label>
-                      <div class="input-group">
-                        <input type="color" class="form-control form-control-color" id="theme-primary-picker">
-                        <input type="text" class="form-control font-monospace" id="theme-primary" placeholder="#111111" maxlength="7">
-                      </div>
-                    </div>
-                    <div class="col-sm-6">
-                      <label class="form-label small fw-semibold" for="theme-accent">Accent (badges, highlights)</label>
-                      <div class="input-group">
-                        <input type="color" class="form-control form-control-color" id="theme-accent-picker">
-                        <input type="text" class="form-control font-monospace" id="theme-accent" placeholder="#f5c000" maxlength="7">
-                      </div>
-                    </div>
-                  </div>
-                  <button type="button" class="btn btn-link btn-sm mt-2 px-0" id="theme-colors-clear">
-                    Reset brand colors to preset defaults
-                  </button>
-                </div>
-              </div>
+    const loadingEl = document.getElementById('payouts-loading');
+    const contentEl = document.getElementById('payouts-content');
+    const errorEl   = document.getElementById('payouts-error');
 
-              <div class="card mb-4">
-                <div class="card-body">
-                  <h6 class="fw-semibold mb-3">3. Logo</h6>
-                  <p class="small text-secondary mb-3">Shown in your storefront header. Square images work best.</p>
-                  <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <div id="theme-logo-preview" class="theme-logo-preview" aria-hidden="true"></div>
-                    <div class="flex-grow-1" style="min-width:220px">
-                      <input type="file" class="form-control" id="theme-logo-file" accept="image/*">
-                      <div class="small text-secondary mt-2" id="theme-logo-status"></div>
-                    </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm" id="theme-logo-remove">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                  <input type="hidden" id="theme-logo-url">
-                </div>
-              </div>
+    try {
+      const [status, balanceData, withdrawals] = await Promise.all([
+        Api.getConnectStatus(),
+        Api.getConnectBalance().catch(() => null),
+        Api.getWithdrawals().catch(() => []),
+      ]);
 
-              <div class="card">
-                <div class="card-body">
-                  <h6 class="fw-semibold mb-3">4. Storefront info</h6>
-                  <div class="mb-3">
-                    <label class="form-label small fw-semibold" for="theme-store-name">Store name</label>
-                    <input type="text" class="form-control" id="theme-store-name" maxlength="100">
-                  </div>
-                  <div>
-                    <label class="form-label small fw-semibold" for="theme-store-desc">Tagline / description</label>
-                    <textarea class="form-control" id="theme-store-desc" rows="2" maxlength="300"
-                              placeholder="A short description shown under the hero."></textarea>
-                  </div>
-                </div>
-              </div>
+      loadingEl.classList.add('d-none');
+
+      if (!status.connected || !status.charges_enabled) {
+        contentEl.classList.remove('d-none');
+        contentEl.innerHTML = this._renderOnboardingPrompt(status);
+        this._wireOnboardingBtn(status);
+        return;
+      }
+
+      contentEl.classList.remove('d-none');
+      contentEl.innerHTML = this._renderDashboard(status, balanceData, withdrawals);
+      this._wireWithdrawForm(balanceData);
+    } catch (e) {
+      loadingEl.classList.add('d-none');
+      errorEl.classList.remove('d-none');
+      errorEl.textContent = e.message || 'Failed to load payout information.';
+    }
+  },
+
+  _renderOnboardingPrompt(status) {
+    const hasAccount = status.connected;
+    const hasPending  = status.requirements && status.requirements.pending_verification && status.requirements.pending_verification.length > 0;
+    const hasRequired = status.requirements && status.requirements.currently_due && status.requirements.currently_due.length > 0;
+
+    if (hasPending) {
+      return `
+        <div class="card">
+          <div class="card-body text-center py-5">
+            <i class="bi bi-hourglass-split fs-1 text-secondary mb-3 d-block"></i>
+            <h5 class="fw-bold">Stripe is reviewing your account</h5>
+            <p class="text-secondary mb-0">Live payments and payouts will be enabled automatically once verification is complete. This usually takes a few minutes.</p>
+          </div>
+        </div>`;
+    }
+
+    const btnLabel = hasAccount && hasRequired ? 'Complete setup' : hasAccount ? 'Finish onboarding' : 'Connect Stripe';
+    const desc = hasAccount && hasRequired
+      ? 'Stripe needs additional information before payments can be enabled.'
+      : 'Connect your Stripe account to accept live payments and receive payouts to your bank.';
+
+    return `
+      <div class="card">
+        <div class="card-body text-center py-5" style="max-width:480px;margin:0 auto">
+          <i class="bi bi-credit-card-2-front fs-1 text-primary mb-3 d-block"></i>
+          <h5 class="fw-bold">Set up payouts</h5>
+          <p class="text-secondary mb-4">${escHtml(desc)}</p>
+          <button class="btn btn-primary px-4" id="payouts-onboard-btn">
+            <i class="bi bi-arrow-right-circle me-2"></i>${escHtml(btnLabel)}
+          </button>
+        </div>
+      </div>`;
+  },
+
+  _wireOnboardingBtn(status) {
+    const btn = document.getElementById('payouts-onboard-btn');
+    if (!btn) return;
+    const returnUrl  = `${location.origin}${location.pathname}#/payouts`;
+    const refreshUrl = returnUrl;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading…';
+      try {
+        const result = await Api.startConnectOnboarding(returnUrl, refreshUrl);
+        window.location.href = result.url;
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Connect Stripe';
+        Toast.error(e.message || 'Failed to start onboarding');
+      }
+    });
+  },
+
+  _renderDashboard(status, balanceData, withdrawals) {
+    const available = balanceData?.available_balance ?? 0;
+    const pending   = balanceData?.pending_balance ?? 0;
+    const currency  = balanceData?.currency ?? 'usd';
+
+    const restrictions = status.requirements && status.requirements.currently_due && status.requirements.currently_due.length > 0
+      ? `<div class="alert alert-warning small mb-4">
+           <i class="bi bi-exclamation-triangle-fill me-1"></i>
+           <strong>Action required:</strong> Stripe needs additional information.
+           <a href="#" id="payouts-fix-link" class="ms-2 fw-semibold">Resolve now</a>
+         </div>`
+      : '';
+
+    const withdrawalRows = Array.isArray(withdrawals) && withdrawals.length > 0
+      ? withdrawals.slice(0, 20).map(w => `
+          <tr>
+            <td>${escHtml(formatDate(w.created_at))}</td>
+            <td>${escHtml(formatPrice(w.amount, w.currency))}</td>
+            <td><span class="badge ${w.status === 'completed' ? 'text-bg-success' : w.status === 'failed' ? 'text-bg-danger' : 'text-bg-warning'}">${escHtml(w.status)}</span></td>
+            <td class="text-secondary small font-monospace">${w.stripe_payout_id ? escHtml(w.stripe_payout_id) : '—'}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" class="text-center text-secondary py-3">No withdrawals yet</td></tr>`;
+
+    return `
+      ${restrictions}
+      <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Available balance</p>
+              <p class="fs-4 fw-bold mb-0">${formatPrice(available, currency)}</p>
+              <p class="small text-secondary mt-1 mb-0">Ready to withdraw</p>
             </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Pending balance</p>
+              <p class="fs-4 fw-bold mb-0">${formatPrice(pending, currency)}</p>
+              <p class="small text-secondary mt-1 mb-0">Released on order fulfillment</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Payouts status</p>
+              <p class="fs-5 fw-bold mb-0">
+                ${status.payouts_enabled
+                  ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Enabled</span>'
+                  : '<span class="text-warning"><i class="bi bi-exclamation-circle-fill me-1"></i>Pending</span>'}
+              </p>
+              <p class="small text-secondary mt-1 mb-0">Stripe account ${escHtml(status.account_id)}</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Charges status</p>
+              <p class="fs-5 fw-bold mb-0">
+                ${status.charges_enabled
+                  ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
+                  : '<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>'}
+              </p>
+              <p class="small text-secondary mt-1 mb-0">Live payments accepted</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            <div class="col-lg-5">
-              <div class="theme-preview-wrap">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                  <h6 class="fw-semibold mb-0">Live preview</h6>
-                  <a href="#" target="_blank" rel="noopener" class="small" id="theme-open-storefront">
-                    Open storefront <i class="bi bi-box-arrow-up-right"></i>
-                  </a>
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card">
+            <div class="card-body">
+              <h6 class="fw-semibold mb-3">Withdraw funds</h6>
+              ${!status.payouts_enabled ? `<p class="text-secondary small mb-0">Payouts will be enabled once Stripe verifies your account.</p>` : `
+              <p class="small text-secondary mb-3">Transfer your available balance to your connected bank account.</p>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Amount (${currency.toUpperCase()})</label>
+                <div class="input-group">
+                  <span class="input-group-text">${currencySymbol(currency)}</span>
+                  <input type="number" class="form-control" id="withdraw-amount" min="1" step="0.01"
+                         max="${(available / 100).toFixed(2)}"
+                         placeholder="${(available / 100).toFixed(2)}">
                 </div>
-                <div class="theme-preview" id="theme-preview">
-                  <div class="theme-preview-nav" id="tp-nav">
-                    <div id="tp-logo" class="theme-preview-logo"></div>
-                    <span id="tp-store-name" class="theme-preview-brand"></span>
-                  </div>
-                  <div class="theme-preview-hero" id="tp-hero">
-                    <h3 id="tp-title">Your Store</h3>
-                    <p id="tp-desc" class="mb-3"></p>
-                    <button id="tp-btn" class="theme-preview-btn" type="button">Shop now</button>
-                  </div>
-                </div>
+                <div class="form-text">Available: ${formatPrice(available, currency)}</div>
+              </div>
+              <button class="btn btn-primary w-100" id="withdraw-btn" ${available <= 0 ? 'disabled' : ''}>
+                Withdraw
+              </button>
+              <div id="withdraw-result" class="mt-2"></div>`}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-body">
+              <h6 class="fw-semibold mb-3">Withdrawal history</h6>
+              <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>${withdrawalRows}</tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -2735,232 +2945,60 @@ const ThemeView = {
       </div>`;
   },
 
-  async init() {
-    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+  _wireWithdrawForm(balanceData) {
+    const btn = document.getElementById('withdraw-btn');
+    if (!btn) return;
 
-    const ctx = Auth.getContext() || {};
-    const openLink = document.getElementById('theme-open-storefront');
-    if (ctx.store_url) openLink.href = ctx.store_url;
-
-    // ── State ──────────────────────────────────────────────────────────────
-    const state = {
-      theme: 'mono',
-      brand_primary: '',
-      brand_accent: '',
-      logo_url: '',
-      store_name: '',
-      store_description: '',
-    };
-
-    // ── Load current settings ──────────────────────────────────────────────
-    let initial;
-    try {
-      initial = await Api.getSettings();
-    } catch (err) {
-      Toast.error(`Failed to load settings: ${err.message}`);
-      initial = {};
-    }
-    Object.assign(state, {
-      theme:             initial.theme              || 'mono',
-      brand_primary:     initial.brand_primary      || '',
-      brand_accent:      initial.brand_accent       || '',
-      logo_url:          initial.logo_url           || '',
-      store_name:        initial.store_name         || ctx.store_name || '',
-      store_description: initial.store_description  || '',
-    });
-    const snapshot = { ...state };
-
-    document.getElementById('theme-loading').classList.add('d-none');
-    document.getElementById('theme-content').classList.remove('d-none');
-
-    // ── DOM refs ───────────────────────────────────────────────────────────
-    const $name    = document.getElementById('theme-store-name');
-    const $desc    = document.getElementById('theme-store-desc');
-    const $primary = document.getElementById('theme-primary');
-    const $primPk  = document.getElementById('theme-primary-picker');
-    const $accent  = document.getElementById('theme-accent');
-    const $accPk   = document.getElementById('theme-accent-picker');
-    const $logoUrl = document.getElementById('theme-logo-url');
-    const $logoPv  = document.getElementById('theme-logo-preview');
-    const $logoSt  = document.getElementById('theme-logo-status');
-    const $logoFile = document.getElementById('theme-logo-file');
-    const $logoDel = document.getElementById('theme-logo-remove');
-    const presets  = document.querySelectorAll('.theme-preset');
-
-    const paintPresetSelection = () => {
-      presets.forEach(btn => {
-        const active = btn.dataset.theme === state.theme;
-        btn.querySelector('.theme-swatch').style.borderColor = active ? '#0d6efd' : 'transparent';
-      });
-    };
-
-    const paintPreview = () => {
-      const preset = ThemeView._themes.find(t => t.id === state.theme) || ThemeView._themes[0];
-      const accent = state.brand_accent || preset.btn;
-      const primary = state.brand_primary || preset.btn;
-      const preview = document.getElementById('theme-preview');
-      preview.style.background = preset.bg;
-      preview.style.color      = preset.text;
-      document.getElementById('tp-hero').style.background = preset.bg;
-      const btn = document.getElementById('tp-btn');
-      btn.style.background = primary;
-      btn.style.color      = invertFor(primary);
-      document.getElementById('tp-nav').style.borderBottom = `1px solid ${preset.text}22`;
-      document.getElementById('tp-title').textContent = state.store_name || 'Your Store';
-      document.getElementById('tp-desc').textContent  = state.store_description || 'Welcome to our shop.';
-      const brandNameEl = document.getElementById('tp-store-name');
-      brandNameEl.textContent = state.store_name || 'Store';
-      brandNameEl.style.color = preset.text;
-      const tpLogo = document.getElementById('tp-logo');
-      if (state.logo_url) {
-        tpLogo.style.backgroundImage = `url('${cssEscUrl(state.logo_url)}')`;
-        tpLogo.style.border = 'none';
-      } else {
-        tpLogo.style.backgroundImage = '';
-        tpLogo.style.background = accent;
-        tpLogo.style.color      = invertFor(accent);
-      }
-    };
-
-    const paintLogo = () => {
-      if (state.logo_url) {
-        $logoPv.style.backgroundImage = `url('${cssEscUrl(state.logo_url)}')`;
-      } else {
-        $logoPv.style.backgroundImage = '';
-      }
-    };
-
-    // ── Initial paint ──────────────────────────────────────────────────────
-    $name.value    = state.store_name;
-    $desc.value    = state.store_description;
-    $primary.value = state.brand_primary;
-    $primPk.value  = state.brand_primary || '#111111';
-    $accent.value  = state.brand_accent;
-    $accPk.value   = state.brand_accent  || '#f5c000';
-    $logoUrl.value = state.logo_url;
-    paintLogo();
-    paintPresetSelection();
-    paintPreview();
-
-    // ── Input handlers ─────────────────────────────────────────────────────
-    presets.forEach(btn => btn.addEventListener('click', () => {
-      state.theme = btn.dataset.theme;
-      paintPresetSelection();
-      paintPreview();
-    }));
-
-    const onColor = (kind) => (e) => {
-      const raw = e.target.value.trim();
-      if (e.target.type === 'color') {
-        state[kind === 'primary' ? 'brand_primary' : 'brand_accent'] = raw;
-        (kind === 'primary' ? $primary : $accent).value = raw;
-      } else {
-        const normalized = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : '';
-        state[kind === 'primary' ? 'brand_primary' : 'brand_accent'] = normalized;
-        if (normalized) (kind === 'primary' ? $primPk : $accPk).value = normalized;
-      }
-      paintPreview();
-    };
-    $primary.addEventListener('input', onColor('primary'));
-    $primPk.addEventListener('input',  onColor('primary'));
-    $accent.addEventListener('input',  onColor('accent'));
-    $accPk.addEventListener('input',   onColor('accent'));
-
-    document.getElementById('theme-colors-clear').addEventListener('click', () => {
-      state.brand_primary = '';
-      state.brand_accent  = '';
-      $primary.value = '';
-      $accent.value  = '';
-      paintPreview();
-    });
-
-    $name.addEventListener('input', () => { state.store_name = $name.value; paintPreview(); });
-    $desc.addEventListener('input', () => { state.store_description = $desc.value; paintPreview(); });
-
-    $logoFile.addEventListener('change', async () => {
-      const file = $logoFile.files?.[0];
-      if (!file) return;
-      $logoSt.textContent = 'Uploading…';
-      try {
-        const { url } = await Api.uploadImage(file);
-        state.logo_url = url;
-        $logoUrl.value = url;
-        paintLogo();
-        paintPreview();
-        $logoSt.innerHTML = '<span class="text-success">Uploaded — click Save &amp; publish to apply.</span>';
-      } catch (err) {
-        $logoSt.innerHTML = `<span class="text-danger">Upload failed: ${escHtml(err.message)}</span>`;
-      } finally {
-        $logoFile.value = '';
-      }
-    });
-
-    $logoDel.addEventListener('click', () => {
-      state.logo_url = '';
-      $logoUrl.value = '';
-      $logoSt.textContent = '';
-      paintLogo();
-      paintPreview();
-    });
-
-    // ── Reset / Save ───────────────────────────────────────────────────────
-    document.getElementById('theme-reset').addEventListener('click', () => {
-      Object.assign(state, snapshot);
-      $name.value    = state.store_name;
-      $desc.value    = state.store_description;
-      $primary.value = state.brand_primary;
-      $accent.value  = state.brand_accent;
-      $primPk.value  = state.brand_primary || '#111111';
-      $accPk.value   = state.brand_accent  || '#f5c000';
-      $logoUrl.value = state.logo_url;
-      paintLogo();
-      paintPresetSelection();
-      paintPreview();
-    });
-
-    document.getElementById('theme-save').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
-      try {
-        await Api.updateSettings({
-          theme:             state.theme,
-          brand_primary:     state.brand_primary,
-          brand_accent:      state.brand_accent,
-          logo_url:          state.logo_url,
-          store_name:        state.store_name,
-          store_description: state.store_description,
-        });
-        Toast.success('Theme published — your storefront is updated.');
-        // Refresh cached tenant context so navbar shows new store name.
+    const fixLink = document.getElementById('payouts-fix-link');
+    if (fixLink) {
+      const returnUrl = `${location.origin}${location.pathname}#/payouts`;
+      fixLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        fixLink.textContent = 'Loading…';
         try {
-          const ctxNow = Auth.getContext() || {};
-          sessionStorage.setItem(Auth._K_CTX, JSON.stringify({ ...ctxNow, store_name: state.store_name || ctxNow.store_name }));
-        } catch {}
-        Object.assign(snapshot, state);
-      } catch (err) {
-        Toast.error(`Save failed: ${err.message}`);
-      } finally {
+          const result = await Api.startConnectOnboarding(returnUrl, returnUrl);
+          window.location.href = result.url;
+        } catch (err) {
+          Toast.error(err.message || 'Failed to open Stripe');
+          fixLink.textContent = 'Resolve now';
+        }
+      });
+    }
+
+    const currency   = balanceData?.currency ?? 'usd';
+    const available  = balanceData?.available_balance ?? 0;
+    const resultEl   = document.getElementById('withdraw-result');
+
+    btn.addEventListener('click', async () => {
+      const input     = document.getElementById('withdraw-amount');
+      const amountVal = parseFloat(input.value);
+      if (isNaN(amountVal) || amountVal <= 0) {
+        Toast.error('Enter a valid amount to withdraw.');
+        return;
+      }
+      const amountCents = Math.round(amountVal * 100);
+      if (amountCents > available) {
+        Toast.error(`Amount exceeds available balance (${formatPrice(available, currency)}).`);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+      resultEl.innerHTML = '';
+
+      try {
+        const result = await Api.requestWithdrawal(amountCents);
+        Toast.success(`Withdrawal of ${formatPrice(amountCents, currency)} initiated.`);
+        // Reload the view to reflect updated balance.
+        Router.go('/payouts');
+      } catch (e) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Save &amp; publish';
+        btn.textContent = 'Withdraw';
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${escHtml(e.message)}</div>`;
       }
     });
   },
 };
-
-function invertFor(hex) {
-  // Pick black or white text for a given hex background so it stays readable.
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff';
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 150 ? '#111111' : '#ffffff';
-}
-
-function cssEscUrl(url) {
-  return String(url).replace(/"/g, '%22').replace(/'/g, '%27');
-}
 
 // ═══════════════════════════════════════════════════════════════
 // Router
@@ -2992,6 +3030,10 @@ const Router = {
     // Auth guard
     if (!isPublic && !Auth.isLoggedIn())         { this.go('/login'); return; }
     if (hash === '/login' && Auth.isLoggedIn())  { this.go('/products'); return; }
+
+    // Mount the connect banner on every authenticated page after the
+    // synchronous render completes (microtask ensures the DOM is ready).
+    if (Auth.isLoggedIn()) Promise.resolve().then(() => ConnectBanner.mount());
 
     if (hash === '/welcome') {
       // WelcomeView fetches /provision/:id/status once (no polling) and
@@ -3060,9 +3102,16 @@ const Router = {
       return;
     }
 
-    if (hash === '/theme' || hash === '/settings') {
-      app.innerHTML = ThemeView.render();
-      ThemeView.init();
+    // Customize is now a separate React app (different document, not a hash
+    // route). Old links / bookmarks land here and we hand off to the editor.
+    if (hash === '/theme' || hash === '/settings' || hash === '/customize') {
+      location.href = '/store-editor/';
+      return;
+    }
+
+    if (hash === '/payouts') {
+      app.innerHTML = PayoutsView.render();
+      PayoutsView.init();
       return;
     }
 

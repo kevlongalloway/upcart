@@ -27,6 +27,10 @@ const PUBLIC_KEYS = [
   "brand_accent",
   "logo_url",
   "currency",
+  "hero_title",
+  "hero_subtitle",
+  "hero_cta",
+  "page_sections",  // JSON-encoded section layout for the Store Editor
 ] as const;
 
 // Additional admin-only keys (kept internal). We don't currently return these
@@ -96,16 +100,24 @@ async function writeSettings(
 export const publicSettings = new Hono<{ Bindings: Bindings }>();
 
 publicSettings.get("/", async (c) => {
+  // No caching: the storefront fetches this on every page load to pick up the
+  // latest editor save. A stale cache here means saved edits invisibly lag
+  // behind on customer browsers, which is exactly the bug we're avoiding.
+  c.header("Cache-Control", "no-store");
   try {
     const rows = await readSettings(c.env.DB, PUBLIC_KEYS);
     return c.json(ok({
       store_name:        rows.store_name        ?? c.env.STORE_NAME ?? "",
       store_description: rows.store_description ?? "",
-      theme:             rows.theme             ?? "mono",
+      theme:             rows.theme             ?? "base",
       brand_primary:     rows.brand_primary     ?? "",
       brand_accent:      rows.brand_accent      ?? "",
       logo_url:          rows.logo_url          ?? "",
       currency:          rows.currency          ?? c.env.DEFAULT_CURRENCY ?? "usd",
+      hero_title:        rows.hero_title        ?? "",
+      hero_subtitle:     rows.hero_subtitle     ?? "",
+      hero_cta:          rows.hero_cta          ?? "",
+      page_sections:     rows.page_sections     ?? "",
     }));
   } catch (e) {
     console.error("GET /settings/public failed:", e);
@@ -114,11 +126,15 @@ publicSettings.get("/", async (c) => {
     return c.json(ok({
       store_name:        c.env.STORE_NAME ?? "",
       store_description: "",
-      theme:             "mono",
+      theme:             "base",
       brand_primary:     "",
       brand_accent:      "",
       logo_url:          "",
       currency:          c.env.DEFAULT_CURRENCY ?? "usd",
+      hero_title:        "",
+      hero_subtitle:     "",
+      hero_cta:          "",
+      page_sections:     "",
     }));
   }
 });
@@ -132,16 +148,20 @@ adminSettings.get("/", async (c) => {
   return c.json(ok({
     store_name:        rows.store_name        ?? c.env.STORE_NAME ?? "",
     store_description: rows.store_description ?? "",
-    theme:             rows.theme             ?? "mono",
+    theme:             rows.theme             ?? "base",
     brand_primary:     rows.brand_primary     ?? "",
     brand_accent:      rows.brand_accent      ?? "",
     logo_url:          rows.logo_url          ?? "",
     currency:          rows.currency          ?? c.env.DEFAULT_CURRENCY ?? "usd",
     country:           rows.country           ?? c.env.STORE_COUNTRY ?? "",
+    hero_title:        rows.hero_title        ?? "",
+    hero_subtitle:     rows.hero_subtitle     ?? "",
+    hero_cta:          rows.hero_cta          ?? "",
+    page_sections:     rows.page_sections     ?? "",
   }));
 });
 
-const VALID_THEMES = new Set(["mono", "minimal", "boutique", "bold", "studio"]);
+const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
 const hex6 = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Must be a 6-digit hex color like #1a1a1a")
@@ -156,10 +176,33 @@ const updateSchema = z
     brand_accent:      hex6.optional(),
     logo_url:          z.string().url().or(z.literal("")).optional(),
     currency:          z.string().length(3).toLowerCase().optional(),
+    hero_title:        z.string().max(100).optional(),
+    hero_subtitle:     z.string().max(200).optional(),
+    hero_cta:          z.string().max(50).optional(),
+    // JSON-encoded page section layout saved by the Store Editor
+    page_sections:     z.string().max(524288).optional(),
   })
   .strict();
 
-adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
+adminSettings.put(
+  "/",
+  zValidator("json", updateSchema, (result, c) => {
+    if (!result.success) {
+      // Without an error hook, @hono/zod-validator returns the raw ZodError
+      // object as JSON, which the editor stringifies into "[object Object]".
+      // Flatten it into a human-readable message + machine-readable details.
+      const flat = result.error.flatten();
+      const fieldMessages = Object.entries(flat.fieldErrors)
+        .map(([k, v]) => `${k}: ${(v ?? []).join(", ")}`)
+        .join("; ");
+      const message =
+        flat.formErrors.join("; ") ||
+        fieldMessages ||
+        "Invalid request body.";
+      return c.json(err(message, flat), 400);
+    }
+  }),
+  async (c) => {
   const body = c.req.valid("json");
   const tenantId = c.env.TENANT_ID || "";
 
@@ -186,11 +229,15 @@ adminSettings.put("/", zValidator("json", updateSchema), async (c) => {
   return c.json(ok({
     store_name:        rows.store_name        ?? "",
     store_description: rows.store_description ?? "",
-    theme:             rows.theme             ?? "mono",
+    theme:             rows.theme             ?? "base",
     brand_primary:     rows.brand_primary     ?? "",
     brand_accent:      rows.brand_accent      ?? "",
     logo_url:          rows.logo_url          ?? "",
     currency:          rows.currency          ?? "",
     country:           rows.country           ?? "",
+    hero_title:        rows.hero_title        ?? "",
+    hero_subtitle:     rows.hero_subtitle     ?? "",
+    hero_cta:          rows.hero_cta          ?? "",
+    page_sections:     rows.page_sections     ?? "",
   }));
 });

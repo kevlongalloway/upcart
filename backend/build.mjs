@@ -24,8 +24,10 @@ const FILES = [
   { src: "product.html",  routes: ["/product.html"],    type: HTML },
   { src: "cart.html",     routes: ["/cart.html"],       type: HTML },
   { src: "success.html",  routes: ["/success.html"],    type: HTML },
-  { src: "cart.js",       routes: ["/cart.js"],         type: JS   },
-  { src: "theme.js",      routes: ["/theme.js"],        type: JS   },
+  { src: "cart.js",            routes: ["/cart.js"],            type: JS   },
+  { src: "theme.js",           routes: ["/theme.js"],           type: JS   },
+  { src: "sections.js",        routes: ["/sections.js"],        type: JS   },
+  { src: "store-renderer.js",  routes: ["/store-renderer.js"],  type: JS   },
 ];
 
 function read(rel) {

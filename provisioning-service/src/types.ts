@@ -32,11 +32,28 @@ export type Bindings = {
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;
 
+  // ── Identity verification credentials (set via `wrangler secret put`) ──
+  // Resend — used to send email OTP codes during signup verification.
+  // Get your API key at https://resend.com/api-keys
+  RESEND_API_KEY: string;
+
+  // Twilio — used to send SMS OTP codes during signup verification.
+  // Find these at https://console.twilio.com → Account Info
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  // The Twilio phone number (E.164 format, e.g. "+15551234567") or
+  // Messaging Service SID to send from.
+  TWILIO_FROM_NUMBER: string;
+
   // ── Config vars (set in wrangler.toml [vars]) ──
   BASE_DOMAIN: string;           // "upcart.online"
   WORKER_SCRIPT_PREFIX: string;  // "upcart-store" → worker = upcart-store-<tenantId>
   WORKER_BUNDLE_KEY: string;     // R2 object key of compiled bundle, e.g. "store-worker.js"
   CORS_ORIGINS: string;          // comma-separated allowed origins, or "*"
+  // Stripe Price ID for the platform subscription plan (e.g. "price_...").
+  // Create a recurring price in your Stripe dashboard and paste the ID here.
+  // Required for subscription creation; set to "" to skip billing at provisioning.
+  STRIPE_PRICE_ID: string;
 
   // The account-level workers.dev subdomain. Required — provision.ts uses
   // `<worker>.<sub>.workers.dev` to reach a newly-provisioned tenant
@@ -48,6 +65,12 @@ export type Bindings = {
   // under "Subdomain". If yours shows "acmecorp.workers.dev", set this
   // to "acmecorp".
   CF_WORKERS_SUBDOMAIN: string;
+
+  // Controls whether SMS/phone verification is required during signup.
+  // "true"  → SMS OTP is enabled (Twilio credentials must be configured).
+  // "false" → SMS channel is disabled; only email verification is accepted.
+  // Set in wrangler.toml [vars]; change to "true" once Twilio is ready.
+  REQUIRE_SMS_VERIFICATION: string;
 };
 
 // ─── Tenant models ────────────────────────────────────────────────────────────
@@ -60,9 +83,36 @@ export type TenantStatus =
   | "configuring_domain"
   | "finalizing"
   | "active"
+  | "payment_failed"
   | "suspended"
   | "cancelled"
   | "failed";
+
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "payment_failed"
+  | "suspended"
+  | "cancelled";
+
+export type Subscription = {
+  id: string;
+  tenant_id: string;
+  plan: TenantPlan;
+  status: SubscriptionStatus;
+  trial_ends_at: string;
+  current_period_end: string | null;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  payment_failed_at: string | null;
+  payment_failed_count: number;
+  reminder_30d_sent: boolean;
+  reminder_7d_sent: boolean;
+  reminder_1d_sent: boolean;
+  expired_notice_sent: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export type TenantPlan = "starter" | "pro" | "business";
 
@@ -88,9 +138,19 @@ export type Tenant = {
   cf_custom_domain_id: string | null;  // Workers Custom Domain binding ID
   cf_route_id: string | null;          // Workers Route ID (fallback only)
 
+  // Payment method collected during signup ($1 auth flow)
+  payment_method_id: string | null;
+
+  // Identity verification timestamps (set when OTP is confirmed pre-provisioning)
+  email_verified_at: string | null;
+  phone_number: string | null;
+  phone_verified_at: string | null;
+
   // Stripe Connect
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
+  stripe_connect_charges_enabled: boolean;
+  stripe_connect_payouts_enabled: boolean;
 
   // Live URLs (set once provisioning completes)
   store_url: string | null;
@@ -101,6 +161,19 @@ export type Tenant = {
 
   created_at: string;
   updated_at: string;
+};
+
+// ─── Verification token ───────────────────────────────────────────────────────
+
+export type VerificationToken = {
+  id: string;
+  identifier: string;        // email address or E.164 phone number
+  channel: "email" | "sms";
+  code: string;
+  expires_at: string;
+  verified_at: string | null;
+  attempt_count: number;
+  created_at: string;
 };
 
 // ─── Provision request ────────────────────────────────────────────────────────
@@ -121,6 +194,16 @@ export type ProvisionRequest = {
   };
   // No longer required — the platform manages payments via Stripe Connect.
   stripe_publishable_key?: string;
+
+  // PaymentIntent created during the $1 authorization step on the wizard.
+  // Must be in `requires_capture` status before provisioning proceeds.
+  payment_intent_id: string;
+  // Stripe PaymentMethod attached to the PaymentIntent; stored on the tenant
+  // record for future subscription charges.
+  payment_method_id: string;
+  // Token ID returned by POST /provision/verify-otp. Must reference a verified,
+  // non-expired token whose identifier matches admin.email.
+  verification_token_id: string;
 };
 
 // ─── Cloudflare API response shapes ──────────────────────────────────────────
