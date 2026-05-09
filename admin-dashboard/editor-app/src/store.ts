@@ -88,16 +88,22 @@ export interface EditorActions {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-// Seeded section types — every brand-new tenant lands in the editor with
-// the ARCH editorial layout already populated, in this exact order. Stable
-// IDs let us keep the seed reproducible across reloads without relying on
-// nanoid(). The shop sits on the home page so customers can browse without
-// hopping to /products.html.
+// Seeded section types — every brand-new tenant lands in the editor with a
+// complete editorial homepage already populated, in this exact order. The
+// section sequence mirrors customer-store/store-renderer.js's
+// buildDefaultSchema() so the live storefront and the editor stay in lockstep:
+// announcement, header, hero, features, filterable shop, info, testimonials,
+// newsletter, footer.
 const DEFAULT_SECTION_SEEDS: Array<{ id: string; type: SectionType }> = [
-  { id: 'seed-header',  type: 'header'              },
-  { id: 'seed-hero',    type: 'hero'                },
-  { id: 'seed-shop',    type: 'filter-product-grid' },
-  { id: 'seed-footer',  type: 'footer'              },
+  { id: 'seed-announce',     type: 'announcement-bar'    },
+  { id: 'seed-header',       type: 'header'              },
+  { id: 'seed-hero',         type: 'hero'                },
+  { id: 'seed-features',     type: 'features'            },
+  { id: 'seed-shop',         type: 'filter-product-grid' },
+  { id: 'seed-info',         type: 'info'                },
+  { id: 'seed-testimonials', type: 'testimonials'        },
+  { id: 'seed-newsletter',   type: 'newsletter'          },
+  { id: 'seed-footer',       type: 'footer'              },
 ];
 
 function buildSeededSection(id: string, type: SectionType): Section {

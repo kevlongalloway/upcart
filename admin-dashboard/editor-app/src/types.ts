@@ -122,18 +122,18 @@ export const DEFAULT_BUTTON: ButtonStyle = {
   openInNewTab:         false,
   variant:              'solid',
   size:                 'md',
-  backgroundColor:      '#1A1710',
-  textColor:            '#FDFCF9',
-  borderColor:          '#1A1710',
+  backgroundColor:      '#161310',
+  textColor:            '#FBF7EE',
+  borderColor:          '#161310',
   borderRadius:         0,
   borderWidth:          1,
-  paddingX:             28,
-  paddingY:             14,
+  paddingX:             32,
+  paddingY:             16,
   fontSize:             11,
   fontWeight:           500,
   shadow:               'none',
-  hoverBackgroundColor: '#9E7D45',
-  hoverTextColor:       '#FDFCF9',
+  hoverBackgroundColor: '#8C6128',
+  hoverTextColor:       '#FBF7EE',
   fullWidth:            false,
 };
 
@@ -179,37 +179,37 @@ export interface GlobalTheme {
   customCSS:  string;
 }
 
-// ARCH theme defaults: editorial fashion palette + Bodoni Moda / Instrument
-// Sans typography. Every brand-new tenant ships with this look; the editor
-// surfaces it as `preset: 'base'` and merchants tune from here.
+// Editorial luxe defaults: warm cream paper + ink, brass accent, Fraunces
+// (variable serif with optical sizes) for display + Inter Tight for UI.
+// Every brand-new tenant ships with this look; merchants tune from here.
 export const DEFAULT_GLOBAL_THEME: GlobalTheme = {
   preset: 'base',
   colors: {
-    primary:     '#1A1710',
-    primaryText: '#FDFCF9',
-    secondary:   '#8C8779',
-    accent:      '#C8A96E',
-    background:  '#F5F2EC',
-    surface:     '#FDFCF9',
-    text:        '#1A1710',
-    textMuted:   '#8C8779',
-    border:      '#DDD9D1',
+    primary:     '#161310',
+    primaryText: '#FBF7EE',
+    secondary:   '#807767',
+    accent:      '#B8884A',
+    background:  '#F4EFE6',
+    surface:     '#FBF7EE',
+    text:        '#161310',
+    textMuted:   '#807767',
+    border:      '#E4DCC9',
   },
   typography: {
-    headingFont:   'Playfair Display',
-    bodyFont:      'Inter',
-    baseFontSize:  14,
-    headingWeight: 700,
+    headingFont:   'Fraunces',
+    bodyFont:      'Inter Tight',
+    baseFontSize:  15,
+    headingWeight: 600,
     bodyWeight:    400,
     lineHeight:    1.6,
     letterSpacing: 0,
   },
   spacing: {
-    containerMaxWidth:      1280,
-    sectionVerticalPadding: 80,
+    containerMaxWidth:      1320,
+    sectionVerticalPadding: 96,
     borderRadius:           0,
     cardBorderRadius:       0,
-    elementGap:             16,
+    elementGap:             20,
   },
   customCSS: '',
 };
