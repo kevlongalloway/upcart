@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from 'react-colorful';
-import { Upload, Link, ChevronDown, RotateCcw } from 'lucide-react';
+import { Upload, Link, ChevronDown, RotateCcw, Plus, Trash2, ChevronUp } from 'lucide-react';
 import type {
   FieldDef, Spacing, Background, Typography, ButtonStyle, FontWeight,
 } from './types';
@@ -653,6 +653,112 @@ export function CustomCSSField({ value, onChange }: {
   );
 }
 
+// ── List / repeater field ─────────────────────────────────────────────────
+// Renders an editable array of objects whose shape is defined by
+// `def.itemFields`. Each item is collapsible; users can add, remove, and
+// reorder items. Used for hero stats, header navLinks, footer columns, etc.
+
+export function ListField({ def, value, onChange }: {
+  def: FieldDef; value: unknown; onChange: (v: Array<Record<string, unknown>>) => void;
+}) {
+  const items: Array<Record<string, unknown>> = Array.isArray(value)
+    ? (value as Array<Record<string, unknown>>)
+    : [];
+  const itemFields = def.itemFields ?? [];
+  const [openIdx, setOpenIdx] = useState<number | null>(items.length === 0 ? null : 0);
+
+  const update = (next: Array<Record<string, unknown>>) => onChange(next);
+  const updateItem = (idx: number, patch: Record<string, unknown>) => {
+    const next = items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+    update(next);
+  };
+  const removeItem = (idx: number) => {
+    update(items.filter((_, i) => i !== idx));
+    if (openIdx === idx) setOpenIdx(null);
+  };
+  const moveItem = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = items.slice();
+    [next[idx], next[target]] = [next[target], next[idx]];
+    update(next);
+    if (openIdx === idx) setOpenIdx(target);
+  };
+  const addItem = () => {
+    if (def.maxItems && items.length >= def.maxItems) return;
+    const seed = def.itemDefault ?? {};
+    const next = [...items, { ...seed }];
+    update(next);
+    setOpenIdx(next.length - 1);
+  };
+
+  const labelFor = (it: Record<string, unknown>, i: number): string => {
+    if (typeof def.itemLabel === 'function') return def.itemLabel(it, i);
+    if (typeof def.itemLabel === 'string') {
+      const k = def.itemLabel;
+      const v = it[k];
+      if (typeof v === 'string' && v) return v;
+    }
+    return `Item ${i + 1}`;
+  };
+
+  return (
+    <div className="mb-2">
+      <label className="text-ed-muted text-[11px] block mb-1">{def.label}</label>
+      <div className="flex flex-col gap-1">
+        {items.map((item, idx) => {
+          const isOpen = openIdx === idx;
+          return (
+            <div key={idx} className="border border-ed-border rounded bg-ed-panel">
+              <div className="flex items-center gap-1 px-2 py-1">
+                <button
+                  type="button"
+                  onClick={() => setOpenIdx(isOpen ? null : idx)}
+                  className="flex-1 text-left text-xs text-ed-text truncate"
+                >
+                  {labelFor(item, idx)}
+                </button>
+                <button type="button" onClick={() => moveItem(idx, -1)} disabled={idx === 0}
+                  className="p-1 text-ed-muted hover:text-ed-text disabled:opacity-30" title="Move up">
+                  <ChevronUp size={12} />
+                </button>
+                <button type="button" onClick={() => moveItem(idx, 1)} disabled={idx === items.length - 1}
+                  className="p-1 text-ed-muted hover:text-ed-text disabled:opacity-30" title="Move down">
+                  <ChevronDown size={12} />
+                </button>
+                <button type="button" onClick={() => removeItem(idx)}
+                  className="p-1 text-ed-muted hover:text-red-400" title="Remove">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+              {isOpen && (
+                <div className="border-t border-ed-border p-2">
+                  {itemFields.map(f => (
+                    <FieldRenderer
+                      key={f.key}
+                      def={f}
+                      value={item[f.key]}
+                      onChange={(k, v) => updateItem(idx, { [k]: v })}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={addItem}
+        disabled={!!def.maxItems && items.length >= def.maxItems}
+        className="mt-2 flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-ed-panel hover:bg-ed-border text-ed-muted hover:text-ed-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <Plus size={11} /> {def.addLabel ?? 'Add'}
+      </button>
+    </div>
+  );
+}
+
 // ── Generic field dispatcher ───────────────────────────────────────────────
 
 export function FieldRenderer({ def, value, onChange }: {
@@ -677,6 +783,7 @@ export function FieldRenderer({ def, value, onChange }: {
     case 'typography':   return <TypographyPanel  value={(value as Typography) ?? DEFAULT_TYPOGRAPHY}   onChange={up} />;
     case 'button-style': return <ButtonStyleField value={(value as ButtonStyle) ?? DEFAULT_BUTTON} onChange={up} />;
     case 'custom-css':   return <CustomCSSField value={String(value ?? '')} onChange={up} />;
+    case 'list':         return <ListField    def={def} value={value} onChange={up} />;
     default:             return null;
   }
 }
