@@ -225,6 +225,25 @@
       const issueLabel   = s.issueLabel || s.editionLabel || '';
       const minH = s.minHeight || (sec.layout && sec.layout.minHeight) || 640;
 
+      // Build inline CSS from a Typography setting so editor changes
+      // (size, weight, color, transform, italic, etc.) actually paint
+      // instead of being overridden by the hero's hardcoded class styles.
+      const typographyCss = (t) => {
+        if (!t || typeof t !== 'object') return '';
+        const decls = [];
+        if (t.fontFamily && t.fontFamily !== 'inherit') decls.push(`font-family:'${t.fontFamily}',sans-serif`);
+        if (typeof t.fontSize === 'number')             decls.push(`font-size:${t.fontSize}px`);
+        if (t.fontWeight)                               decls.push(`font-weight:${t.fontWeight}`);
+        if (typeof t.lineHeight === 'number')           decls.push(`line-height:${t.lineHeight}`);
+        if (typeof t.letterSpacing === 'number')        decls.push(`letter-spacing:${t.letterSpacing}em`);
+        if (t.textAlign)                                decls.push(`text-align:${t.textAlign}`);
+        if (t.textTransform && t.textTransform !== 'none') decls.push(`text-transform:${t.textTransform}`);
+        if (t.color)                                    decls.push(`color:${t.color}`);
+        if (t.italic)                                   decls.push('font-style:italic');
+        if (t.underline)                                decls.push('text-decoration:underline');
+        return decls.join(';');
+      };
+
       // ─── Editorial split layout ────────────────────────────────────────
       // Photo on the left, ink-on-cream copy + stats strip on the right with
       // a thin vertical rule between them. Falls back gracefully when the
@@ -250,26 +269,34 @@
               <span class="uc-hero-photo-rule"></span>
               ${placeholderMeta ? `<span class="uc-hero-photo-meta">${placeholderMeta}</span>` : ''}
             </div>`;
-        // Photo overlay chrome: paginated badge + corner caption tying the
-        // image into the editorial frame.
+        // Photo overlay chrome: paginated badge (toggleable, label editable)
+        // + corner caption tying the image into the editorial frame.
+        const showBadge = s.showPhotoBadge !== false;
+        const badgeLabel = typeof s.photoBadgeLabel === 'string' && s.photoBadgeLabel
+          ? s.photoBadgeLabel
+          : 'N°01';
+        const captionText = typeof s.imageCaption === 'string'
+          ? s.imageCaption
+          : 'Photographed in studio · Édition I';
         const photoOverlay = `
-          <span class="uc-hero-photo-badge" aria-hidden="true">
+          ${showBadge ? `<span class="uc-hero-photo-badge" aria-hidden="true">
             <span class="uc-hero-photo-badge-rule"></span>
-            <span class="uc-hero-photo-badge-num">N°01</span>
-          </span>
-          <span class="uc-hero-photo-caption" aria-hidden="true">${(s.imageCaption || 'Photographed in studio · Édition I').replace(/"/g,'&quot;')}</span>
+            <span class="uc-hero-photo-badge-num">${badgeLabel}</span>
+          </span>` : ''}
+          ${captionText ? `<span class="uc-hero-photo-caption" aria-hidden="true">${captionText.replace(/"/g,'&quot;')}</span>` : ''}
         `;
 
         // Headline: large display serif, hairline italic accent below.
-        // data-hero-title sits on an inner span so settings.hero_title can
-        // overwrite just the main wordmark while the italic accent
-        // (settings.hero_italic / section.headlineItalic) stays untouched.
-        const headingHtml = `<h1 class="uc-hero-headline">
+        // Inline typography styles flow from settings.headlineTypography so
+        // size/weight/color edits in the panel actually apply.
+        const headlineCss = typographyCss(s.headlineTypography);
+        const subCss      = typographyCss(s.subheadlineTypography);
+        const headingHtml = `<h1 class="uc-hero-headline" style="${headlineCss}">
             <span class="uc-hero-headline-main" data-hero-title>${heading}</span>
             ${headingItal ? `<span class="uc-hero-headline-italic">${headingItal}</span>` : ''}
           </h1>`;
         const subHtml = subheading
-          ? `<p class="uc-hero-sub" data-hero-subtitle>${subheading}</p>`
+          ? `<p class="uc-hero-sub" data-hero-subtitle style="${subCss}">${subheading}</p>`
           : '';
         const kickerHtml = `<div class="uc-hero-kicker">
               <span class="uc-hero-kicker-rule"></span>
@@ -287,26 +314,29 @@
           </div>` : '';
 
         // Editorial CTA pair: a primary text-link with arrow and a thin
-        // secondary "Read the journal" link. Pulls label/url from the
-        // merchant's primaryButton (or legacy hero_cta / ctaLabel fields)
-        // but ignores backgroundColor / borderRadius from older schemas so
-        // we never render a stranded white button or default browser link.
+        // secondary "Read the journal" link. We honour label/url/openInNewTab
+        // from the merchant's button-style settings, but keep the visual
+        // (color / spacing) tied to the editorial frame so a stray
+        // backgroundColor doesn't strand the buttons mid-canvas.
         const primary  = s.primaryButton   || {};
         const secondary = s.secondaryButton || {};
         const ctaLabel = primary.label || s.hero_cta || s.ctaLabel || 'Shop the Edit';
         // /products collides with the API route on the tenant worker; the
         // static products *page* is served at /products.html.
         const ctaUrl   = primary.url   || s.ctaUrl   || '/products.html';
+        const ctaTarget = primary.openInNewTab ? ' target="_blank" rel="noopener"' : '';
         const arrowSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
         const showSecondary = s.showSecondaryButton !== false && (secondary.label || s.secondaryLabel);
         const secondaryLabel = secondary.label || s.secondaryLabel || 'Read the Journal';
         const secondaryUrl   = secondary.url   || s.secondaryUrl   || '#';
+        const secondaryTarget = secondary.openInNewTab ? ' target="_blank" rel="noopener"' : '';
         const ctaHtml  = `<div class="uc-hero-cta-row">
-          <a href="${ctaUrl}" data-hero-cta class="uc-hero-cta">${ctaLabel}${arrowSvg}</a>
-          ${showSecondary ? `<a href="${secondaryUrl}" class="uc-hero-cta-secondary">${secondaryLabel}</a>` : ''}
+          <a href="${ctaUrl}"${ctaTarget} data-hero-cta class="uc-hero-cta">${ctaLabel}${arrowSvg}</a>
+          ${showSecondary ? `<a href="${secondaryUrl}"${secondaryTarget} class="uc-hero-cta-secondary">${secondaryLabel}</a>` : ''}
         </div>`;
 
-        return `<section class="uc-hero uc-hero-split" style="--uc-hero-min:${minH}px;background:${s.backgroundColor||'var(--uc-surface)'}">
+        const heroBg = s.backgroundColor || 'var(--uc-surface)';
+        return `<section class="uc-hero uc-hero-split" style="--uc-hero-min:${minH}px;background:${heroBg}">
           <div class="uc-hero-photo${photoEmptyClass}">${photo}${photoOverlay}</div>
           <div class="uc-hero-text${showStats ? ' uc-hero-text--with-stats' : ''}">
             ${seasonHtml}
@@ -324,19 +354,26 @@
       // ─── Classic full-bleed layout (preserved for merchants who flip back) ──
       const showSecondary = s.showSecondaryButton !== false;
       const btns = [s.primaryButton, showSecondary ? s.secondaryButton : null].filter(Boolean).map(renderButton).join(' ');
-      const mediaHtml = s.mediaType === 'video' && s.videoUrl
+      const mediaType = s.mediaType || (s.videoUrl ? 'video' : 'image');
+      const mediaHtml = mediaType === 'video' && s.videoUrl
         ? `<video src="${s.videoUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'"></video>`
         : s.imageUrl
           ? `<img src="${s.imageUrl}" alt="${s.imageAlt||''}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0" onerror="this.style.display='none'">`
           : '';
       const overlay = s.overlayOpacity > 0 ? `<div style="position:absolute;inset:0;background:${s.overlayColor||'#000'};opacity:${s.overlayOpacity||0};z-index:1"></div>` : '';
       const align = s.textAlign || (sec.layout && sec.layout.contentAlign) || 'center';
-      return `<section class="uc-hero" style="position:relative;min-height:${minH}px;display:flex;align-items:${s.verticalAlign||'center'};overflow:hidden">
+      const verticalAlign = s.verticalAlign || 'center';
+      const headlineSize    = typeof s.headingSize    === 'number' ? s.headingSize    : 64;
+      const subheadlineSize = typeof s.subheadingSize === 'number' ? s.subheadingSize : 20;
+      const headingColorCss    = s.headingColor    ? `color:${s.headingColor}`    : 'color:inherit';
+      const subheadingColorCss = s.subheadingColor ? `color:${s.subheadingColor}` : 'color:inherit';
+      const heroBgClassic = s.backgroundColor ? `background:${s.backgroundColor};` : '';
+      return `<section class="uc-hero" style="${heroBgClassic}position:relative;min-height:${minH}px;display:flex;align-items:${verticalAlign};overflow:hidden">
         ${mediaHtml}${overlay}
         <div class="uc-container uc-w-contained" style="position:relative;z-index:2;text-align:${align};max-width:${s.contentMaxWidth||'var(--uc-container-max)'}${typeof s.contentMaxWidth==='number'?'px':''}">
           ${kicker ? `<p style="text-transform:uppercase;letter-spacing:.1em;font-size:13px;margin-bottom:12px;color:var(--uc-accent)">${kicker}</p>` : ''}
-          <h1 style="font-size:clamp(2rem,5vw,${s.headingSize||64}px);font-weight:var(--uc-heading-weight);color:${s.headingColor||'inherit'};margin:0 0 16px"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;opacity:.7;font-size:.72em">${headingItal}</span>` : ''}</h1>
-          ${subheading ? `<p data-hero-subtitle style="font-size:${s.subheadingSize||20}px;margin-bottom:32px;opacity:.9;color:${s.subheadingColor||'inherit'}">${subheading}</p>` : ''}
+          <h1 style="font-size:clamp(2rem,5vw,${headlineSize}px);font-weight:var(--uc-heading-weight);${headingColorCss};margin:0 0 16px"><span data-hero-title>${heading}</span>${headingItal ? `<span style="display:block;font-weight:400;font-style:italic;opacity:.7;font-size:.72em">${headingItal}</span>` : ''}</h1>
+          ${subheading ? `<p data-hero-subtitle style="font-size:${subheadlineSize}px;margin-bottom:32px;opacity:.9;${subheadingColorCss}">${subheading}</p>` : ''}
           ${btns ? `<div style="display:flex;gap:12px;justify-content:${align};flex-wrap:wrap">${btns}</div>` : ''}
         </div>
       </section>`;
@@ -2383,6 +2420,10 @@
                 imageUrl:      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1400&q=85&auto=format&fit=crop',
                 imageAlt:      'The Spring Edit — featured campaign',
                 imageCaption:  'Photographed in studio · Édition I',
+                showPhotoBadge:  true,
+                photoBadgeLabel: 'N°01',
+                imagePlaceholderEyebrow: 'An introduction to',
+                imagePlaceholderMeta:    'Volume I — Édition Studio',
                 showStats:     true,
                 stats: [
                   { value: '47',     label: 'New Arrivals'   },

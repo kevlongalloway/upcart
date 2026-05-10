@@ -320,6 +320,7 @@ export type FieldType =
   | 'typography'
   | 'button-style'
   | 'custom-css'
+  | 'list'           // editable array of objects, configured via `itemFields`
   | 'blocks-manager'; // renders the block list for this section
 
 export interface SelectOption {
@@ -345,6 +346,12 @@ export interface FieldDef {
   step?:        number;
   group?:       string;    // group heading in the panel
   condition?:   FieldCondition;
+  // ── list field (type === 'list') ──
+  itemFields?:  FieldDef[];                // schema for one item in the array
+  itemLabel?:   string | ((item: Record<string, unknown>, index: number) => string);
+  itemDefault?: Record<string, unknown>;   // default object inserted on Add
+  addLabel?:    string;                    // button label, defaults to "Add"
+  maxItems?:    number;
 }
 
 // ── Block Type ─────────────────────────────────────────────────────────────
