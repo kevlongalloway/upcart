@@ -160,35 +160,46 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     icon:        'LayoutTemplate',
     category:    'content',
     defaultSettings: {
-      // Editorial split layout: photo on the left, ink-on-cream text on the
-      // right. Merchants can flip back to a classic full-bleed hero via `layout`.
+      // ── Layout selector ─────────────────────────────────────────────
+      // Split (default): photo column + text column with stats strip.
+      // Classic: full-bleed image/video with overlaid headline + buttons.
       layout:        'split',
+
+      // ── Editorial copy (used by both layouts) ───────────────────────
       kicker:        'The Spring Edit',
       issueLabel:    'Volume I',
       headline:      'A study in',
       headlineItalic: 'quiet luxury.',
       subheadline:   'Considered pieces, photographed in natural light. Built in small runs, shipped from the studio.',
       seasonMarker:  'SS · 2026',
+
+      // ── Image / placeholder (split + classic) ───────────────────────
       imageUrl:      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1400&q=85&auto=format&fit=crop',
       imageAlt:      'The Spring Edit — featured campaign',
       imageCaption:  'Photographed in studio · Édition I',
-      // Shown inside the photo column when no imageUrl is supplied. Three
-      // separate lines so merchants can rebrand the placeholder without
-      // touching the storefront renderer.
+      showPhotoBadge: true,
+      photoBadgeLabel: 'N°01',
+      // Photo-column placeholder shown when no imageUrl is supplied.
       imagePlaceholderEyebrow: 'An introduction to',
       imagePlaceholderMeta:    'Volume I — Édition Studio',
+
+      // ── Stats strip (split layout) ──────────────────────────────────
       showStats:     true,
       stats: [
         { value: '47',     label: 'New Arrivals'   },
         { value: 'Free',   label: 'Worldwide Ship' },
         { value: '30-Day', label: 'Returns'        },
       ],
+
+      // ── Typography ──────────────────────────────────────────────────
       headlineTypography: {
         ...TYPO, fontSize: 80, fontWeight: 500, color: '#161310', textAlign: 'left',
       },
       subheadlineTypography: {
         ...TYPO, fontSize: 16, fontWeight: 400, color: '#807767', textAlign: 'left',
       },
+
+      // ── Buttons ─────────────────────────────────────────────────────
       primaryButton: {
         ...BTN, label: 'Shop the Edit', url: '/products.html', variant: 'solid',
         backgroundColor: '#161310', textColor: '#FBF7EE', borderColor: '#161310',
@@ -201,7 +212,22 @@ const REGISTRY: Record<SectionType, SectionDef> = {
         backgroundColor: 'transparent', textColor: '#161310', borderColor: '#161310',
         borderWidth: 0, paddingX: 0, paddingY: 4, fontSize: 11,
       },
+
+      // ── Layout knobs (apply per layout) ─────────────────────────────
       contentMaxWidth:  560,
+      backgroundColor:  '',          // override hero bg; '' = theme surface
+
+      // ── Classic-only ────────────────────────────────────────────────
+      mediaType:       'image',      // 'image' | 'video'
+      videoUrl:        '',
+      overlayColor:    '#000000',
+      overlayOpacity:  0,
+      textAlign:       'center',     // 'left' | 'center' | 'right'
+      verticalAlign:   'center',     // 'flex-start' | 'center' | 'flex-end'
+      headingSize:     64,
+      headingColor:    '',
+      subheadingSize:  20,
+      subheadingColor: '',
       showScrollIndicator: false,
     },
     defaultLayout: {
@@ -215,31 +241,107 @@ const REGISTRY: Record<SectionType, SectionDef> = {
     },
     defaultBlocks:  [],
     settingsFields: [
-      { key: 'layout',       label: 'Hero layout', type: 'select',
+      // ── Layout selector ────────────────────────────────────────────
+      { key: 'layout', label: 'Hero layout', type: 'select',
         options: [
           { value: 'split',   label: 'Split (photo + text)' },
           { value: 'classic', label: 'Classic (full-bleed)' },
         ] },
-      { key: 'kicker',       label: 'Kicker',       type: 'text',     placeholder: 'New Season Arrivals' },
-      { key: 'headline',     label: 'Headline',     type: 'text',     placeholder: 'The Coat' },
-      { key: 'headlineItalic', label: 'Italic accent (optional)', type: 'text', placeholder: 'Issue.' },
-      { key: 'subheadline',  label: 'Subheadline',  type: 'textarea', placeholder: 'Short description…' },
-      { key: 'imageUrl',     label: 'Hero image',   type: 'image' },
-      { key: 'imageAlt',     label: 'Image alt text', type: 'text' },
-      { key: 'imageCaption', label: 'Image caption', type: 'text', placeholder: 'Photographed in studio · Édition I' },
-      // Placeholder copy shown inside the photo column when no image is set.
-      { key: 'imagePlaceholderEyebrow', label: 'Placeholder eyebrow', type: 'text', placeholder: 'An introduction to' },
-      { key: 'imagePlaceholderMeta',    label: 'Placeholder meta line', type: 'text', placeholder: 'Volume I — Édition Studio' },
-      { key: 'seasonMarker', label: 'Vertical season marker', type: 'text', placeholder: 'SS 26' },
-      { key: 'issueLabel',   label: 'Kicker issue label', type: 'text', placeholder: 'Volume I' },
-      { key: 'showStats',    label: 'Show stat strip', type: 'toggle' },
-      { key: 'primaryButton',      label: 'Primary button',    type: 'button-style' },
-      { key: 'showSecondaryButton', label: 'Show secondary button', type: 'toggle' },
-      { key: 'secondaryButton',    label: 'Secondary button',   type: 'button-style',
+
+      // ── Editorial copy ─────────────────────────────────────────────
+      { key: 'kicker',         label: 'Kicker',                    type: 'text',     placeholder: 'New Season Arrivals' },
+      { key: 'issueLabel',     label: 'Kicker issue label',        type: 'text',     placeholder: 'Volume I',
+        condition: { key: 'layout', value: 'split' } },
+      { key: 'headline',       label: 'Headline',                  type: 'text',     placeholder: 'The Coat' },
+      { key: 'headlineItalic', label: 'Italic accent (optional)',  type: 'text',     placeholder: 'Issue.' },
+      { key: 'subheadline',    label: 'Subheadline',               type: 'textarea', placeholder: 'Short description…' },
+      { key: 'seasonMarker',   label: 'Vertical season marker',    type: 'text',     placeholder: 'SS 26',
+        condition: { key: 'layout', value: 'split' } },
+
+      // ── Image / media ──────────────────────────────────────────────
+      { key: 'mediaType', label: 'Media type', type: 'select', group: 'Image',
+        condition: { key: 'layout', value: 'classic' },
+        options: [
+          { value: 'image', label: 'Image' },
+          { value: 'video', label: 'Video' },
+        ] },
+      { key: 'imageUrl',     label: 'Hero image',     type: 'image', group: 'Image' },
+      { key: 'imageAlt',     label: 'Image alt text', type: 'text',  group: 'Image' },
+      { key: 'videoUrl',     label: 'Video URL',      type: 'url',   group: 'Image',
+        condition: { key: 'mediaType', value: 'video' } },
+      { key: 'imageCaption', label: 'Image caption (split)', type: 'text', group: 'Image',
+        placeholder: 'Photographed in studio · Édition I',
+        condition: { key: 'layout', value: 'split' } },
+      { key: 'showPhotoBadge', label: 'Show photo badge', type: 'toggle', group: 'Image',
+        condition: { key: 'layout', value: 'split' } },
+      { key: 'photoBadgeLabel', label: 'Photo badge label', type: 'text', group: 'Image',
+        placeholder: 'N°01',
+        condition: { key: 'showPhotoBadge', value: true } },
+      { key: 'imagePlaceholderEyebrow', label: 'Placeholder eyebrow', type: 'text', group: 'Image',
+        placeholder: 'An introduction to',
+        condition: { key: 'layout', value: 'split' } },
+      { key: 'imagePlaceholderMeta',    label: 'Placeholder meta line', type: 'text', group: 'Image',
+        placeholder: 'Volume I — Édition Studio',
+        condition: { key: 'layout', value: 'split' } },
+
+      // ── Stats strip (split) ────────────────────────────────────────
+      { key: 'showStats', label: 'Show stat strip', type: 'toggle', group: 'Stats',
+        condition: { key: 'layout', value: 'split' } },
+      { key: 'stats', label: 'Stats', type: 'list', group: 'Stats',
+        condition: { key: 'showStats', value: true },
+        addLabel:   'Add stat',
+        itemLabel:  'value',
+        maxItems:   6,
+        itemDefault: { value: '', label: '' },
+        itemFields: [
+          { key: 'value', label: 'Value', type: 'text', placeholder: '47' },
+          { key: 'label', label: 'Label', type: 'text', placeholder: 'New Arrivals' },
+        ] },
+
+      // ── Buttons ────────────────────────────────────────────────────
+      { key: 'primaryButton',       label: 'Primary button',        type: 'button-style', group: 'Buttons' },
+      { key: 'showSecondaryButton', label: 'Show secondary button', type: 'toggle',       group: 'Buttons' },
+      { key: 'secondaryButton',     label: 'Secondary button',      type: 'button-style', group: 'Buttons',
         condition: { key: 'showSecondaryButton', value: true } },
+
+      // ── Typography ─────────────────────────────────────────────────
       { key: 'headlineTypography',    label: 'Headline style',    type: 'typography', group: 'Typography' },
       { key: 'subheadlineTypography', label: 'Subheadline style', type: 'typography', group: 'Typography' },
-      { key: 'contentMaxWidth', label: 'Content max width (px)', type: 'number', min: 320, max: 1200, group: 'Layout' },
+
+      // ── Layout knobs ───────────────────────────────────────────────
+      { key: 'backgroundColor', label: 'Hero background',         type: 'color',  group: 'Hero layout' },
+      { key: 'contentMaxWidth', label: 'Content max width (px)',  type: 'number', group: 'Hero layout', min: 320, max: 1200 },
+      // Classic-only positioning + colors
+      { key: 'textAlign', label: 'Text align', type: 'select', group: 'Hero layout',
+        condition: { key: 'layout', value: 'classic' },
+        options: [
+          { value: 'left',   label: 'Left'   },
+          { value: 'center', label: 'Center' },
+          { value: 'right',  label: 'Right'  },
+        ] },
+      { key: 'verticalAlign', label: 'Vertical align', type: 'select', group: 'Hero layout',
+        condition: { key: 'layout', value: 'classic' },
+        options: [
+          { value: 'flex-start', label: 'Top'    },
+          { value: 'center',     label: 'Center' },
+          { value: 'flex-end',   label: 'Bottom' },
+        ] },
+      { key: 'headingSize',     label: 'Heading size (px)',     type: 'slider', group: 'Hero layout',
+        min: 24, max: 160, step: 2,
+        condition: { key: 'layout', value: 'classic' } },
+      { key: 'headingColor',    label: 'Heading color',         type: 'color',  group: 'Hero layout',
+        condition: { key: 'layout', value: 'classic' } },
+      { key: 'subheadingSize',  label: 'Subheading size (px)',  type: 'slider', group: 'Hero layout',
+        min: 12, max: 48, step: 1,
+        condition: { key: 'layout', value: 'classic' } },
+      { key: 'subheadingColor', label: 'Subheading color',      type: 'color',  group: 'Hero layout',
+        condition: { key: 'layout', value: 'classic' } },
+      { key: 'overlayColor',    label: 'Overlay color',         type: 'color',  group: 'Hero layout',
+        condition: { key: 'layout', value: 'classic' } },
+      { key: 'overlayOpacity',  label: 'Overlay opacity',       type: 'slider', group: 'Hero layout',
+        min: 0, max: 1, step: 0.05,
+        condition: { key: 'layout', value: 'classic' } },
+
       ...LAYOUT_FIELDS,
     ],
   },
