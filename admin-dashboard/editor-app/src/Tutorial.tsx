@@ -73,7 +73,7 @@ export default function Tutorial() {
   // ── Completed state ──────────────────────────────────────────────
   if (completed) {
     return (
-      <div className="fixed bottom-4 left-4 z-[60] w-80 rounded-lg border border-ed-success/40 bg-ed-surface shadow-2xl overflow-hidden">
+      <div className="fixed bottom-3 left-3 right-3 sm:left-4 sm:right-auto sm:w-80 z-[60] rounded-lg border border-ed-success/40 bg-ed-surface shadow-2xl overflow-hidden">
         <div className="h-1 bg-ed-success" />
         <div className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -109,7 +109,7 @@ export default function Tutorial() {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed bottom-4 left-4 z-[60] w-80 rounded-lg border border-ed-border bg-ed-surface shadow-2xl overflow-hidden">
+    <div className="fixed bottom-3 left-3 right-3 sm:left-4 sm:right-auto sm:w-80 z-[60] rounded-lg border border-ed-border bg-ed-surface shadow-2xl overflow-hidden">
       <div className="h-1 bg-ed-accent" />
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">

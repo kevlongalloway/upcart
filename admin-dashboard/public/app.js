@@ -515,21 +515,30 @@ const SetupChecklist = {
         </div>`;
     }
 
-    const stepRows = steps.map(s => `
-      <div class="setup-step ${s.done ? 'done' : ''}">
-        <span class="setup-step-icon">
-          <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
-        </span>
-        <div class="setup-step-body">
-          <div class="setup-step-title">${escHtml(s.title)}</div>
-          <div class="setup-step-sub">${escHtml(s.sub)}</div>
-        </div>
-        <div class="setup-step-action">
-          ${s.done
-            ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
-            : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+    // Each step is a slide. On mobile they're a swipeable carousel (one per
+    // view); on desktop all three sit side by side.
+    const slides = steps.map((s, i) => `
+      <div class="setup-slide ${s.done ? 'done' : ''}">
+        <div class="setup-slide-inner">
+          <span class="setup-slide-icon">
+            <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
+          </span>
+          <div class="setup-slide-step">Step ${i + 1}</div>
+          <div>
+            <div class="setup-slide-title">${escHtml(s.title)}</div>
+          </div>
+          <div class="setup-slide-sub">${escHtml(s.sub)}</div>
+          <div class="setup-slide-action">
+            ${s.done
+              ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
+              : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+          </div>
         </div>
       </div>`).join('');
+
+    const dots = steps.map((_, i) =>
+      `<button class="setup-dot ${i === 0 ? 'active' : ''}" data-setup-dot="${i}" aria-label="Go to step ${i + 1}"></button>`
+    ).join('');
 
     return `
       <div class="card setup-card mb-4">
@@ -547,8 +556,17 @@ const SetupChecklist = {
           <div class="progress setup-progress mb-4" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
             <div class="progress-bar" style="width:${pct}%"></div>
           </div>
-          <div class="setup-steps">
-            ${stepRows}
+          <div class="setup-track" id="setup-track">
+            ${slides}
+          </div>
+          <div class="setup-nav">
+            <button class="setup-arrow" data-setup-prev disabled aria-label="Previous step">
+              <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="setup-dots">${dots}</div>
+            <button class="setup-arrow" data-setup-next aria-label="Next step">
+              <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
         </div>
       </div>`;
@@ -570,6 +588,55 @@ const SetupChecklist = {
     container.querySelectorAll('[data-setup-step]').forEach(btn => {
       btn.addEventListener('click', () => this._handleStep(btn.dataset.setupStep, btn));
     });
+
+    this._wireCarousel(container);
+  },
+
+  // Swipeable-slides behaviour: keep dots + arrows in sync with scroll and
+  // let arrows/dots drive the scroll position.
+  _wireCarousel(container) {
+    const track = container.querySelector('#setup-track');
+    if (!track) return;
+    const slides = Array.from(track.querySelectorAll('.setup-slide'));
+    const dots   = Array.from(container.querySelectorAll('[data-setup-dot]'));
+    const prev   = container.querySelector('[data-setup-prev]');
+    const next   = container.querySelector('[data-setup-next]');
+    if (!slides.length) return;
+
+    // Use bounding rects throughout so the math is correct regardless of
+    // the slides' offset parent.
+    const activeIndex = () => {
+      const mid = track.getBoundingClientRect().left + track.clientWidth / 2;
+      let best = 0, bestDist = Infinity;
+      slides.forEach((s, i) => {
+        const r = s.getBoundingClientRect();
+        const d = Math.abs((r.left + r.width / 2) - mid);
+        if (d < bestDist) { bestDist = d; best = i; }
+      });
+      return best;
+    };
+
+    const sync = () => {
+      const i = activeIndex();
+      dots.forEach((d, di) => d.classList.toggle('active', di === i));
+      if (prev) prev.disabled = i === 0;
+      if (next) next.disabled = i === slides.length - 1;
+    };
+
+    const goTo = i => {
+      const clamped = Math.max(0, Math.min(slides.length - 1, i));
+      const s = slides[clamped];
+      const left = track.scrollLeft + (s.getBoundingClientRect().left - track.getBoundingClientRect().left);
+      track.scrollTo({ left, behavior: 'smooth' });
+    };
+
+    track.addEventListener('scroll', () => {
+      window.requestAnimationFrame(sync);
+    }, { passive: true });
+    dots.forEach((d, i) => d.addEventListener('click', () => goTo(i)));
+    if (prev) prev.addEventListener('click', () => goTo(activeIndex() - 1));
+    if (next) next.addEventListener('click', () => goTo(activeIndex() + 1));
+    sync();
   },
 
   async _handleStep(key, btn) {
@@ -3225,7 +3292,7 @@ const DashboardView = {
   _awaiting:        0,
 
   render() {
-    const pills = DASH_PERIODS.map((p, i) => `
+    const pills = DASH_PERIODS.map((p) => `
       <input type="radio" class="btn-check" name="dash-period" id="dp-${p.key}" value="${p.key}" ${p.key === this._period ? 'checked' : ''}>
       <label class="btn btn-outline-secondary" for="dp-${p.key}">${p.label}</label>`).join('');
 
@@ -3234,8 +3301,8 @@ const DashboardView = {
       <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
           <div>
-            <h1 class="fw-black mb-0" style="font-size:1.4rem;letter-spacing:-0.01em">Dashboard</h1>
-            <p class="mb-0 mt-1" style="font-size:0.75rem;color:var(--text-muted)">Your store at a glance</p>
+            <h1 class="fw-black mb-0" style="font-size:1.5rem;letter-spacing:-0.02em">Dashboard</h1>
+            <p class="mb-0 mt-1" style="font-size:0.78rem;color:var(--text-muted)">Your store at a glance</p>
           </div>
           <a href="#/products/new" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i>New Product
@@ -3245,31 +3312,36 @@ const DashboardView = {
         <!-- Complete your store -->
         <div id="setup-checklist"></div>
 
-        <!-- Overview header + period selector -->
-        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
-          <h2 class="h5 fw-bold mb-0">Overview</h2>
-          <div class="btn-group btn-group-sm" role="group" id="dash-period-group">
-            ${pills}
-          </div>
-        </div>
+        <!-- Overview — the shareable glass panel -->
+        <div class="card overview-panel mb-4">
+          <div class="card-body p-3 p-sm-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
+              <div>
+                <h2 class="h5 fw-bold mb-0">Overview</h2>
+                <p class="small text-secondary mb-0" id="dash-overview-sub">Sales this week</p>
+              </div>
+              <div class="btn-group btn-group-sm seg" role="group" id="dash-period-group">
+                ${pills}
+              </div>
+            </div>
 
-        <div id="dash-error" class="alert alert-danger d-none"></div>
+            <div id="dash-error" class="alert alert-danger d-none"></div>
 
-        <!-- Metric cards -->
-        <div class="row g-3 mb-4" id="dash-metrics">
-          ${this._skeletonMetrics()}
-        </div>
+            <!-- Metric tiles -->
+            <div class="row g-2 g-sm-3 mb-3" id="dash-metrics">
+              ${this._skeletonMetrics()}
+            </div>
 
-        <!-- Revenue chart -->
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="small fw-semibold text-uppercase text-secondary">Revenue</span>
-            <span class="small text-secondary" id="dash-chart-total"></span>
-          </div>
-          <div class="card-body">
-            <div id="dash-chart" class="dash-chart">
-              <div class="text-center py-5 w-100">
-                <div class="spinner-border text-success" role="status"></div>
+            <!-- Revenue chart -->
+            <div class="overview-chart-wrap">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-semibold text-uppercase text-secondary" style="letter-spacing:.08em">Revenue</span>
+                <span class="small fw-semibold" id="dash-chart-total"></span>
+              </div>
+              <div id="dash-chart" class="dash-chart">
+                <div class="text-center py-5 w-100">
+                  <div class="spinner-border text-success" role="status"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -3299,13 +3371,13 @@ const DashboardView = {
 
   _skeletonMetrics() {
     return [0, 1, 2, 3].map(() => `
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body">
+      <div class="col-6 col-xl-3">
+        <div class="metric-tile">
           <div class="placeholder-glow">
             <span class="placeholder col-6"></span>
-            <span class="placeholder col-8 d-block mt-2" style="height:1.4rem"></span>
+            <span class="placeholder col-8 d-block mt-2" style="height:1.6rem"></span>
           </div>
-        </div></div>
+        </div>
       </div>`).join('');
   },
 
@@ -3373,14 +3445,14 @@ const DashboardView = {
     }
   },
 
-  _metricCard(label, value, sub) {
+  _metricCard(label, value, sub, hero = false) {
     return `
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body">
-          <p class="small text-secondary mb-1">${escHtml(label)}</p>
-          <p class="fs-4 fw-bold mb-0">${value}</p>
-          <p class="small text-secondary mt-1 mb-0">${sub}</p>
-        </div></div>
+      <div class="col-6 col-xl-3">
+        <div class="metric-tile ${hero ? 'hero' : ''}">
+          <p class="metric-label">${escHtml(label)}</p>
+          <p class="metric-value">${value}</p>
+          <p class="metric-sub">${sub}</p>
+        </div>
       </div>`;
   },
 
@@ -3400,20 +3472,24 @@ const DashboardView = {
     if (!metrics || !chart) return;
 
     const periodLabel = (DASH_PERIODS.find(p => p.key === this._period) || {}).label || '';
+    const periodWord  = this._period === 'all' ? 'all time' : `this ${periodLabel.toLowerCase()}`;
+    const periodWordCap = periodWord.charAt(0).toUpperCase() + periodWord.slice(1);
     const avail = this._balance ? (this._balance.available_balance ?? 0) : null;
 
     metrics.innerHTML = [
-      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`),
-      this._metricCard('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`),
+      this._metricCard('Sales', formatPrice(stats.revenue, cur), periodWordCap, true),
+      this._metricCard('Orders', String(stats.orderCount), periodWordCap),
       this._metricCard('Avg order value', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order'),
       this._metricCard(
-        'Available to withdraw',
+        'Available',
         avail === null ? '—' : formatPrice(avail, cur),
-        avail === null ? 'Set up payouts' : 'In your balance',
+        avail === null ? 'Set up payouts' : 'To withdraw',
       ),
     ].join('');
 
-    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)} · ${periodLabel}`;
+    const sub = document.getElementById('dash-overview-sub');
+    if (sub) sub.textContent = `Sales ${periodWord}`;
+    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)}`;
 
     const max = Math.max(...stats.bucketRevenue, 0);
     if (max <= 0) {
