@@ -2,6 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ───────────────────────────────────────────────────────
+   Each token is stored as space-separated RGB channels so Tailwind can
+   apply opacity modifiers via rgb(var(--token) / <alpha-value>) (see
+   tailwind.config.ts). The editor follows the OS preference by default
+   (data-ed-theme="auto") and can be pinned light/dark from the top bar. */
+:root,
+[data-ed-theme="dark"] {
+  --ed-bg:           13 13 13;
+  --ed-surface:      20 20 20;
+  --ed-panel:        24 24 24;
+  --ed-border:       36 36 36;
+  --ed-border2:      46 46 46;
+  --ed-hover:        30 30 30;
+  --ed-active:       26 40 64;
+  --ed-text:         224 224 224;
+  --ed-muted:        136 136 136;
+  --ed-text-2:       160 160 160;
+  --ed-text-3:       102 102 102;
+  --ed-accent:       13 110 253;
+  --ed-accent-hover: 11 94 215;
+  --ed-danger:       239 68 68;
+  --ed-success:      34 197 94;
+  --ed-warning:      245 158 11;
+}
+
+/* Explicit light selection */
+[data-ed-theme="light"] {
+  --ed-bg:           245 246 248;
+  --ed-surface:      255 255 255;
+  --ed-panel:        240 241 244;
+  --ed-border:       226 229 234;
+  --ed-border2:      211 215 221;
+  --ed-hover:        236 238 241;
+  --ed-active:       220 232 251;
+  --ed-text:         27 31 36;
+  --ed-muted:        107 114 128;
+  --ed-text-2:       75 85 99;
+  --ed-text-3:       154 161 171;
+  --ed-accent:       13 110 253;
+  --ed-accent-hover: 11 94 215;
+  --ed-danger:       220 38 38;
+  --ed-success:      22 163 74;
+  --ed-warning:      217 119 8;
+}
+
+/* Auto mode follows the OS — apply light tokens when the OS is light. */
+@media (prefers-color-scheme: light) {
+  [data-ed-theme="auto"] {
+    --ed-bg:           245 246 248;
+    --ed-surface:      255 255 255;
+    --ed-panel:        240 241 244;
+    --ed-border:       226 229 234;
+    --ed-border2:      211 215 221;
+    --ed-hover:        236 238 241;
+    --ed-active:       220 232 251;
+    --ed-text:         27 31 36;
+    --ed-muted:        107 114 128;
+    --ed-text-2:       75 85 99;
+    --ed-text-3:       154 161 171;
+    --ed-accent:       13 110 253;
+    --ed-accent-hover: 11 94 215;
+    --ed-danger:       220 38 38;
+    --ed-success:      22 163 74;
+    --ed-warning:      217 119 8;
+  }
+}
+
 /* ── Editor shell resets ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -10,8 +77,8 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #0d0d0d;
-  color: #e5e5e5;
+  background: rgb(var(--ed-bg));
+  color: rgb(var(--ed-text));
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
@@ -20,8 +87,8 @@ html, body, #root {
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
+::-webkit-scrollbar-thumb { background: rgb(var(--ed-border2)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--ed-text-3)); }
 
 /* ── Input / select base ───────────────────────────────────────────────── */
 input[type="text"],
@@ -29,9 +96,9 @@ input[type="number"],
 input[type="url"],
 textarea,
 select {
-  background: #1e1e1e;
-  border: 1px solid #2e2e2e;
-  color: #e5e5e5;
+  background: rgb(var(--ed-panel));
+  border: 1px solid rgb(var(--ed-border2));
+  color: rgb(var(--ed-text));
   border-radius: 4px;
   padding: 5px 8px;
   font-size: 12px;
@@ -40,7 +107,7 @@ select {
   transition: border-color .15s;
 }
 input:focus, textarea:focus, select:focus {
-  border-color: #0d6efd;
+  border-color: rgb(var(--ed-accent));
 }
 
 /* range input */
@@ -51,7 +118,7 @@ input[type="range"] {
   cursor: pointer;
 }
 input[type="range"]::-webkit-slider-runnable-track {
-  background: #333;
+  background: rgb(var(--ed-border2));
   height: 4px;
   border-radius: 2px;
 }
@@ -59,7 +126,7 @@ input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px; height: 14px;
   border-radius: 50%;
-  background: #0d6efd;
+  background: rgb(var(--ed-accent));
   margin-top: -5px;
 }
 

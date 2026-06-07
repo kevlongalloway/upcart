@@ -2,10 +2,18 @@ import React, { useCallback, useState } from 'react';
 import {
   Undo2, Redo2, Monitor, Tablet, Smartphone,
   Save, ExternalLink, ChevronLeft, Loader2, Eye, EyeOff,
+  Sun, Moon, MonitorSmartphone,
 } from 'lucide-react';
 import { useEditor } from './store';
 import { getAuth } from './api';
+import { getThemeMode, setThemeMode, nextThemeMode, type ThemeMode } from './theme';
 import type { Viewport } from './types';
+
+const THEME_META: Record<ThemeMode, { icon: React.ReactNode; label: string }> = {
+  auto:  { icon: <MonitorSmartphone size={14} />, label: 'Theme: Auto (system)' },
+  light: { icon: <Sun  size={14} />,              label: 'Theme: Light' },
+  dark:  { icon: <Moon size={14} />,              label: 'Theme: Dark' },
+};
 
 const VIEWPORTS: { id: Viewport; icon: React.ReactNode; label: string }[] = [
   { id: 'desktop', icon: <Monitor size={14} />, label: 'Desktop' },
@@ -27,12 +35,21 @@ export default function TopBar() {
   const storeUrl    = getAuth()?.storeUrl ?? '#';
 
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [theme, setTheme]         = useState<ThemeMode>(getThemeMode);
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
     try { await saveSchema(); }
     catch (err) { setSaveError(String(err)); }
   }, [saveSchema]);
+
+  const cycleTheme = useCallback(() => {
+    setTheme(prev => {
+      const next = nextThemeMode(prev);
+      setThemeMode(next);
+      return next;
+    });
+  }, []);
 
   return (
     <header className="flex items-center gap-2 h-11 px-3 bg-ed-surface border-b border-ed-border flex-shrink-0 z-20">
@@ -91,6 +108,18 @@ export default function TopBar() {
           </button>
         ))}
       </div>
+
+      <div className="w-px h-4 bg-ed-border mx-1" />
+
+      {/* Theme switcher (auto → light → dark) */}
+      <button
+        onClick={cycleTheme}
+        title={THEME_META[theme].label}
+        aria-label={THEME_META[theme].label}
+        className="editor-btn p-1.5"
+      >
+        {THEME_META[theme].icon}
+      </button>
 
       <div className="w-px h-4 bg-ed-border mx-1" />
 
