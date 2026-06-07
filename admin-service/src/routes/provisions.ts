@@ -251,10 +251,11 @@ provisionsRouter.post(
     const workerName = `${env.WORKER_SCRIPT_PREFIX}-${tenantId}`;
 
     const created = {
-      d1Id:           "",
-      r2Bucket:       "",
-      workerName:     "",
-      customDomainId: "",
+      d1Id:        "",
+      r2Bucket:    "",
+      workerName:  "",
+      dnsRecordId: "",
+      routeId:     "",
     };
 
     try {
@@ -317,12 +318,20 @@ provisionsRouter.post(
       const jwtSecret = generateSecret();
       await cf.setWorkerSecret(workerName, "JWT_SECRET", jwtSecret);
 
-      // ── Custom Domain (DNS + cert handled by Cloudflare) ────────────────
-      const domain = await cf.addWorkerCustomDomain(workerName, hostname, env.CF_ZONE_ID);
-      created.customDomainId = domain.id;
+      // ── Bind subdomain: proxied AAAA record + Worker Route ──────────────
+      // Not Custom Domains: a Custom Domain creates a separate read-only
+      // "Worker" DNS record that conflicts with a Worker Route on the same
+      // hostname. The proxied AAAA 100:: placeholder + Route is served over
+      // HTTPS instantly by the zone's *.upcart.online universal certificate.
+      const dnsRecord = await cf.createDnsRecord(env.CF_ZONE_ID, hostname);
+      created.dnsRecordId = dnsRecord.id;
       await db.provisions.update(tenantId, {
-        cf_custom_domain_id: domain.id, status: "configuring_domain",
+        cf_dns_record_id: dnsRecord.id, status: "configuring_domain",
       });
+
+      const route = await cf.addWorkerRoute(env.CF_ZONE_ID, `${hostname}/*`, workerName);
+      created.routeId = route.id;
+      await db.provisions.update(tenantId, { cf_route_id: route.id });
 
       // ── Finalize ─────────────────────────────────────────────────────────
       const storeUrl = `https://${hostname}`;
@@ -345,7 +354,8 @@ provisionsRouter.post(
           worker: workerName,
           d1_id: d1.uuid,
           r2_bucket: bucketName,
-          custom_domain_id: domain.id,
+          dns_record_id: dnsRecord.id,
+          route_id: route.id,
         },
       });
 
@@ -356,10 +366,11 @@ provisionsRouter.post(
 
       // Best-effort rollback. Mirror cleanupProvisioning's order.
       const rollback: Array<[string, () => Promise<void>]> = [];
-      if (created.customDomainId) rollback.push(["custom_domain", () => cf.removeWorkerCustomDomain(created.customDomainId)]);
-      if (created.workerName)     rollback.push(["worker_script", () => cf.deleteWorkerScript(created.workerName)]);
-      if (created.r2Bucket)       rollback.push(["r2_bucket",     () => cf.deleteR2Bucket(created.r2Bucket)]);
-      if (created.d1Id)           rollback.push(["d1_database",   () => cf.deleteD1Database(created.d1Id)]);
+      if (created.routeId)     rollback.push(["worker_route", () => cf.deleteWorkerRoute(env.CF_ZONE_ID, created.routeId)]);
+      if (created.dnsRecordId) rollback.push(["dns_record",   () => cf.deleteDnsRecord(env.CF_ZONE_ID, created.dnsRecordId)]);
+      if (created.workerName)  rollback.push(["worker_script", () => cf.deleteWorkerScript(created.workerName)]);
+      if (created.r2Bucket)    rollback.push(["r2_bucket",     () => cf.deleteR2Bucket(created.r2Bucket)]);
+      if (created.d1Id)        rollback.push(["d1_database",   () => cf.deleteD1Database(created.d1Id)]);
 
       for (const [label, fn] of rollback) {
         try { await fn(); }
