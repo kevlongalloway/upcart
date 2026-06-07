@@ -241,7 +241,7 @@ const Toast = {
             <i class="bi ${icon}"></i>
             <span>${escHtml(message)}</span>
           </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
         </div>
       </div>`;
     this._container.insertAdjacentHTML('beforeend', html);
@@ -321,7 +321,7 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">${escHtml(title)}</h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">${bodyHtml}</div>
             <div class="modal-footer">
@@ -980,7 +980,7 @@ const ProductsListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0 products-table">
+            <table class="table table-hover align-middle mb-0 products-table">
               <thead>
                 <tr>
                   <th class="ps-3">Product</th>
@@ -1344,7 +1344,7 @@ const ProductFormView = {
                 <i class="bi bi-plus-lg me-1"></i>Add Size
               </button>
               <div class="form-text mt-3">Common sizes: S, M, L, XL. Or use custom sizes like "One Size", "32x24", etc.</div>
-              <div class="mt-3 p-3 bg-dark rounded-2 border border-secondary small">
+              <div class="mt-3 p-3 bg-body-tertiary rounded-2 border small">
                 <div class="text-secondary mb-2">JSON Preview:</div>
                 <code id="variants-preview" class="text-success font-monospace">{ "variants": [] }</code>
               </div>
@@ -1797,7 +1797,7 @@ const OrdersListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0 orders-table">
+            <table class="table table-hover align-middle mb-0 orders-table">
               <thead>
                 <tr>
                   <th class="ps-3">Order</th>
@@ -2423,7 +2423,7 @@ const DiscountsListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0">
               <thead>
                 <tr>
                   <th class="ps-3">Code / Name</th>
