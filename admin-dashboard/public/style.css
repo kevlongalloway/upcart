@@ -692,3 +692,122 @@ hr {
   cursor: pointer;
 }
 
+/* ── Setup checklist ("Complete your store") ─────────────────────── */
+.setup-card {
+  border-color: var(--gold-border) !important;
+  background:
+    linear-gradient(180deg, var(--gold-glow), transparent 60%),
+    var(--bg-card);
+}
+.setup-card-done {
+  border-color: rgba(34, 197, 94, .35) !important;
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, .10), transparent 60%),
+    var(--bg-card);
+}
+.setup-progress-count {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--gold);
+}
+.progress.setup-progress {
+  height: 8px;
+  background-color: var(--border-strong);
+  border-radius: 999px;
+}
+.setup-progress .progress-bar {
+  background-color: var(--gold);
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+.setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setup-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-input);
+  transition: border-color .15s, background .15s;
+}
+.setup-step:hover { border-color: var(--gold-border); }
+.setup-step.done {
+  opacity: .72;
+  background: transparent;
+}
+.setup-step-icon {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem;
+  background: var(--gold-glow);
+  color: var(--gold);
+  border: 1px solid var(--gold-border);
+}
+.setup-step.done .setup-step-icon {
+  background: rgba(34, 197, 94, .12);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, .35);
+}
+.setup-step-body { flex: 1 1 auto; min-width: 0; }
+.setup-step-title { font-weight: 600; line-height: 1.2; }
+.setup-step-sub { font-size: .78rem; color: var(--text-dim); }
+.setup-step-action { flex-shrink: 0; }
+.setup-done-badge {
+  flex-shrink: 0;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  background: rgba(34, 197, 94, .14);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, .4);
+}
+
+/* ── Dashboard revenue chart ─────────────────────────────────────── */
+.dash-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 180px;
+}
+.dash-bar-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.dash-bar-track {
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.dash-bar-fill {
+  width: 70%;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  transition: height .3s ease, opacity .15s;
+}
+.dash-bar-col:hover .dash-bar-fill { opacity: .8; }
+.dash-bar-fill.empty { background: var(--border-strong); }
+.dash-bar-label {
+  margin-top: 6px;
+  font-size: .62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  height: 14px;
+}
+

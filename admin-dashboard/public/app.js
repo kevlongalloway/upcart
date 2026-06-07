@@ -350,14 +350,15 @@ function renderNavbar() {
   const onOrders      = hash.startsWith('/orders');
   const onDiscounts   = hash.startsWith('/discounts');
   const onPayouts     = hash.startsWith('/payouts');
-  const onProducts    = !onOrders && !onDiscounts && !onPayouts;
+  const onProducts    = hash.startsWith('/products');
+  const onDashboard   = !onOrders && !onDiscounts && !onPayouts && !onProducts;
   const ctx           = Auth.getContext() || {};
   const storeName     = escHtml(ctx.store_name || 'Your Store');
   const storeUrl      = ctx.store_url ? escHtml(ctx.store_url) : null;
   return `
     <nav class="navbar border-bottom">
       <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="height:56px">
-        <a class="navbar-brand d-flex align-items-center" href="#/products" style="gap:.6rem;min-width:0">
+        <a class="navbar-brand d-flex align-items-center" href="#/dashboard" style="gap:.6rem;min-width:0">
           <span class="brand-badge" aria-hidden="true">U</span>
           <span class="d-flex flex-column text-truncate">
             <span class="fw-semibold text-truncate" style="line-height:1.1">${storeName}</span>
@@ -366,6 +367,11 @@ function renderNavbar() {
         </a>
         <div class="d-flex align-items-center gap-2">
           <ul class="nav nav-pills d-flex gap-1 mb-0">
+            <li class="nav-item">
+              <a class="nav-link py-1 px-2 ${onDashboard ? 'active' : ''}" href="#/dashboard">
+                <i class="bi bi-speedometer2"></i><span class="nav-label ms-1">Dashboard</span>
+              </a>
+            </li>
             <li class="nav-item">
               <a class="nav-link py-1 px-2 ${onProducts ? 'active' : ''}" href="#/products">
                 <i class="bi bi-box-seam"></i><span class="nav-label ms-1">Products</span>
@@ -401,117 +407,317 @@ function renderNavbar() {
           </button>
         </div>
       </div>
-    </nav>
-    <div id="connect-banner"></div>`;
+    </nav>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Connect Banner
+// Setup Checklist  ("Complete your store")
 // ═══════════════════════════════════════════════════════════════
-// Injected below the navbar on every authenticated page. Fetches
-// GET /connect/status once per page load (non-blocking) and renders:
-//   • Nothing if charges_enabled = true (onboarding complete)
-//   • A warning banner with a "Set up payouts" CTA otherwise
-//   • An info banner when the account has pending verification items
-const ConnectBanner = {
-  _containerId: 'connect-banner',
+// Replaces the old persistent "Set up payouts" banner. Rendered at the
+// top of the Dashboard, it mirrors the "complete your profile" pattern
+// found on social platforms: a progress bar plus a short list of steps.
+//
+//   1. Add your first product   → /products/new
+//   2. Customize your store     → store editor with a guided tutorial
+//   3. Set up payouts           → Stripe Connect onboarding
+//
+// Completion is derived from real data so the list reflects actual
+// progress and never gets "stuck":
+//   • product   → at least one product exists
+//   • customize → page_sections has been saved at least once (the
+//                 editor only persists it after a real edit), or the
+//                 local tutorial-completion hint is set
+//   • payouts   → Stripe charges_enabled
+const SETUP_CUSTOMIZE_KEY  = 'upcart_setup_customize';
+const SETUP_DISMISSED_KEY  = 'upcart_setup_dismissed';
 
-  // Returns the placeholder div that views should embed after renderNavbar().
-  placeholder() {
-    return `<div id="${this._containerId}"></div>`;
+const SetupChecklist = {
+  // Build the completion state from already-fetched data. The caller
+  // (DashboardView) loads products/settings/connect once and passes them
+  // here so we don't duplicate network requests.
+  deriveState({ products, settings, status }) {
+    const hasProduct = Array.isArray(products) && products.length > 0;
+
+    let localCustomized = false;
+    try { localCustomized = localStorage.getItem(SETUP_CUSTOMIZE_KEY) === 'done'; } catch { /* ignore */ }
+    const savedSections = settings && typeof settings.page_sections === 'string'
+      && settings.page_sections.trim().length > 0;
+    const customized = localCustomized || savedSections;
+
+    const payouts = !!(status && status.charges_enabled);
+
+    return { hasProduct, customized, payouts, status: status || {} };
   },
 
-  // Call this after rendering a page. Fetches status async; updates the
-  // banner in place without blocking the rest of the page from rendering.
-  async mount() {
-    const container = document.getElementById(this._containerId);
+  _payoutsSubtitle(state) {
+    const r = state.status && state.status.requirements;
+    if (state.payouts) return 'Payments and payouts are live.';
+    if (r && Array.isArray(r.pending_verification) && r.pending_verification.length > 0) {
+      return 'Stripe is reviewing your account — almost there.';
+    }
+    if (r && Array.isArray(r.currently_due) && r.currently_due.length > 0) {
+      return 'Stripe needs a little more information.';
+    }
+    return 'Connect Stripe to accept live payments and receive payouts.';
+  },
+
+  // Returns the HTML string for the checklist card (or empty string when
+  // everything is done and the merchant has dismissed it).
+  render(state) {
+    const steps = [
+      {
+        key:   'product',
+        icon:  'bi-box-seam',
+        done:  state.hasProduct,
+        title: 'Add your first product',
+        sub:   state.hasProduct ? 'Your catalog has a product.' : 'Create something for customers to buy.',
+        cta:   'Add product',
+      },
+      {
+        key:   'customize',
+        icon:  'bi-palette2',
+        done:  state.customized,
+        title: 'Customize your store',
+        sub:   state.customized ? 'Your storefront has been personalized.' : 'Personalize your theme, hero, and colors.',
+        cta:   'Customize',
+      },
+      {
+        key:   'payouts',
+        icon:  'bi-cash-stack',
+        done:  state.payouts,
+        title: 'Set up payouts',
+        sub:   this._payoutsSubtitle(state),
+        cta:   state.status && state.status.connected ? 'Finish setup' : 'Set up payouts',
+      },
+    ];
+
+    const doneCount = steps.filter(s => s.done).length;
+    const total     = steps.length;
+    const pct       = Math.round((doneCount / total) * 100);
+    const allDone   = doneCount === total;
+
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(SETUP_DISMISSED_KEY) === '1'; } catch { /* ignore */ }
+    if (allDone && dismissed) return '';
+
+    // Celebratory, collapsed state once every step is complete.
+    if (allDone) {
+      return `
+        <div class="card setup-card setup-card-done mb-4">
+          <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+            <span class="setup-done-badge"><i class="bi bi-check-lg"></i></span>
+            <div class="flex-grow-1">
+              <h2 class="h6 fw-bold mb-1">Your store is ready to sell 🎉</h2>
+              <p class="small text-secondary mb-0">All setup steps are complete. You can always fine-tune things from the menu above.</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" data-setup-dismiss>Dismiss</button>
+          </div>
+        </div>`;
+    }
+
+    const stepRows = steps.map(s => `
+      <div class="setup-step ${s.done ? 'done' : ''}">
+        <span class="setup-step-icon">
+          <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
+        </span>
+        <div class="setup-step-body">
+          <div class="setup-step-title">${escHtml(s.title)}</div>
+          <div class="setup-step-sub">${escHtml(s.sub)}</div>
+        </div>
+        <div class="setup-step-action">
+          ${s.done
+            ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
+            : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+        </div>
+      </div>`).join('');
+
+    return `
+      <div class="card setup-card mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div>
+              <h2 class="h5 fw-bold mb-1">Complete your store</h2>
+              <p class="small text-secondary mb-0">Finish these steps to start selling.</p>
+            </div>
+            <div class="text-end">
+              <div class="setup-progress-count">${doneCount}<span class="text-secondary fw-normal">/${total}</span></div>
+              <div class="small text-secondary">steps done</div>
+            </div>
+          </div>
+          <div class="progress setup-progress mb-4" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width:${pct}%"></div>
+          </div>
+          <div class="setup-steps">
+            ${stepRows}
+          </div>
+        </div>
+      </div>`;
+  },
+
+  // Attach click handlers. `container` is the element whose innerHTML is
+  // the result of render().
+  wire(container) {
     if (!container) return;
 
-    let status;
-    try {
-      status = await Api.getConnectStatus();
-    } catch {
-      // If Connect status can't be fetched, show nothing rather than an error.
+    const dismissBtn = container.querySelector('[data-setup-dismiss]');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        try { localStorage.setItem(SETUP_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+        container.innerHTML = '';
+      });
+    }
+
+    container.querySelectorAll('[data-setup-step]').forEach(btn => {
+      btn.addEventListener('click', () => this._handleStep(btn.dataset.setupStep, btn));
+    });
+  },
+
+  async _handleStep(key, btn) {
+    if (key === 'product') {
+      Router.go('/products/new');
       return;
     }
-
-    // charges_enabled = true means onboarding is fully complete — no banner.
-    if (status.charges_enabled) return;
-
-    const returnUrl   = `${location.origin}${location.pathname}#/payouts`;
-    const refreshUrl  = returnUrl;
-
-    if (!status.connected) {
-      // No Connect account at all — primary CTA to start onboarding.
-      container.innerHTML = `
-        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Complete your payout setup to accept live payments.</strong>
-            Connect Stripe to receive payouts and route funds to your bank account.
-          </span>
-          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Set up payouts
-          </button>
-        </div>`;
-    } else if (status.requirements && status.requirements.currently_due && status.requirements.currently_due.length > 0) {
-      // Onboarding started but Stripe needs more info.
-      const reason = status.requirements.disabled_reason
-        ? escHtml(status.requirements.disabled_reason)
-        : 'additional information required';
-      container.innerHTML = `
-        <div class="alert alert-danger d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Action required:</strong> Stripe needs more information to enable payments (${reason}).
-          </span>
-          <button class="btn btn-sm btn-danger fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Complete setup
-          </button>
-        </div>`;
-    } else if (status.requirements && status.requirements.pending_verification && status.requirements.pending_verification.length > 0) {
-      // Stripe is reviewing submitted info — no action needed.
-      container.innerHTML = `
-        <div class="alert alert-info d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert">
-          <i class="bi bi-hourglass-split flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Stripe is reviewing your account.</strong>
-            Live payments will be enabled once verification is complete (usually a few minutes).
-          </span>
-        </div>`;
-      return; // No button needed.
-    } else {
-      // Connected but charges not yet enabled — nudge to finish onboarding.
-      container.innerHTML = `
-        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Payout setup incomplete.</strong>
-            Finish Stripe onboarding to enable live payments and payouts.
-          </span>
-          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Finish setup
-          </button>
-        </div>`;
+    if (key === 'customize') {
+      // Hand off to the store editor, requesting the guided tutorial. The
+      // editor marks the step done locally on save; the dashboard also
+      // detects it server-side via saved page_sections.
+      window.location.href = '/store-editor/?tutorial=customize';
+      return;
     }
-
-    const btn = document.getElementById('connect-onboard-btn');
-    if (!btn) return;
-
-    btn.addEventListener('click', async () => {
+    if (key === 'payouts') {
+      const returnUrl = `${location.origin}${location.pathname}#/dashboard`;
+      const original  = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading…';
       try {
-        const result = await Api.startConnectOnboarding(returnUrl, refreshUrl);
+        const result = await Api.startConnectOnboarding(returnUrl, returnUrl);
         window.location.href = result.url;
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = 'Set up payouts';
-        Toast.error(e.message || 'Failed to start onboarding');
+        btn.innerHTML = original;
+        Toast.error(e.message || 'Failed to start payout setup');
       }
-    });
+    }
   },
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Dashboard stats helpers
+// ═══════════════════════════════════════════════════════════════
+// The per-tenant worker has no dedicated analytics endpoint, so the
+// overview is computed client-side from the orders list. We page through
+// orders up to a sane cap and bucket revenue by the selected period.
+
+const DASH_PERIODS = [
+  { key: 'day',   label: 'Day' },
+  { key: 'week',  label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'year',  label: 'Year' },
+  { key: 'all',   label: 'All' },
+];
+
+// Orders that represent captured revenue (exclude pending/cancelled).
+function isRevenueOrder(o) {
+  return o && (o.status === 'paid' || o.status === 'fulfilled');
+}
+
+async function fetchAllOrders(cap = 600) {
+  const limit = 100;
+  let offset = 0;
+  const all = [];
+  while (offset < cap) {
+    const batch = await Api.getOrders({ limit, offset });
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    all.push(...batch);
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+
+// Build the time buckets (start/end/label) for a given period. Returns an
+// array of { start: Date, end: Date, label: string }.
+function buildBuckets(periodKey, orders, now = new Date()) {
+  const buckets = [];
+  if (periodKey === 'day') {
+    const base = startOfDay(now);
+    for (let h = 0; h < 24; h++) {
+      const s = new Date(base); s.setHours(h);
+      const e = new Date(base); e.setHours(h + 1);
+      buckets.push({ start: s, end: e, label: h % 6 === 0 ? `${h}:00` : '' });
+    }
+  } else if (periodKey === 'week') {
+    const base = startOfDay(now);
+    for (let i = 6; i >= 0; i--) {
+      const s = new Date(base); s.setDate(base.getDate() - i);
+      const e = new Date(s);    e.setDate(s.getDate() + 1);
+      buckets.push({ start: s, end: e, label: s.toLocaleDateString('en-US', { weekday: 'short' }) });
+    }
+  } else if (periodKey === 'month') {
+    const base = startOfDay(now);
+    for (let i = 29; i >= 0; i--) {
+      const s = new Date(base); s.setDate(base.getDate() - i);
+      const e = new Date(s);    e.setDate(s.getDate() + 1);
+      const show = (s.getDate() === 1) || (i % 5 === 0);
+      buckets.push({ start: s, end: e, label: show ? `${s.getMonth() + 1}/${s.getDate()}` : '' });
+    }
+  } else if (periodKey === 'year') {
+    for (let i = 11; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const e = new Date(s.getFullYear(), s.getMonth() + 1, 1);
+      buckets.push({ start: s, end: e, label: s.toLocaleDateString('en-US', { month: 'short' }) });
+    }
+  } else {
+    // "all" — monthly buckets from the earliest order to now (cap 24).
+    const times = (orders || [])
+      .map(o => new Date(o.created_at).getTime())
+      .filter(t => !isNaN(t));
+    let earliest = times.length ? new Date(Math.min(...times)) : now;
+    earliest = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+    let cur = new Date(earliest);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cur <= end && buckets.length < 24) {
+      const s = new Date(cur);
+      const e = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+      buckets.push({ start: s, end: e });
+      cur = e;
+    }
+    const many = buckets.length > 8;
+    buckets.forEach((b, i) => {
+      const show = !many || i === 0 || i === buckets.length - 1 || i % 3 === 0;
+      b.label = show ? b.start.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '';
+    });
+  }
+  return buckets;
+}
+
+// Aggregate revenue/orders for the selected period plus per-bucket totals.
+function computeStats(orders, periodKey) {
+  const buckets = buildBuckets(periodKey, orders);
+  const bucketRevenue = buckets.map(() => 0);
+  const start = buckets.length ? buckets[0].start.getTime() : 0;
+
+  let revenue = 0;
+  let orderCount = 0;
+  for (const o of orders) {
+    if (!isRevenueOrder(o)) continue;
+    const t = new Date(o.created_at).getTime();
+    if (isNaN(t) || t < start) continue;
+    const amt = o.amount_total || 0;
+    revenue += amt;
+    orderCount++;
+    for (let i = 0; i < buckets.length; i++) {
+      if (t >= buckets[i].start.getTime() && t < buckets[i].end.getTime()) {
+        bucketRevenue[i] += amt;
+        break;
+      }
+    }
+  }
+  const aov = orderCount ? Math.round(revenue / orderCount) : 0;
+  return { buckets, bucketRevenue, revenue, orderCount, aov };
+}
 
 // ═══════════════════════════════════════════════════════════════
 // View: Login
@@ -637,7 +843,7 @@ const LoginView = {
           btn.textContent = 'Sign in';
           return;
         }
-        Router.go('/products');
+        Router.go('/dashboard');
       } catch (err) {
         errEl.textContent = err.message;
         errEl.classList.remove('d-none');
@@ -3001,6 +3207,309 @@ const PayoutsView = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// View: Dashboard (seller overview)
+// ═══════════════════════════════════════════════════════════════
+// The post-login landing page. Shows the "Complete your store" setup
+// checklist, a sales overview with a day/week/month/year/all selector,
+// an earnings summary, and overall store-health indicators.
+const DashboardView = {
+  _orders:    [],
+  _period:    'week',
+  _currency:  'usd',
+  _balance:   null,
+  _status:    {},
+  _activeProducts: 0,
+  _totalProducts:  0,
+  _lifetimeRevenue: 0,
+  _lifetimeOrders:  0,
+  _awaiting:        0,
+
+  render() {
+    const pills = DASH_PERIODS.map((p, i) => `
+      <input type="radio" class="btn-check" name="dash-period" id="dp-${p.key}" value="${p.key}" ${p.key === this._period ? 'checked' : ''}>
+      <label class="btn btn-outline-secondary" for="dp-${p.key}">${p.label}</label>`).join('');
+
+    return `
+      ${renderNavbar()}
+      <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
+          <div>
+            <h1 class="fw-black mb-0" style="font-size:1.4rem;letter-spacing:-0.01em">Dashboard</h1>
+            <p class="mb-0 mt-1" style="font-size:0.75rem;color:var(--text-muted)">Your store at a glance</p>
+          </div>
+          <a href="#/products/new" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Product
+          </a>
+        </div>
+
+        <!-- Complete your store -->
+        <div id="setup-checklist"></div>
+
+        <!-- Overview header + period selector -->
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
+          <h2 class="h5 fw-bold mb-0">Overview</h2>
+          <div class="btn-group btn-group-sm" role="group" id="dash-period-group">
+            ${pills}
+          </div>
+        </div>
+
+        <div id="dash-error" class="alert alert-danger d-none"></div>
+
+        <!-- Metric cards -->
+        <div class="row g-3 mb-4" id="dash-metrics">
+          ${this._skeletonMetrics()}
+        </div>
+
+        <!-- Revenue chart -->
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="small fw-semibold text-uppercase text-secondary">Revenue</span>
+            <span class="small text-secondary" id="dash-chart-total"></span>
+          </div>
+          <div class="card-body">
+            <div id="dash-chart" class="dash-chart">
+              <div class="text-center py-5 w-100">
+                <div class="spinner-border text-success" role="status"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Store health + earnings -->
+        <div class="row g-3" id="dash-bottom">
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header small fw-semibold text-uppercase text-secondary">Store health</div>
+              <div class="card-body" id="dash-health">
+                <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header small fw-semibold text-uppercase text-secondary">Earnings</div>
+              <div class="card-body" id="dash-earnings">
+                <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _skeletonMetrics() {
+    return [0, 1, 2, 3].map(() => `
+      <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+          <div class="placeholder-glow">
+            <span class="placeholder col-6"></span>
+            <span class="placeholder col-8 d-block mt-2" style="height:1.4rem"></span>
+          </div>
+        </div></div>
+      </div>`).join('');
+  },
+
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    document.getElementById('dash-period-group').addEventListener('change', e => {
+      this._period = e.target.value;
+      this._renderStats();
+    });
+
+    try {
+      const [orders, products, settings, status, balance] = await Promise.all([
+        fetchAllOrders().catch(() => []),
+        Api.getProducts({ limit: 100 }).catch(() => []),
+        Api.getSettings().catch(() => ({})),
+        Api.getConnectStatus().catch(() => ({})),
+        Api.getConnectBalance().catch(() => null),
+      ]);
+
+      this._orders   = Array.isArray(orders) ? orders : [];
+      this._status   = status || {};
+      this._balance  = balance;
+      this._currency = (balance && balance.currency)
+        || (settings && settings.currency)
+        || (this._orders[0] && this._orders[0].currency)
+        || 'usd';
+
+      const prods = Array.isArray(products) ? products : [];
+      this._totalProducts  = prods.length;
+      this._activeProducts = prods.filter(p => p.active).length;
+
+      // Lifetime + operational figures (all-time, period-independent).
+      this._lifetimeRevenue = 0;
+      this._lifetimeOrders  = 0;
+      this._awaiting        = 0;
+      for (const o of this._orders) {
+        if (isRevenueOrder(o)) {
+          this._lifetimeRevenue += o.amount_total || 0;
+          this._lifetimeOrders++;
+        }
+        const fs = o.fulfillment_status;
+        if (o.status === 'paid' && (fs === 'unfulfilled' || fs === 'processing' || !fs)) {
+          this._awaiting++;
+        }
+      }
+
+      // Setup checklist — derived from the same data, no extra requests.
+      const checklist = document.getElementById('setup-checklist');
+      if (checklist) {
+        const state = SetupChecklist.deriveState({ products: prods, settings, status });
+        checklist.innerHTML = SetupChecklist.render(state);
+        SetupChecklist.wire(checklist);
+      }
+
+      this._renderStats();
+      this._renderHealth();
+      this._renderEarnings();
+    } catch (err) {
+      const errEl = document.getElementById('dash-error');
+      if (errEl) {
+        errEl.classList.remove('d-none');
+        errEl.innerHTML = `<i class="bi bi-exclamation-circle me-2"></i>${escHtml(err.message || 'Failed to load dashboard')}`;
+      }
+    }
+  },
+
+  _metricCard(label, value, sub) {
+    return `
+      <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+          <p class="small text-secondary mb-1">${escHtml(label)}</p>
+          <p class="fs-4 fw-bold mb-0">${value}</p>
+          <p class="small text-secondary mt-1 mb-0">${sub}</p>
+        </div></div>
+      </div>`;
+  },
+
+  _bucketTooltip(b) {
+    const p = this._period;
+    if (p === 'day') return b.start.toLocaleTimeString('en-US', { hour: 'numeric' });
+    if (p === 'year' || p === 'all') return b.start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return b.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  },
+
+  _renderStats() {
+    const stats   = computeStats(this._orders, this._period);
+    const cur     = this._currency;
+    const metrics = document.getElementById('dash-metrics');
+    const chart   = document.getElementById('dash-chart');
+    const chartTotal = document.getElementById('dash-chart-total');
+    if (!metrics || !chart) return;
+
+    const periodLabel = (DASH_PERIODS.find(p => p.key === this._period) || {}).label || '';
+    const avail = this._balance ? (this._balance.available_balance ?? 0) : null;
+
+    metrics.innerHTML = [
+      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`),
+      this._metricCard('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`),
+      this._metricCard('Avg order value', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order'),
+      this._metricCard(
+        'Available to withdraw',
+        avail === null ? '—' : formatPrice(avail, cur),
+        avail === null ? 'Set up payouts' : 'In your balance',
+      ),
+    ].join('');
+
+    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)} · ${periodLabel}`;
+
+    const max = Math.max(...stats.bucketRevenue, 0);
+    if (max <= 0) {
+      chart.innerHTML = `
+        <div class="text-center text-secondary py-5 w-100">
+          <i class="bi bi-bar-chart fs-2 d-block mb-2 opacity-50"></i>
+          No sales in this period yet.
+        </div>`;
+      return;
+    }
+
+    chart.innerHTML = stats.buckets.map((b, i) => {
+      const rev = stats.bucketRevenue[i];
+      const h   = rev > 0 ? Math.max(3, Math.round((rev / max) * 100)) : 0;
+      const tip = `${this._bucketTooltip(b)} · ${formatPrice(rev, cur)}`;
+      return `
+        <div class="dash-bar-col" title="${escHtml(tip)}">
+          <div class="dash-bar-track">
+            <div class="dash-bar-fill ${rev > 0 ? '' : 'empty'}" style="height:${h}%"></div>
+          </div>
+          <div class="dash-bar-label">${escHtml(b.label || '')}</div>
+        </div>`;
+    }).join('');
+  },
+
+  _renderHealth() {
+    const el = document.getElementById('dash-health');
+    if (!el) return;
+    const cur = this._currency;
+    const charges = !!this._status.charges_enabled;
+
+    const row = (icon, label, value, valClass = '') => `
+      <div class="d-flex align-items-center justify-content-between py-2 border-bottom border-secondary-subtle">
+        <span class="d-flex align-items-center gap-2 text-secondary small">
+          <i class="bi ${icon}"></i>${escHtml(label)}
+        </span>
+        <span class="fw-semibold ${valClass}">${value}</span>
+      </div>`;
+
+    el.innerHTML = `
+      ${row('bi-credit-card', 'Payments',
+        charges
+          ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
+          : '<span class="text-warning"><i class="bi bi-exclamation-circle-fill me-1"></i>Needs setup</span>')}
+      ${row('bi-box-seam', 'Active products',
+        `${this._activeProducts}<span class="text-secondary fw-normal"> / ${this._totalProducts}${this._totalProducts >= 100 ? '+' : ''}</span>`)}
+      ${row('bi-truck', 'Awaiting fulfillment',
+        `${this._awaiting}`, this._awaiting > 0 ? 'text-warning' : '')}
+      <div class="d-flex align-items-center justify-content-between pt-2">
+        <span class="d-flex align-items-center gap-2 text-secondary small">
+          <i class="bi bi-graph-up-arrow"></i>Lifetime revenue
+        </span>
+        <span class="fw-bold text-success">${formatPrice(this._lifetimeRevenue, cur)}</span>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <a href="#/orders" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-receipt me-1"></i>Orders</a>
+        <a href="#/products" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-box-seam me-1"></i>Products</a>
+      </div>`;
+  },
+
+  _renderEarnings() {
+    const el = document.getElementById('dash-earnings');
+    if (!el) return;
+    const cur     = this._currency;
+    const charges = !!this._status.charges_enabled;
+
+    if (!charges) {
+      el.innerHTML = `
+        <div class="text-center py-3">
+          <i class="bi bi-cash-stack fs-2 text-secondary d-block mb-2"></i>
+          <p class="small text-secondary mb-3">Set up payouts to start tracking and withdrawing your earnings.</p>
+          <a href="#/payouts" class="btn btn-sm btn-primary">Set up payouts</a>
+        </div>`;
+      return;
+    }
+
+    const avail   = this._balance ? (this._balance.available_balance ?? 0) : 0;
+    const pending = this._balance ? (this._balance.pending_balance ?? 0) : 0;
+
+    el.innerHTML = `
+      <div class="mb-3">
+        <p class="small text-secondary mb-1">Available to withdraw</p>
+        <p class="fs-3 fw-bold mb-0">${formatPrice(avail, cur)}</p>
+      </div>
+      <div class="mb-3">
+        <p class="small text-secondary mb-1">Pending</p>
+        <p class="fs-5 fw-semibold mb-0">${formatPrice(pending, cur)}</p>
+        <p class="small text-secondary mb-0">Released as orders are delivered</p>
+      </div>
+      <a href="#/payouts" class="btn btn-sm btn-primary w-100">
+        <i class="bi bi-bank me-1"></i>Manage payouts
+      </a>`;
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════
 const Router = {
@@ -3020,7 +3529,7 @@ const Router = {
 
     // Redirect root
     if (hash === '/') {
-      this.go(Auth.isLoggedIn() ? '/products' : '/login');
+      this.go(Auth.isLoggedIn() ? '/dashboard' : '/login');
       return;
     }
 
@@ -3029,11 +3538,7 @@ const Router = {
 
     // Auth guard
     if (!isPublic && !Auth.isLoggedIn())         { this.go('/login'); return; }
-    if (hash === '/login' && Auth.isLoggedIn())  { this.go('/products'); return; }
-
-    // Mount the connect banner on every authenticated page after the
-    // synchronous render completes (microtask ensures the DOM is ready).
-    if (Auth.isLoggedIn()) Promise.resolve().then(() => ConnectBanner.mount());
+    if (hash === '/login' && Auth.isLoggedIn())  { this.go('/dashboard'); return; }
 
     if (hash === '/welcome') {
       // WelcomeView fetches /provision/:id/status once (no polling) and
@@ -3048,6 +3553,12 @@ const Router = {
     if (hash === '/login') {
       app.innerHTML = LoginView.render();
       LoginView.init();
+      return;
+    }
+
+    if (hash === '/dashboard') {
+      app.innerHTML = DashboardView.render();
+      DashboardView.init();
       return;
     }
 
@@ -3119,7 +3630,7 @@ const Router = {
       <div class="text-center py-5">
         <div style="font-size:3rem;margin-bottom:1rem">★</div>
         <h3 style="color:var(--text-muted)">404 — Page not found</h3>
-        <a href="#/products" class="btn btn-primary mt-3">Go to Products</a>
+        <a href="#/dashboard" class="btn btn-primary mt-3">Go to Dashboard</a>
       </div>`;
   },
 };
