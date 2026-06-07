@@ -783,7 +783,25 @@ function computeStats(orders, periodKey) {
     }
   }
   const aov = orderCount ? Math.round(revenue / orderCount) : 0;
-  return { buckets, bucketRevenue, revenue, orderCount, aov };
+
+  // Period-over-period: revenue in the equally-sized window immediately
+  // before this one, so the overview can show a trend chip.
+  const end       = buckets.length ? buckets[buckets.length - 1].end.getTime() : 0;
+  const windowLen = end - start;
+  const prevStart = start - windowLen;
+  let prevRevenue = 0;
+  if (windowLen > 0) {
+    for (const o of orders) {
+      if (!isRevenueOrder(o)) continue;
+      const t = new Date(o.created_at).getTime();
+      if (isNaN(t) || t < prevStart || t >= start) continue;
+      prevRevenue += o.amount_total || 0;
+    }
+  }
+  let trendPct = null; // null = no baseline to compare against
+  if (prevRevenue > 0) trendPct = Math.round(((revenue - prevRevenue) / prevRevenue) * 100);
+
+  return { buckets, bucketRevenue, revenue, orderCount, aov, prevRevenue, trendPct };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3489,7 +3507,18 @@ const DashboardView = {
 
     const sub = document.getElementById('dash-overview-sub');
     if (sub) sub.textContent = `Sales ${periodWord}`;
-    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)}`;
+    if (chartTotal) {
+      let trend = '';
+      if (stats.trendPct !== null && stats.trendPct !== undefined) {
+        const up = stats.trendPct >= 0;
+        const cls = stats.trendPct === 0 ? 'flat' : (up ? 'up' : 'down');
+        const arrow = stats.trendPct === 0 ? '' : (up ? '<i class="bi bi-arrow-up-right"></i>' : '<i class="bi bi-arrow-down-right"></i>');
+        trend = `<span class="trend-chip ${cls}">${arrow}${Math.abs(stats.trendPct)}%</span>`;
+      } else if (stats.revenue > 0) {
+        trend = '<span class="trend-chip up"><i class="bi bi-stars"></i>New</span>';
+      }
+      chartTotal.innerHTML = `<span class="chart-total-value">${formatPrice(stats.revenue, cur)}</span>${trend}`;
+    }
 
     const max = Math.max(...stats.bucketRevenue, 0);
     if (max <= 0) {

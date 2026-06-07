@@ -959,11 +959,15 @@ hr {
   margin-bottom: 6px;
 }
 .metric-value {
-  font-size: 1.6rem;
+  font-size: clamp(1.25rem, 5vw, 1.7rem);
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.1;
   letter-spacing: -0.02em;
   margin-bottom: 4px;
+  padding-bottom: 1px;       /* room for gradient-clipped descenders */
+}
+@media (min-width: 768px) {
+  .metric-value { font-size: 1.65rem; }
 }
 .metric-tile.hero .metric-value {
   background: var(--accent-grad);
@@ -980,22 +984,57 @@ hr {
   border-radius: 16px;
   border: 1px solid var(--glass-border);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.12));
+    radial-gradient(120% 140% at 50% 0%, rgba(109,94,252,0.10), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.12));
 }
+.chart-total-value { font-size: 1.02rem; font-weight: 800; letter-spacing: -0.01em; }
+.trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.trend-chip.up   { color: var(--ok-text);  background: var(--ok-soft);  border: 1px solid var(--ok-border); }
+.trend-chip.down { color: var(--red);      background: var(--red-glow); border: 1px solid var(--red-border); }
+.trend-chip.flat { color: var(--text-dim); background: rgba(30,32,70,0.06); }
+
 .dash-chart {
   display: flex;
   align-items: flex-end;
   gap: 5px;
-  height: 190px;
+  height: 200px;
   position: relative;
+  /* faint horizontal gridlines for an analytics feel */
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 38px,
+    rgba(30, 32, 70, 0.05) 38px,
+    rgba(30, 32, 70, 0.05) 39px
+  );
+  background-position: 0 -20px;
 }
-/* subtle baseline */
+/* soft aura wash behind the bars */
+.dash-chart::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 6px; bottom: 22px;
+  background: radial-gradient(80% 100% at 50% 100%, rgba(109,94,252,0.10), transparent 70%);
+  border-radius: 12px;
+  pointer-events: none;
+}
+/* baseline */
 .dash-chart::after {
   content: "";
   position: absolute;
   left: 0; right: 0; bottom: 20px;
   height: 1px;
-  background: var(--border);
+  background: var(--border-strong);
 }
 .dash-bar-col {
   flex: 1 1 0;
@@ -1004,6 +1043,8 @@ hr {
   flex-direction: column;
   align-items: center;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 .dash-bar-track {
   flex: 1 1 auto;
@@ -1016,14 +1057,17 @@ hr {
   width: 72%;
   max-width: 30px;
   min-height: 3px;
-  border-radius: 7px 7px 3px 3px;
-  background: linear-gradient(180deg, #9b6bff 0%, #6d5efc 100%);
-  box-shadow: 0 0 14px rgba(109, 94, 252, 0.45), inset 0 1px 0 rgba(255,255,255,0.4);
-  transition: height .4s cubic-bezier(.22,1,.36,1), filter .15s;
+  border-radius: 8px 8px 4px 4px;
+  background: linear-gradient(180deg, #b39bff 0%, #8b6bff 45%, #6d5efc 100%);
+  box-shadow:
+    0 0 16px rgba(109, 94, 252, 0.5),
+    0 6px 14px rgba(109, 94, 252, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  transition: height .5s cubic-bezier(.22,1,.36,1), filter .15s;
 }
-.dash-bar-col:hover .dash-bar-fill { filter: brightness(1.1); }
+.dash-bar-col:hover .dash-bar-fill { filter: brightness(1.12) saturate(1.1); }
 .dash-bar-fill.empty {
-  background: rgba(30, 32, 70, 0.10);
+  background: rgba(30, 32, 70, 0.08);
   box-shadow: none;
 }
 .dash-bar-label {
