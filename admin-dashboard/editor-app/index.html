@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Store Editor · Upcart</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    // Apply the saved theme mode before first paint to avoid a flash.
+    (function () {
+      try {
+        var m = localStorage.getItem('upcart_editor_theme');
+        document.documentElement.setAttribute(
+          'data-ed-theme',
+          (m === 'light' || m === 'dark') ? m : 'auto'
+        );
+      } catch (e) {
+        document.documentElement.setAttribute('data-ed-theme', 'auto');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>
