@@ -515,14 +515,16 @@ const SetupChecklist = {
         </div>`;
     }
 
-    const stepRows = steps.map(s => `
-      <div class="setup-step ${s.done ? 'done' : ''}">
-        <span class="setup-step-icon">
-          <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
-        </span>
-        <div class="setup-step-body">
-          <div class="setup-step-title">${escHtml(s.title)}</div>
-          <div class="setup-step-sub">${escHtml(s.sub)}</div>
+    const stepRows = steps.map((s, i) => `
+      <div class="setup-step ${s.done ? 'done' : ''}" data-setup-slide="${i}">
+        <div class="d-flex align-items-center gap-3">
+          <span class="setup-step-icon">
+            <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
+          </span>
+          <div class="setup-step-body">
+            <div class="setup-step-title">${escHtml(s.title)}</div>
+            <div class="setup-step-sub">${escHtml(s.sub)}</div>
+          </div>
         </div>
         <div class="setup-step-action">
           ${s.done
@@ -530,6 +532,10 @@ const SetupChecklist = {
             : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
         </div>
       </div>`).join('');
+
+    const dots = steps.map((_, i) =>
+      `<button type="button" class="setup-dot ${i === 0 ? 'active' : ''}" data-setup-dot="${i}" aria-label="Step ${i + 1}"></button>`
+    ).join('');
 
     return `
       <div class="card setup-card mb-4">
@@ -550,6 +556,7 @@ const SetupChecklist = {
           <div class="setup-steps">
             ${stepRows}
           </div>
+          <div class="setup-nav">${dots}</div>
         </div>
       </div>`;
   },
@@ -570,6 +577,49 @@ const SetupChecklist = {
     container.querySelectorAll('[data-setup-step]').forEach(btn => {
       btn.addEventListener('click', () => this._handleStep(btn.dataset.setupStep, btn));
     });
+
+    this._wireSlides(container);
+  },
+
+  // Sync the dot indicators with the scroll-snap carousel (mobile). On
+  // desktop the steps render as a static grid and the dots are hidden, so
+  // this is a no-op there beyond harmless listeners.
+  _wireSlides(container) {
+    const track  = container.querySelector('.setup-steps');
+    const dots   = Array.from(container.querySelectorAll('[data-setup-dot]'));
+    const slides = Array.from(container.querySelectorAll('[data-setup-slide]'));
+    if (!track || !slides.length) return;
+
+    const setActive = (idx) => {
+      dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    };
+
+    // Tapping a dot scrolls its slide into view.
+    dots.forEach((dot, i) => {
+      dot.addEventListener('click', () => {
+        slides[i] && slides[i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+        setActive(i);
+      });
+    });
+
+    // Update the active dot as the merchant swipes (throttled via rAF).
+    // Uses bounding rects so it's independent of offsetParent quirks.
+    let raf = 0;
+    track.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const tr = track.getBoundingClientRect();
+        const center = tr.left + tr.width / 2;
+        let best = 0, bestDist = Infinity;
+        slides.forEach((sl, i) => {
+          const r = sl.getBoundingClientRect();
+          const dist = Math.abs((r.left + r.width / 2) - center);
+          if (dist < bestDist) { bestDist = dist; best = i; }
+        });
+        setActive(best);
+      });
+    }, { passive: true });
   },
 
   async _handleStep(key, btn) {
@@ -3261,7 +3311,7 @@ const DashboardView = {
         </div>
 
         <!-- Revenue chart -->
-        <div class="card mb-4">
+        <div class="card aura mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="small fw-semibold text-uppercase text-secondary">Revenue</span>
             <span class="small text-secondary" id="dash-chart-total"></span>
@@ -3373,12 +3423,14 @@ const DashboardView = {
     }
   },
 
-  _metricCard(label, value, sub) {
+  _metricCard(label, value, sub, opts = {}) {
+    const cardCls  = `card h-100${opts.aura ? ' aura' : ''}`;
+    const valueCls = `fs-4 fw-bold mb-0${opts.money ? ' metric-money' : ''}`;
     return `
       <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body">
+        <div class="${cardCls}"><div class="card-body">
           <p class="small text-secondary mb-1">${escHtml(label)}</p>
-          <p class="fs-4 fw-bold mb-0">${value}</p>
+          <p class="${valueCls}">${value}</p>
           <p class="small text-secondary mt-1 mb-0">${sub}</p>
         </div></div>
       </div>`;
@@ -3403,7 +3455,7 @@ const DashboardView = {
     const avail = this._balance ? (this._balance.available_balance ?? 0) : null;
 
     metrics.innerHTML = [
-      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`),
+      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`, { aura: true, money: true }),
       this._metricCard('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`),
       this._metricCard('Avg order value', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order'),
       this._metricCard(
@@ -3418,25 +3470,87 @@ const DashboardView = {
     const max = Math.max(...stats.bucketRevenue, 0);
     if (max <= 0) {
       chart.innerHTML = `
-        <div class="text-center text-secondary py-5 w-100">
-          <i class="bi bi-bar-chart fs-2 d-block mb-2 opacity-50"></i>
+        <div class="dash-empty">
+          <i class="bi bi-graph-up fs-2 d-block mb-2 opacity-50"></i>
           No sales in this period yet.
         </div>`;
       return;
     }
 
-    chart.innerHTML = stats.buckets.map((b, i) => {
-      const rev = stats.bucketRevenue[i];
-      const h   = rev > 0 ? Math.max(3, Math.round((rev / max) * 100)) : 0;
-      const tip = `${this._bucketTooltip(b)} · ${formatPrice(rev, cur)}`;
-      return `
-        <div class="dash-bar-col" title="${escHtml(tip)}">
-          <div class="dash-bar-track">
-            <div class="dash-bar-fill ${rev > 0 ? '' : 'empty'}" style="height:${h}%"></div>
-          </div>
-          <div class="dash-bar-label">${escHtml(b.label || '')}</div>
-        </div>`;
+    chart.innerHTML = this._chartSvg(stats, max, cur);
+  },
+
+  // Build a glowing gradient area + line chart as inline SVG (no library).
+  // The SVG stretches to fill its container (preserveAspectRatio="none");
+  // the line keeps a constant width via vector-effect, and the glow is a
+  // CSS drop-shadow so it stays uniform regardless of the non-uniform scale.
+  _chartSvg(stats, max, cur) {
+    const n = stats.buckets.length;
+    const W = Math.max(n - 1, 1);          // x spans 0..W in user units
+    const padT = 8, padB = 6;              // vertical padding (of 100 units)
+    const usable = 100 - padT - padB;
+
+    const pt = (i) => {
+      const rev = stats.bucketRevenue[i] || 0;
+      const x = n === 1 ? W / 2 : i;
+      const y = padT + (1 - rev / max) * usable;
+      return { x, y };
+    };
+    const pts = stats.buckets.map((_, i) => pt(i));
+
+    // Smooth the line with a light Catmull-Rom → cubic Bézier conversion.
+    const line = pts.map((p, i) => {
+      if (i === 0) return `M${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+      const p0 = pts[i - 1];
+      const t  = 0.18;
+      const c1x = p0.x + (p.x - (pts[i - 2] || p0).x) * t;
+      const c1y = p0.y + (p.y - (pts[i - 2] || p0).y) * t;
+      const c2x = p.x - ((pts[i + 1] || p).x - p0.x) * t;
+      const c2y = p.y - ((pts[i + 1] || p).y - p0.y) * t;
+      return `C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+    }).join(' ');
+
+    const area = `${line} L${pts[pts.length - 1].x.toFixed(2)},100 L${pts[0].x.toFixed(2)},100 Z`;
+
+    // Transparent full-height hot zones with native <title> tooltips.
+    const hots = stats.buckets.map((b, i) => {
+      const p   = pts[i];
+      const x   = Math.max(0, p.x - 0.5);
+      const w   = Math.min(W, p.x + 0.5) - x || 0.5;
+      const tip = `${this._bucketTooltip(b)} · ${formatPrice(stats.bucketRevenue[i] || 0, cur)}`;
+      return `<g><rect class="dash-hot" x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="100">` +
+             `<title>${escHtml(tip)}</title></rect>` +
+             `<circle class="dash-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="3"/></g>`;
     }).join('');
+
+    // Thinned x-axis labels rendered as HTML below the SVG (avoids the
+    // non-uniform-scale text distortion of in-SVG <text>).
+    const maxLabels = 7;
+    const step = Math.max(1, Math.ceil(n / maxLabels));
+    const labels = stats.buckets.map((b, i) =>
+      (i % step === 0 || i === n - 1) && b.label
+        ? `<span>${escHtml(b.label)}</span>` : ''
+    ).filter(Boolean).join('');
+
+    return `
+      <svg class="dash-chart-svg" viewBox="0 0 ${W} 100" preserveAspectRatio="none" role="img" aria-label="Revenue chart">
+        <defs>
+          <linearGradient id="dashStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"  stop-color="#7C3AED"/>
+            <stop offset="55%" stop-color="#4F46E5"/>
+            <stop offset="100%" stop-color="#06B6D4"/>
+          </linearGradient>
+          <linearGradient id="dashFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#7C3AED" stop-opacity="0.40"/>
+            <stop offset="55%"  stop-color="#4F46E5" stop-opacity="0.16"/>
+            <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path class="dash-area" d="${area}" fill="url(#dashFill)"/>
+        <path class="dash-line" d="${line}" vector-effect="non-scaling-stroke"/>
+        ${hots}
+      </svg>
+      <div class="dash-xaxis">${labels}</div>`;
   },
 
   _renderHealth() {

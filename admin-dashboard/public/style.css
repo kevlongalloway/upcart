@@ -1,14 +1,29 @@
 /* ── Root Variables ──────────────────────────────────────────────── */
-/* Light theme. The gold and indigo brand accents are preserved; only
-   the surfaces (backgrounds, borders, text) were flipped to light. */
+/* Light frosted-glass theme. The primary accent is a vibrant neon gradient
+   (violet → indigo → cyan) that drives the "aura"; gold is demoted to a
+   secondary "money/revenue" highlight. Surfaces are translucent glass that
+   refract a soft gradient-mesh page background. */
 :root {
-  --gold:          #C9A227;   /* brand gold — used for fills/buttons */
+  /* ── Neon gradient accent (primary) ── */
+  --accent:        #7C3AED;   /* violet — primary solid accent */
+  --accent-mid:    #4F46E5;   /* indigo */
+  --accent-2:      #06B6D4;   /* cyan */
+  --accent-grad:   linear-gradient(135deg, #7C3AED 0%, #4F46E5 45%, #06B6D4 100%);
+  --accent-soft:   rgba(124, 58, 237, 0.12);
+  --accent-border: rgba(124, 58, 237, 0.45);
+  --accent-glow:   rgba(124, 58, 237, 0.35);
+  --accent-glow-2: rgba(6, 182, 212, 0.30);
+
+  /* ── Gold (secondary — revenue/money figures only) ── */
+  --gold:          #C9A227;
   --gold-dim:      #b08e1f;
   --gold-dark:     #8a6f17;
-  --gold-text:     #8a6d12;   /* darker gold for text on light surfaces */
+  --gold-text:     #8a6d12;
   --gold-glow:     rgba(201, 162, 39, 0.14);
   --gold-border:   rgba(201, 162, 39, 0.45);
-  --bg-base:       #f4f5f7;   /* page background */
+
+  /* ── Surfaces ── */
+  --bg-base:       #eef1f6;   /* page background base (mesh painted on body) */
   --bg-card:       #ffffff;
   --bg-input:      #ffffff;
   --border:        #e6e8eb;
@@ -20,22 +35,49 @@
   --red-glow:      rgba(214, 69, 63, 0.10);
   --red-border:    rgba(214, 69, 63, 0.32);
   --amber:         #b9770b;
-  --blue:          #2563eb;
+  --blue:          #4f46e5;   /* legacy alias → folded into the accent family */
+
+  /* ── Glass ── */
+  --glass-bg:      rgba(255, 255, 255, 0.55);
+  --glass-border:  rgba(255, 255, 255, 0.70);
+  --glass-shadow:  0 10px 40px -12px rgba(31, 38, 135, 0.20);
+}
+
+/* ── Reusable glass + aura helpers ───────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.aura {
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 1px rgba(124, 58, 237, 0.05),
+    0 18px 50px -22px var(--accent-glow);
 }
 
 /* ── Override Bootstrap light theme ─────────────────────────────── */
 [data-bs-theme="light"] {
   --bs-body-bg:       var(--bg-base);
   --bs-body-color:    var(--text);
-  --bs-primary-rgb:   201, 162, 39;
+  --bs-primary-rgb:   124, 58, 237;
   --bs-border-color:  var(--border-strong);
 }
 
 /* ── Base ────────────────────────────────────────────────────────── */
+/* Soft gradient-mesh so the frosted glass has colour to refract and the
+   neon "aura" reads. Fixed so it stays put while content scrolls. */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
   background-color: var(--bg-base);
+  background-image:
+    radial-gradient(58% 50% at 12% 0%,   rgba(124, 58, 237, 0.16) 0%, transparent 62%),
+    radial-gradient(50% 45% at 100% 6%,  rgba(6, 182, 212, 0.16)  0%, transparent 60%),
+    radial-gradient(46% 48% at 50% 108%, rgba(219, 39, 119, 0.10) 0%, transparent 60%);
+  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -43,11 +85,16 @@ body {
 
 /* ── Navbar ─────────────────────────────────────────────────────── */
 .navbar {
-  background-color: var(--bg-card) !important;
-  border-bottom: 1px solid var(--border-strong) !important;
+  background-color: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid var(--glass-border) !important;
   min-height: 56px;
   padding-top: 0;
   padding-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
 }
 
 .navbar-brand {
@@ -101,22 +148,25 @@ body {
 }
 
 .nav-link.active {
-  background-color: var(--gold-glow) !important;
-  color: var(--gold-text) !important;
-  border-color: var(--gold-border) !important;
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent-border) !important;
 }
 
-/* ── Cards ──────────────────────────────────────────────────────── */
+/* ── Cards (frosted glass) ──────────────────────────────────────── */
 .card {
-  background-color: var(--bg-card);
-  border-color: var(--border) !important;
-  border-radius: 8px;
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow);
 }
 
 .card-header,
 .card-footer {
-  background-color: rgba(0, 0, 0, 0.02);
-  border-color: var(--border) !important;
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: var(--glass-border) !important;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -167,9 +217,9 @@ body {
 .form-control:focus,
 .form-select:focus {
   background-color: var(--bg-input);
-  border-color: var(--gold);
+  border-color: var(--accent);
   color: var(--text);
-  box-shadow: 0 0 0 3px var(--gold-glow);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .form-control::placeholder {
@@ -215,17 +265,30 @@ textarea.form-control {
 }
 
 .btn-primary {
-  --bs-btn-bg:              var(--gold);
-  --bs-btn-border-color:    var(--gold);
-  --bs-btn-color:           #1a1a1a;
-  --bs-btn-hover-bg:        var(--gold-dim);
-  --bs-btn-hover-border-color: var(--gold-dim);
-  --bs-btn-hover-color:     #1a1a1a;
-  --bs-btn-active-bg:       var(--gold-dark);
-  --bs-btn-active-border-color: var(--gold-dark);
+  --bs-btn-bg:              transparent;
+  --bs-btn-border-color:    transparent;
+  --bs-btn-color:           #fff;
+  --bs-btn-hover-bg:        transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-hover-color:     #fff;
+  --bs-btn-active-bg:       transparent;
+  --bs-btn-active-border-color: transparent;
   --bs-btn-active-color:    #fff;
+  background-image: var(--accent-grad);
+  border: none;
+  box-shadow: 0 8px 22px -8px var(--accent-glow);
   font-weight: 700;
   letter-spacing: 0.03em;
+  transition: box-shadow 0.15s ease, transform 0.08s ease, filter 0.15s ease;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow: 0 10px 28px -8px var(--accent-glow), 0 0 0 1px rgba(255,255,255,0.08) inset;
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
 }
 
 .btn-secondary {
@@ -289,9 +352,9 @@ textarea.form-control {
 
 /* Filter radio buttons */
 .btn-check:checked + .btn-outline-secondary {
-  background-color: var(--gold-glow) !important;
-  color: var(--gold-text) !important;
-  border-color: var(--gold-border) !important;
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent-border) !important;
 }
 
 /* ── Badges ─────────────────────────────────────────────────────── */
@@ -368,10 +431,11 @@ textarea.form-control {
 }
 
 .quick-filter.active {
-  background-color: var(--gold) !important;
-  border-color: var(--gold) !important;
-  color: #000 !important;
+  background-image: var(--accent-grad) !important;
+  border-color: transparent !important;
+  color: #fff !important;
   font-weight: 700;
+  box-shadow: 0 6px 16px -8px var(--accent-glow);
 }
 
 /* ── Image gallery ──────────────────────────────────────────────── */
@@ -420,16 +484,21 @@ textarea.form-control {
   padding: 1.5rem;
   background-color: var(--bg-base);
   background-image:
-    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,162,39,0.12) 0%, transparent 70%);
+    radial-gradient(ellipse 55% 45% at 30% 0%,  rgba(124,58,237,0.20) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 45% at 80% 10%, rgba(6,182,212,0.18)  0%, transparent 62%);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
-  border-color: var(--border-strong) !important;
-  border-radius: 12px;
-  background-color: var(--bg-card);
-  box-shadow: 0 18px 48px -24px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 18px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    var(--glass-shadow),
+    0 22px 60px -24px var(--accent-glow);
 }
 
 .login-logo {
@@ -488,8 +557,8 @@ textarea.form-control {
 
 /* ── Form switch ────────────────────────────────────────────────── */
 .form-switch .form-check-input:checked {
-  background-color: var(--gold);
-  border-color: var(--gold);
+  background-color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ── Divider ────────────────────────────────────────────────────── */
@@ -558,7 +627,7 @@ hr {
 
   /* Card border radius reduction */
   .card {
-    border-radius: 6px;
+    border-radius: 12px;
   }
 
   /* Pagination buttons: smaller text */
@@ -627,7 +696,7 @@ hr {
 
 /* ── Theme editor presets ───────────────────────────────────────── */
 .theme-preset { cursor: pointer; }
-.theme-preset:focus-visible .theme-swatch { outline: 2px solid #0d6efd; outline-offset: 2px; }
+.theme-preset:focus-visible .theme-swatch { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-swatch {
   position: relative;
   border-radius: 10px;
@@ -697,72 +766,120 @@ hr {
 
 /* ── Setup checklist ("Complete your store") ─────────────────────── */
 .setup-card {
-  border-color: var(--gold-border) !important;
+  border: 1px solid var(--glass-border) !important;
   background:
-    linear-gradient(180deg, var(--gold-glow), transparent 60%),
-    var(--bg-card);
+    linear-gradient(180deg, var(--accent-soft), transparent 55%),
+    var(--glass-bg);
+  box-shadow: var(--glass-shadow), 0 18px 50px -24px var(--accent-glow);
 }
 .setup-card-done {
   border-color: rgba(34, 197, 94, .35) !important;
   background:
-    linear-gradient(180deg, rgba(34, 197, 94, .10), transparent 60%),
-    var(--bg-card);
+    linear-gradient(180deg, rgba(34, 197, 94, .12), transparent 55%),
+    var(--glass-bg);
 }
 .setup-progress-count {
   font-size: 1.5rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--gold);
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .progress.setup-progress {
   height: 8px;
-  background-color: var(--border-strong);
+  background-color: rgba(124, 58, 237, 0.12);
   border-radius: 999px;
+  overflow: hidden;
 }
 .setup-progress .progress-bar {
-  background-color: var(--gold);
+  background-image: var(--accent-grad);
   border-radius: 999px;
   transition: width .4s ease;
 }
+
+/* Step track — swipeable peeking carousel on mobile, grid on desktop. */
 .setup-steps {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-bottom: 2px;
 }
+.setup-steps::-webkit-scrollbar { display: none; }
+
 .setup-step {
+  scroll-snap-align: start;
+  flex: 0 0 82%;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-base);
-  transition: border-color .15s, background .15s;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
 }
-.setup-step:hover { border-color: var(--gold-border); }
+.setup-step:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 12px 30px -16px var(--accent-glow);
+}
 .setup-step.done {
-  opacity: .72;
-  background: transparent;
+  opacity: .8;
+  background: rgba(34, 197, 94, .06);
+  border-color: rgba(34, 197, 94, .28);
 }
 .setup-step-icon {
   flex-shrink: 0;
-  width: 38px; height: 38px;
-  border-radius: 10px;
+  width: 44px; height: 44px;
+  border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.05rem;
-  background: var(--gold-glow);
-  color: var(--gold);
-  border: 1px solid var(--gold-border);
+  font-size: 1.2rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
 }
 .setup-step.done .setup-step-icon {
   background: rgba(34, 197, 94, .12);
-  color: #22c55e;
+  color: #16a34a;
   border-color: rgba(34, 197, 94, .35);
 }
 .setup-step-body { flex: 1 1 auto; min-width: 0; }
-.setup-step-title { font-weight: 600; line-height: 1.2; }
-.setup-step-sub { font-size: .78rem; color: var(--text-dim); }
-.setup-step-action { flex-shrink: 0; }
+.setup-step-title { font-weight: 700; line-height: 1.25; }
+.setup-step-sub { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
+.setup-step-action { margin-top: auto; }
+.setup-step-action .btn { width: 100%; }
+
+/* Dots / nav under the track. */
+.setup-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.setup-dot {
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: rgba(124, 58, 237, 0.22);
+  cursor: pointer;
+  transition: width .2s ease, background .2s ease;
+}
+.setup-dot.active {
+  width: 20px;
+  background-image: var(--accent-grad);
+}
+
 .setup-done-badge {
   flex-shrink: 0;
   width: 42px; height: 42px;
@@ -770,47 +887,104 @@ hr {
   display: flex; align-items: center; justify-content: center;
   font-size: 1.3rem;
   background: rgba(34, 197, 94, .14);
-  color: #22c55e;
+  color: #16a34a;
   border: 1px solid rgba(34, 197, 94, .4);
 }
 
-/* ── Dashboard revenue chart ─────────────────────────────────────── */
+/* Desktop: drop the carousel, lay steps out as an even grid. */
+@media (min-width: 768px) {
+  .setup-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: visible;
+  }
+  .setup-step { flex: initial; }
+  .setup-nav { display: none; }
+}
+
+/* ── Dashboard revenue chart (glowing gradient area chart) ───────── */
 .dash-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 180px;
-}
-.dash-bar-col {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-.dash-bar-track {
-  flex: 1 1 auto;
+  position: relative;
   width: 100%;
+  min-height: 200px;
+}
+.dash-chart-svg {
+  display: block;
+  width: 100%;
+  height: 200px;
+  overflow: visible;
+}
+/* Animated draw-in of the area + line. */
+.dash-area { transition: opacity .4s ease; }
+.dash-line {
+  fill: none;
+  stroke: url(#dashStroke);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 10px rgba(124, 58, 237, 0.55))
+          drop-shadow(0 0 4px rgba(6, 182, 212, 0.35));
+}
+.dash-dot {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 2;
+  opacity: 0;
+  transition: opacity .15s ease, r .15s ease;
+  cursor: pointer;
+}
+.dash-dot:hover { opacity: 1; r: 5; }
+.dash-hot { fill: transparent; cursor: pointer; }
+.dash-hot:hover + .dash-dot { opacity: 1; }
+.dash-xlabel {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+.dash-empty {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  flex-direction: column;
+  min-height: 200px;
+  color: var(--text-muted);
 }
-.dash-bar-fill {
-  width: 70%;
-  max-width: 28px;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
-  transition: height .3s ease, opacity .15s;
-}
-.dash-bar-col:hover .dash-bar-fill { opacity: .8; }
-.dash-bar-fill.empty { background: var(--border-strong); }
-.dash-bar-label {
-  margin-top: 6px;
+.dash-xaxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
   font-size: .62rem;
   color: var(--text-muted);
   white-space: nowrap;
-  height: 14px;
+}
+
+/* Revenue/money figures keep the secondary gold accent. */
+.metric-money {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Dashboard period control (glass segmented) ──────────────────── */
+#dash-period-group {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+#dash-period-group .btn {
+  border: none !important;
+  border-radius: 999px !important;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+#dash-period-group .btn-check:checked + .btn {
+  background-image: var(--accent-grad) !important;
+  background-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px -4px var(--accent-glow);
 }
 
