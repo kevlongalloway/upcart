@@ -345,17 +345,18 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
 }
 
 // ── Shared navbar ───────────────────────────────────────────────
-// Close the mobile nav drawer and forcefully clear any orphaned Bootstrap
-// backdrop / scroll-lock left behind when #app is re-rendered mid-animation.
-function closeNavOffcanvas() {
-  const el = document.getElementById('navMenu');
-  if (el && window.bootstrap && bootstrap.Offcanvas) {
-    const inst = bootstrap.Offcanvas.getInstance(el);
-    if (inst) inst.hide();
-  }
-  document.querySelectorAll('.offcanvas-backdrop').forEach(b => b.remove());
-  document.body.style.removeProperty('overflow');
-  document.body.style.removeProperty('padding-right');
+// Custom mobile nav drawer (no Bootstrap offcanvas). A single .nav-menu
+// element is a slide-in drawer below the lg breakpoint and an inline nav at
+// lg+, toggled by adding/removing `.open`.
+function openNav() {
+  document.getElementById('navMenu')?.classList.add('open');
+  document.querySelector('.nav-scrim')?.classList.add('open');
+  document.body.classList.add('nav-open');
+}
+function closeNav() {
+  document.getElementById('navMenu')?.classList.remove('open');
+  document.querySelector('.nav-scrim')?.classList.remove('open');
+  document.body.classList.remove('nav-open');
 }
 
 function renderNavbar() {
@@ -371,13 +372,13 @@ function renderNavbar() {
 
   const navItem = (active, href, icon, label, extra = '') => `
     <li class="nav-item">
-      <a class="nav-link py-2 px-2 d-flex align-items-center ${active ? 'active' : ''}" href="${href}"${extra}>
-        <i class="bi ${icon}"></i><span class="nav-label ms-2">${label}</span>
+      <a class="nav-link nav-menu-link d-flex align-items-center ${active ? 'active' : ''}" href="${href}"${extra}>
+        <i class="bi ${icon}"></i><span class="nav-label">${label}</span>
       </a>
     </li>`;
 
   return `
-    <nav class="navbar navbar-expand-lg border-bottom">
+    <nav class="navbar border-bottom">
       <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="min-height:56px">
         <a class="navbar-brand d-flex align-items-center" href="#/dashboard" style="gap:.6rem;min-width:0">
           <span class="brand-badge" aria-hidden="true">U</span>
@@ -387,38 +388,35 @@ function renderNavbar() {
           </span>
         </a>
 
-        <button class="navbar-toggler nav-burger" type="button"
-                data-bs-toggle="offcanvas" data-bs-target="#navMenu"
-                aria-controls="navMenu" aria-label="Open menu">
+        <button class="nav-burger d-lg-none" type="button" data-nav-open aria-controls="navMenu" aria-label="Open menu">
           <i class="bi bi-list"></i>
         </button>
 
-        <div class="offcanvas offcanvas-end nav-offcanvas" tabindex="-1" id="navMenu" aria-labelledby="navMenuLabel">
-          <div class="offcanvas-header">
-            <span class="offcanvas-title d-flex align-items-center gap-2 fw-bold" id="navMenuLabel">
-              <span class="brand-badge" aria-hidden="true">U</span>${storeName}
-            </span>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <div class="nav-scrim" data-nav-close aria-hidden="true"></div>
+
+        <div class="nav-menu" id="navMenu">
+          <div class="nav-menu-head d-lg-none">
+            <span class="nav-menu-title">Menu</span>
+            <button class="nav-menu-close" type="button" data-nav-close aria-label="Close menu">
+              <i class="bi bi-x-lg"></i>
+            </button>
           </div>
-          <div class="offcanvas-body align-items-lg-center gap-lg-2">
-            <ul class="nav nav-pills flex-column flex-lg-row gap-1 mb-0 ms-lg-auto">
-              ${navItem(onDashboard, '#/dashboard', 'bi-speedometer2', 'Dashboard')}
-              ${navItem(onProducts,  '#/products',  'bi-box-seam',     'Products')}
-              ${navItem(onOrders,    '#/orders',    'bi-receipt',      'Orders')}
-              ${navItem(onDiscounts, '#/discounts', 'bi-tag',          'Discounts')}
-              ${navItem(onPayouts,   '#/payouts',   'bi-cash-stack',   'Payouts')}
-              ${navItem(false, '/store-editor/', 'bi-palette2', 'Customize', ' title="Edit theme, sections, colors, fonts, and layout"')}
-            </ul>
-            <hr class="d-lg-none my-2 w-100">
-            <div class="d-flex flex-column flex-lg-row gap-2">
-              ${storeUrl ? `
-                <a class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
-                  <i class="bi bi-box-arrow-up-right"></i><span class="ms-2">Storefront</span>
-                </a>` : ''}
-              <button class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" id="logout-btn">
-                <i class="bi bi-box-arrow-right"></i><span class="ms-2">Logout</span>
-              </button>
-            </div>
+          <ul class="nav nav-pills nav-menu-list mb-0">
+            ${navItem(onDashboard, '#/dashboard', 'bi-speedometer2', 'Dashboard')}
+            ${navItem(onProducts,  '#/products',  'bi-box-seam',     'Products')}
+            ${navItem(onOrders,    '#/orders',    'bi-receipt',      'Orders')}
+            ${navItem(onDiscounts, '#/discounts', 'bi-tag',          'Discounts')}
+            ${navItem(onPayouts,   '#/payouts',   'bi-cash-stack',   'Payouts')}
+            ${navItem(false, '/store-editor/', 'bi-palette2', 'Customize', ' title="Edit theme, sections, colors, fonts, and layout"')}
+          </ul>
+          <div class="nav-menu-actions">
+            ${storeUrl ? `
+              <a class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
+                <i class="bi bi-box-arrow-up-right me-2"></i>Storefront
+              </a>` : ''}
+            <button class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" id="logout-btn">
+              <i class="bi bi-box-arrow-right me-2"></i>Logout
+            </button>
           </div>
         </div>
       </div>
@@ -3647,15 +3645,14 @@ const Router = {
   init() {
     window.addEventListener('hashchange', () => this._route());
 
-    // The mobile nav offcanvas lives inside #app, which the router replaces
-    // wholesale on every navigation. Bootstrap appends its backdrop to
-    // <body> and locks scrolling, so tearing down #app mid-animation would
-    // orphan a grey backdrop and leave the body scroll-locked. Clean both up
-    // on navigation, and close the drawer the moment a nav link is tapped.
+    // Drive the custom mobile nav drawer via event delegation, since #app
+    // (and the navbar within it) is re-rendered on every navigation.
     document.addEventListener('click', (e) => {
-      if (e.target.closest('#navMenu a, #navMenu #logout-btn')) closeNavOffcanvas();
+      if (e.target.closest('[data-nav-open]'))  { openNav();  return; }
+      if (e.target.closest('[data-nav-close]')) { closeNav(); return; }
+      if (e.target.closest('#navMenu a, #navMenu #logout-btn')) closeNav();
     });
-    window.addEventListener('hashchange', closeNavOffcanvas);
+    window.addEventListener('hashchange', closeNav);
 
     this._route();
   },
