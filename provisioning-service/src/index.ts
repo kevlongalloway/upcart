@@ -8,6 +8,7 @@ import { statusRouter } from "./routes/status.js";
 import { authRouter } from "./routes/auth.js";
 import { debugRouter } from "./routes/debug.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { themesRouter } from "./routes/themes.js";
 import { handleTrialExpiry } from "./jobs/trial-expiry.js";
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -66,6 +67,10 @@ app.route("/debug", debugRouter);
 
 // POST /webhooks/stripe     — Stripe platform subscription lifecycle events
 app.route("/webhooks", webhookRouter);
+
+// GET /themes                — central theme catalog (listing)
+// GET /themes/:id            — full theme manifest incl. editable schema
+app.route("/themes", themesRouter);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

@@ -3,6 +3,6 @@
 // On Render, set the API_BASE_URL environment variable in the dashboard.
 window.BST_API_BASE = '';
 
-// Storefront theme — set by provisioning service from store_settings.
-// Options: mono | minimal | boutique | bold | studio
-window.STORE_THEME = 'mono';
+// Theme selection is schema-driven — it lives in the merchant's saved schema
+// (store_settings.page_sections → globalTheme), applied by store-renderer.js
+// and theme.js. There is no build-time theme switch anymore.

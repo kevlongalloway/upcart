@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 import { useEditor } from './store';
 import { getAllSectionDefs, SECTION_CATEGORIES, CATEGORY_LABELS } from './registry';
-import type { Section, SectionType, SectionCategory } from './types';
+import type { Section, SectionType, SectionCategory, ThemeManifest } from './types';
+import { BUILTIN_THEMES } from './themes';
+import { ThemeSwatch, priceLabel } from './ThemeSwatch';
+import ThemeApplyModal from './ThemeApplyModal';
 import * as LucideAll from 'lucide-react';
 
 // ── Icon lookup ─────────────────────────────────────────────────────────────
@@ -172,6 +175,53 @@ function SectionLibrary({ onAdd }: { onAdd: (type: SectionType) => void }) {
   );
 }
 
+// ── Theme gallery ────────────────────────────────────────────────────────────
+
+function ThemeGallery() {
+  const activeThemeId = useEditor(s => s.activeThemeId);
+  const [selected, setSelected] = useState<ThemeManifest | null>(null);
+
+  return (
+    <div className="flex flex-col gap-3 p-2">
+      <p className="text-ed-muted text-[11px] leading-relaxed px-1">
+        Pick a theme to restyle your store — or swap in its full layout. You can
+        edit every section afterwards.
+      </p>
+      {BUILTIN_THEMES.map(theme => {
+        const isActive = theme.id === activeThemeId;
+        return (
+          <button
+            key={theme.id}
+            onClick={() => setSelected(theme)}
+            className={`group text-left rounded-lg overflow-hidden border transition-colors ${
+              isActive ? 'border-ed-accent' : 'border-ed-border hover:border-ed-accent/60'
+            }`}
+          >
+            <ThemeSwatch theme={theme.schema.globalTheme} name={theme.name} />
+            <div className="flex items-center justify-between gap-1 px-2 py-1.5 bg-ed-panel">
+              <span className="text-ed-text text-xs font-medium truncate">{theme.name}</span>
+              <span className="flex items-center gap-1 flex-shrink-0">
+                {isActive && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-ed-accent/20 text-ed-accent">Active</span>
+                )}
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                  theme.price === 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-ed-accent/20 text-ed-accent'
+                }`}>
+                  {priceLabel(theme.price)}
+                </span>
+              </span>
+            </div>
+          </button>
+        );
+      })}
+
+      {selected && (
+        <ThemeApplyModal manifest={selected} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  );
+}
+
 // ── Left Panel ─────────────────────────────────────────────────────────────
 
 export default function LeftPanel() {
@@ -210,6 +260,7 @@ export default function LeftPanel() {
         {[
           { id: 'sections' as const, label: 'Sections' },
           { id: 'library'  as const, label: 'Add' },
+          { id: 'themes'   as const, label: 'Themes' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -242,7 +293,9 @@ export default function LeftPanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {(leftTab === 'sections' && !showLibrary) ? (
+        {leftTab === 'themes' ? (
+          <ThemeGallery />
+        ) : (leftTab === 'sections' && !showLibrary) ? (
           <div className="p-2 flex flex-col gap-0.5">
             {sections.length === 0 && (
               <p className="text-ed-muted text-xs text-center py-6">

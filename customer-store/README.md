@@ -20,10 +20,10 @@ products, discounts, and Stripe checkout.
 
 | File | Purpose |
 |------|---------|
-| `config.js` | Sets `window.BST_API_BASE` (backend URL) and `window.STORE_THEME`. Generated at build time by `build.sh`. |
+| `config.js` | Sets `window.BST_API_BASE` (backend URL). Generated at build time by `build.sh`. |
 | `cart.js` | `localStorage`-backed cart (`bst_cart` key), quantity helpers, price formatting, nav-count updater. |
-| `theme.js` | Applies CSS variables based on `window.STORE_THEME`. Five presets: `mono`, `minimal`, `boutique`, `bold`, `studio`. |
-| `themes/` | Static theme assets (fonts, accent styles). |
+| `theme.js` | Paints an editorial-luxe baseline (zero FOUC), then bridges the merchant's saved `globalTheme` (from `/settings/public` → `page_sections`) onto the legacy `--color-*` / `--font-*` variables the static sub-page chrome uses. Also applies `brand_primary` / `brand_accent` and store name / logo / hero copy. |
+| `store-renderer.js` | Renders the homepage and header/footer slots from the saved schema, emitting the modern `--uc-*` design tokens. The source of truth for theming. |
 | `build.sh` | Reads `API_BASE_URL` from the environment and writes `config.js`. |
 | `render.yaml` | Render static-site configuration. |
 
@@ -48,7 +48,6 @@ Or, for a no-build workflow during development, edit `config.js` directly:
 
 ```js
 window.BST_API_BASE = 'https://<your-worker>.workers.dev';
-window.STORE_THEME  = 'mono';
 ```
 
 `build.sh` will overwrite this file on the next build.
@@ -115,19 +114,21 @@ See [`../backend/API.md`](../backend/API.md) for full request/response shapes.
 
 ## Themes
 
-Pick one via `window.STORE_THEME` (or, when provisioned via
-[`../provisioning-service`](../provisioning-service), set it per-tenant in
-`store_settings`):
+Theming is **schema-driven**. A theme is a full, editable template — design
+tokens (`globalTheme`) plus the page's sections — authored in the store editor
+and saved to `store_settings.page_sections`. There is no build-time theme
+switch; the merchant picks a theme from the editor's **Themes** gallery (and can
+restyle-only or fully swap), then tunes it section by section.
 
-| Theme | Vibe |
-|-------|------|
-| `mono` | Editorial monochrome — Space Mono + Bebas Neue. |
-| `minimal` | Clean, lots of whitespace. |
-| `boutique` | Warm, serif-forward. |
-| `bold` | High-contrast, loud type. |
-| `studio` | Neutral, photography-first. |
+The built-in catalog lives in
+[`admin-dashboard/editor-app/src/themes/`](../admin-dashboard/editor-app/src/themes)
+(`editorial-luxe`, `mono`, `boutique`) and is served centrally by the
+provisioning service at `GET /themes` / `GET /themes/:id`.
 
-`theme.js` injects CSS custom properties before first paint, so there's no flash.
+On the storefront, `store-renderer.js` renders the saved schema and emits the
+`--uc-*` tokens; `theme.js` paints an editorial-luxe baseline before first paint
+(no flash) and bridges the saved `globalTheme` onto the legacy `--color-*` /
+`--font-*` variables the static sub-pages still read.
 
 ---
 

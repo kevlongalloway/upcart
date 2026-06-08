@@ -30,7 +30,8 @@ const PUBLIC_KEYS = [
   "hero_title",
   "hero_subtitle",
   "hero_cta",
-  "page_sections",  // JSON-encoded section layout for the Store Editor
+  "page_sections",   // JSON-encoded section layout for the Store Editor
+  "active_theme_id", // id of the catalog theme currently applied (or "")
 ] as const;
 
 // Additional admin-only keys (kept internal). We don't currently return these
@@ -118,6 +119,7 @@ publicSettings.get("/", async (c) => {
       hero_subtitle:     rows.hero_subtitle     ?? "",
       hero_cta:          rows.hero_cta          ?? "",
       page_sections:     rows.page_sections     ?? "",
+      active_theme_id:   rows.active_theme_id   ?? "",
     }));
   } catch (e) {
     console.error("GET /settings/public failed:", e);
@@ -135,6 +137,7 @@ publicSettings.get("/", async (c) => {
       hero_subtitle:     "",
       hero_cta:          "",
       page_sections:     "",
+      active_theme_id:   "",
     }));
   }
 });
@@ -158,9 +161,12 @@ adminSettings.get("/", async (c) => {
     hero_subtitle:     rows.hero_subtitle     ?? "",
     hero_cta:          rows.hero_cta          ?? "",
     page_sections:     rows.page_sections     ?? "",
+    active_theme_id:   rows.active_theme_id   ?? "",
   }));
 });
 
+// Legacy preset names kept only for back-compat with the retired theme.js
+// palette system. The schema-driven catalog uses `active_theme_id` instead.
 const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
 const hex6 = z
   .string()
@@ -181,6 +187,8 @@ const updateSchema = z
     hero_cta:          z.string().max(50).optional(),
     // JSON-encoded page section layout saved by the Store Editor
     page_sections:     z.string().max(524288).optional(),
+    // id of the applied catalog theme (slug); "" clears it
+    active_theme_id:   z.string().max(64).regex(/^[a-z0-9-]*$/, "Invalid theme id").optional(),
   })
   .strict();
 
@@ -239,5 +247,6 @@ adminSettings.put(
     hero_subtitle:     rows.hero_subtitle     ?? "",
     hero_cta:          rows.hero_cta          ?? "",
     page_sections:     rows.page_sections     ?? "",
+    active_theme_id:   rows.active_theme_id   ?? "",
   }));
 });

@@ -6,11 +6,11 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type {
   StoreSchema, Section, SectionType, Block, GlobalTheme, Viewport,
-  SectionLayout,
+  SectionLayout, ThemeManifest,
 } from './types';
-import { DEFAULT_GLOBAL_THEME } from './types';
 import { getSectionDef } from './registry';
 import { loadSettings, saveSettings } from './api';
+import { makeDefaultSchema, normalizeSchema, buildSection } from './normalize';
 
 // ── Snapshot for undo/redo ─────────────────────────────────────────────────
 
@@ -19,17 +19,20 @@ interface Snapshot {
   selectedPageId:  string;
   selectedSectionId: string | null;
   selectedBlockId:   string | null;
+  activeThemeId:     string | null;
 }
 
 const MAX_HISTORY = 50;
 
 // ── Editor State ───────────────────────────────────────────────────────────
 
-export type LeftTab = 'pages' | 'sections' | 'library';
+export type LeftTab = 'pages' | 'sections' | 'library' | 'themes';
 
 export interface EditorState {
   // ── schema ────────────────────────────────────────────────
   schema:            StoreSchema;
+  // id of the theme currently applied (null = custom / unknown)
+  activeThemeId:     string | null;
   // ── selection ─────────────────────────────────────────────
   selectedPageId:    string;
   selectedSectionId: string | null;
@@ -73,6 +76,10 @@ export interface EditorActions {
   updateBlockSettings: (sectionId: string, blockId: string, patch: Record<string, unknown>) => void;
   // ── global theme ──────────────────────────────────────────
   updateTheme:    (patch: Partial<GlobalTheme>) => void;
+  // ── themes (catalog) ──────────────────────────────────────
+  // 'full'    → replace structure + content + design tokens with the theme.
+  // 'restyle' → keep the merchant's sections/content, swap only globalTheme.
+  applyTheme:     (manifest: ThemeManifest, mode: 'full' | 'restyle') => void;
   // ── UI ────────────────────────────────────────────────────
   setViewport:    (v: Viewport) => void;
   setLeftTab:     (t: LeftTab) => void;
@@ -87,58 +94,8 @@ export interface EditorActions {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-// Seeded section types — every brand-new tenant lands in the editor with a
-// complete editorial homepage already populated, in this exact order. The
-// section sequence mirrors customer-store/store-renderer.js's
-// buildDefaultSchema() so the live storefront and the editor stay in lockstep:
-// announcement, header, hero, features, filterable shop, info, testimonials,
-// newsletter, footer.
-const DEFAULT_SECTION_SEEDS: Array<{ id: string; type: SectionType }> = [
-  { id: 'seed-announce',     type: 'announcement-bar'    },
-  { id: 'seed-header',       type: 'header'              },
-  { id: 'seed-hero',         type: 'hero'                },
-  { id: 'seed-features',     type: 'features'            },
-  { id: 'seed-shop',         type: 'filter-product-grid' },
-  { id: 'seed-info',         type: 'info'                },
-  { id: 'seed-testimonials', type: 'testimonials'        },
-  { id: 'seed-newsletter',   type: 'newsletter'          },
-  { id: 'seed-footer',       type: 'footer'              },
-];
-
-function buildSeededSection(id: string, type: SectionType): Section {
-  const def = getSectionDef(type);
-  return {
-    id,
-    type,
-    label:         def.name,
-    visible:       true,
-    locked:        def.locked ?? false,
-    layout:        JSON.parse(JSON.stringify(def.defaultLayout)) as Section['layout'],
-    settings:      JSON.parse(JSON.stringify(def.defaultSettings)),
-    // Seed blocks get stable IDs derived from the section ID + index so
-    // re-seeding produces the same JSON byte-for-byte.
-    blocks:        def.defaultBlocks.map((b, i) => ({ ...JSON.parse(JSON.stringify(b)), id: `${id}-block-${i}` })),
-    customCSS:     '',
-    customClasses: '',
-  };
-}
-
-function makeDefaultSchema(): StoreSchema {
-  return {
-    version:     '2.0',
-    globalTheme: DEFAULT_GLOBAL_THEME,
-    pages: {
-      index: {
-        id:       'index',
-        name:     'Home',
-        icon:     'Home',
-        slug:     'index.html',
-        sections: DEFAULT_SECTION_SEEDS.map(s => buildSeededSection(s.id, s.type)),
-      },
-    },
-  };
-}
+// Seeding + section construction live in ./normalize so the editor, the
+// schema normalizer, and theme application all share one backfill path.
 
 function snapshot(s: EditorState): Snapshot {
   return {
@@ -146,6 +103,7 @@ function snapshot(s: EditorState): Snapshot {
     selectedPageId:    s.selectedPageId,
     selectedSectionId: s.selectedSectionId,
     selectedBlockId:   s.selectedBlockId,
+    activeThemeId:     s.activeThemeId,
   };
 }
 
@@ -180,6 +138,7 @@ function mutateSection(
 
 export const useEditor = create<EditorState & EditorActions>((set, get) => ({
   schema:            makeDefaultSchema(),
+  activeThemeId:     null,
   selectedPageId:    'index',
   selectedSectionId: null,
   selectedBlockId:   null,
@@ -200,23 +159,26 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
     try {
       const settings = await loadSettings();
       const raw = settings['page_sections'];
+      const activeThemeId = settings['active_theme_id'] || null;
       // Empty / missing / malformed → fall through to the seeded default
-      // schema (Header / Hero / Gallery / Footer). makeDefaultSchema() is
-      // already in state from the initial create() call, so we just clear
-      // the loading flag and leave it untouched.
+      // schema. makeDefaultSchema() is already in state from the initial
+      // create() call, so we just clear the loading flag and leave it.
       if (raw) {
         try {
-          const parsed = JSON.parse(raw) as StoreSchema;
+          const parsed = JSON.parse(raw);
           if (parsed && parsed.pages && typeof parsed.pages === 'object') {
-            const firstPageId = Object.keys(parsed.pages)[0] ?? 'index';
-            set({ schema: parsed, selectedPageId: firstPageId, isLoading: false, isDirty: false });
+            // Normalize so any sparse / older / theme-authored schema is
+            // backfilled from the registry and safe to edit + render.
+            const schema = normalizeSchema(parsed);
+            const firstPageId = Object.keys(schema.pages)[0] ?? 'index';
+            set({ schema, activeThemeId, selectedPageId: firstPageId, isLoading: false, isDirty: false });
             return;
           }
         } catch {
           // fall through to defaults
         }
       }
-      set({ isLoading: false });
+      set({ activeThemeId, isLoading: false });
     } catch (err) {
       set({ isLoading: false, loadError: String(err) });
     }
@@ -236,20 +198,8 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
 
   addSection: (type, afterId = null) => {
     const s = get();
-    const def = getSectionDef(type);
-    if (!def) return;
-    const newSection: Section = {
-      id:            nanoid(8),
-      type,
-      label:         def.name,
-      visible:       true,
-      locked:        def.locked ?? false,
-      layout:        { ...def.defaultLayout as ReturnType<typeof currentPage>['sections'][0]['layout'] } as Section['layout'],
-      settings:      JSON.parse(JSON.stringify(def.defaultSettings)),
-      blocks:        def.defaultBlocks.map(b => ({ ...b, id: nanoid(8) })),
-      customCSS:     '',
-      customClasses: '',
-    };
+    if (!getSectionDef(type)) return;
+    const newSection: Section = buildSection(type, nanoid(8));
     const hist = pushHistory(s);
     const schema = mutateSections(s, secs => {
       if (afterId === null) return [...secs, newSection];
@@ -427,7 +377,34 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
       ...JSON.parse(JSON.stringify(s.schema)),
       globalTheme: { ...s.schema.globalTheme, ...patch },
     };
-    set({ ...hist, schema, isDirty: true });
+    // Tweaking tokens by hand means it's no longer a pristine catalog theme.
+    set({ ...hist, schema, activeThemeId: null, isDirty: true });
+  },
+
+  applyTheme: (manifest, mode) => {
+    const s = get();
+    const hist = pushHistory(s);
+    // Normalize the theme's schema so a sparsely-authored theme is backfilled
+    // from the registry before it ever enters editor state.
+    const themeSchema = normalizeSchema(manifest.schema);
+    const schema: StoreSchema = mode === 'full'
+      ? themeSchema
+      : {
+          // restyle: keep the merchant's pages/sections, swap only the tokens
+          ...JSON.parse(JSON.stringify(s.schema)),
+          globalTheme: JSON.parse(JSON.stringify(themeSchema.globalTheme)),
+        };
+    const firstPageId = Object.keys(schema.pages)[0] ?? 'index';
+    set({
+      ...hist,
+      schema,
+      activeThemeId:     manifest.id,
+      selectedPageId:    firstPageId,
+      selectedSectionId: null,
+      selectedBlockId:   null,
+      rightTab:          'theme',
+      isDirty:           true,
+    });
   },
 
   // ── UI ──────────────────────────────────────────────────────────────────
@@ -452,6 +429,7 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
       selectedPageId:    prev.selectedPageId,
       selectedSectionId: prev.selectedSectionId,
       selectedBlockId:   prev.selectedBlockId,
+      activeThemeId:     prev.activeThemeId,
       isDirty:           true,
     });
   },
@@ -467,6 +445,7 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
       selectedPageId:    next.selectedPageId,
       selectedSectionId: next.selectedSectionId,
       selectedBlockId:   next.selectedBlockId,
+      activeThemeId:     next.activeThemeId,
       isDirty:           true,
     });
   },
@@ -478,7 +457,10 @@ export const useEditor = create<EditorState & EditorActions>((set, get) => ({
     if (s.isSaving) return;
     set({ isSaving: true });
     try {
-      await saveSettings({ page_sections: JSON.stringify(s.schema) });
+      await saveSettings({
+        page_sections:   JSON.stringify(s.schema),
+        active_theme_id: s.activeThemeId ?? '',
+      });
       set({ isSaving: false, isDirty: false });
     } catch (err) {
       set({ isSaving: false });

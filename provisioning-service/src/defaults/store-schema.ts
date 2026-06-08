@@ -1,171 +1,75 @@
-// Default store schema seeded into a brand-new tenant's `store_settings`
-// (`page_sections` key). Mirrors the seed produced by the editor's
-// `makeDefaultSchema()` in admin-dashboard/editor-app/src/store.ts so that
-// merchants land in the editor with the same sections their storefront is
-// already serving.
+// Theme catalog for the provisioning service.
 //
-// Settings are intentionally sparse — the storefront renderer's
-// `||`-fallback defaults produce visible placeholder content for any field
-// that is missing. As soon as the merchant saves from the editor, this
-// stub is replaced with the registry-driven full schema.
+// This is a committed MIRROR of the editor's built-in themes
+// (admin-dashboard/editor-app/src/themes/*.theme.json). The editor is the
+// authoring source; these copies let the provisioning Worker seed a new
+// tenant's `page_sections` with the signup-chosen theme and serve the central
+// theme-catalog API (routes/themes.ts) without a cross-app TS import.
+//
+// Keep the two directories in sync — see the README sync note. The themes are
+// authored sparsely; the storefront renderer fills visible defaults for any
+// missing field, and opening the editor (which normalizes against the section
+// registry) + Save upgrades the stub to the full schema.
 
-// Mirror of editor's DEFAULT_GLOBAL_THEME — duplicated rather than imported
-// to keep this service free of cross-app TS path resolution. The shape only
-// needs to satisfy the storefront renderer's `themeToCssVars()`.
-const DEFAULT_GLOBAL_THEME = {
-  preset: 'base',
-  colors: {
-    primary:     '#111111',
-    primaryText: '#ffffff',
-    secondary:   '#555555',
-    accent:      '#f5c000',
-    background:  '#ffffff',
-    surface:     '#f5f5f5',
-    text:        '#111111',
-    textMuted:   '#888888',
-    border:      'rgba(0,0,0,0.1)',
-  },
-  typography: {
-    headingFont:   'inherit',
-    bodyFont:      'inherit',
-    baseFontSize:  16,
-    headingWeight: 700,
-    bodyWeight:    400,
-    lineHeight:    1.6,
-    letterSpacing: 0,
-  },
-  spacing: {
-    containerMaxWidth:      1200,
-    sectionVerticalPadding: 80,
-    borderRadius:           4,
-    cardBorderRadius:       4,
-    elementGap:             16,
-  },
-  customCSS: '',
+import editorialLuxe from "./themes/editorial-luxe.theme.json";
+import mono from "./themes/mono.theme.json";
+import boutique from "./themes/boutique.theme.json";
+
+export interface ThemeManifest {
+  id: string;
+  name: string;
+  description: string;
+  themeVersion: string;
+  engineVersion: string;
+  author: string;
+  price: number;
+  tags: string[];
+  thumbnail: string;
+  preview: string;
+  builtIn: boolean;
+  schema: unknown;
+}
+
+export type ThemeCatalogEntry = Omit<ThemeManifest, "schema">;
+
+export const DEFAULT_THEME_ID = "editorial-luxe";
+
+const CATALOG: ThemeManifest[] = [
+  editorialLuxe as unknown as ThemeManifest,
+  mono as unknown as ThemeManifest,
+  boutique as unknown as ThemeManifest,
+];
+
+// Map the legacy signup/preset theme names onto catalog ids. Old wizards send
+// "base" / "mono" / "boutique" etc.; everything unknown falls back to default.
+const LEGACY_THEME_MAP: Record<string, string> = {
+  base: "editorial-luxe",
+  mono: "mono",
+  boutique: "boutique",
+  // retired presets collapse onto the closest catalog theme
+  minimal: "editorial-luxe",
+  studio: "editorial-luxe",
+  bold: "mono",
 };
 
-export const DEFAULT_STORE_SCHEMA = {
-  version: '2.0',
-  globalTheme: DEFAULT_GLOBAL_THEME,
-  pages: {
-    index: {
-      id:   'index',
-      name: 'Home',
-      icon: 'Home',
-      slug: 'index.html',
-      sections: [
-        {
-          id:            'seed-header',
-          type:          'header',
-          label:         'Header',
-          visible:       true,
-          locked:        true,
-          layout:        {},
-          settings:      {
-            storeName:    'My Store',
-            showCartIcon: true,
-            navLinks: [
-              { label: 'Shop',  url: '/products.html' },
-              { label: 'About', url: '#'              },
-            ],
-            sticky: true,
-          },
-          blocks:        [],
-          customCSS:     '',
-          customClasses: '',
-        },
-        {
-          id:            'seed-hero',
-          type:          'hero',
-          label:         'Hero Banner',
-          visible:       true,
-          locked:        false,
-          layout:        {},
-          settings:      {
-            headline:      'Made for everyday',
-            subheadline:   'A modern collection of essentials, designed to last and built around the way you live.',
-            kicker:        'New Collection',
-            primaryButton: { label: 'Shop the Collection', url: '/products.html' },
-          },
-          blocks:        [],
-          customCSS:     '',
-          customClasses: '',
-        },
-        {
-          id:            'seed-features',
-          type:          'features',
-          label:         'Features',
-          visible:       true,
-          locked:        false,
-          layout:        {},
-          settings:      {
-            columns: 3,
-            cardStyle: 'plain',
-            cardAlign: 'center',
-          },
-          blocks: [
-            { id: 'f1', type: 'feature', visible: true, settings: { heading: 'Free Shipping',  description: 'On every order over $75 — no codes required.', icon: 'Truck'  } },
-            { id: 'f2', type: 'feature', visible: true, settings: { heading: 'Easy Returns',   description: '30-day no-questions returns on anything you buy.', icon: 'RotateCcw' } },
-            { id: 'f3', type: 'feature', visible: true, settings: { heading: 'Secure Checkout', description: 'Encrypted payments processed through Stripe.', icon: 'Lock'   } },
-          ],
-          customCSS:     '',
-          customClasses: '',
-        },
-        {
-          id:            'seed-products',
-          type:          'product-grid',
-          label:         'Featured Products',
-          visible:       true,
-          locked:        false,
-          layout:        {},
-          settings:      {
-            heading: 'New Arrivals',
-            subheading: 'A curated selection of our latest pieces.',
-            columns: 4,
-            limit:   8,
-            showAddToCart: true,
-          },
-          blocks:        [],
-          customCSS:     '',
-          customClasses: '',
-        },
-        {
-          id:            'seed-newsletter',
-          type:          'newsletter',
-          label:         'Newsletter',
-          visible:       true,
-          locked:        false,
-          layout:        {},
-          settings:      {
-            heading:     'Join the list',
-            description: 'Be first to hear about new arrivals, restocks, and exclusive offers.',
-            buttonText:  'Subscribe',
-            placeholder: 'you@example.com',
-          },
-          blocks:        [],
-          customCSS:     '',
-          customClasses: '',
-        },
-        {
-          id:            'seed-footer',
-          type:          'footer',
-          label:         'Footer',
-          visible:       true,
-          locked:        true,
-          layout:        {},
-          settings:      {
-            aboutText:     'A modern, thoughtfully made collection — shipped fast and built to last.',
-            copyrightText: '© My Store. All rights reserved.',
-          },
-          blocks: [
-            { id: 'fc1', type: 'footer-column', visible: true, settings: { heading: 'Shop',    links: [{ label: 'All Products', url: '/products.html' }, { label: 'New Arrivals', url: '/products.html' }] } },
-            { id: 'fc2', type: 'footer-column', visible: true, settings: { heading: 'Help',    links: [{ label: 'Contact',      url: '#' }, { label: 'Shipping',     url: '#' }, { label: 'Returns', url: '#' }] } },
-            { id: 'fc3', type: 'footer-column', visible: true, settings: { heading: 'Company', links: [{ label: 'About',        url: '#' }, { label: 'Journal',      url: '#' }] } },
-          ],
-          customCSS:     '',
-          customClasses: '',
-        },
-      ],
-    },
-  },
-} as const;
+export function resolveThemeId(input: string | undefined | null): string {
+  if (!input) return DEFAULT_THEME_ID;
+  if (CATALOG.some((t) => t.id === input)) return input;
+  return LEGACY_THEME_MAP[input] ?? DEFAULT_THEME_ID;
+}
+
+export function getThemeManifest(id: string): ThemeManifest | undefined {
+  return CATALOG.find((t) => t.id === id);
+}
+
+export function getThemeSchema(id: string): unknown {
+  const t = getThemeManifest(resolveThemeId(id));
+  return (t ?? CATALOG[0]!).schema;
+}
+
+export function listThemeCatalog(): ThemeCatalogEntry[] {
+  return CATALOG.map(({ schema: _schema, ...entry }) => entry);
+}
+
+// Back-compat: the default tenant seed (editorial-luxe full schema).
+export const DEFAULT_STORE_SCHEMA = getThemeSchema(DEFAULT_THEME_ID);

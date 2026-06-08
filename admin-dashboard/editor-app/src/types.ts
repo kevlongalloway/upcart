@@ -295,10 +295,36 @@ export interface Page {
 // ── Store Schema (root) ────────────────────────────────────────────────────
 
 export interface StoreSchema {
-  version:     string;   // "2.0"
+  version:     string;   // "2.0" — the templating ENGINE/schema version
   globalTheme: GlobalTheme;
   pages:       Record<string, Page>;
 }
+
+// ── Theme package (catalog) ────────────────────────────────────────────────
+// A "theme" is the full, registry-conformant template (a StoreSchema) plus
+// catalog metadata. Picking a theme loads its `schema` into the editor, so
+// every value — a header's heading included — renders editable. Free themes
+// have price 0; the `price` field is the seam a future buy-flow plugs into
+// (payment is NOT implemented yet). Themes are authored as JSON and validated
+// against this interface at editor build time.
+
+export interface ThemeManifest {
+  id:            string;   // stable slug, e.g. "editorial-luxe", "mono"
+  name:          string;
+  description:   string;
+  themeVersion:  string;   // semver of THIS theme package, e.g. "1.0.0"
+  engineVersion: string;   // templating engine version it targets — mirrors StoreSchema.version
+  author:        string;   // "Upcart" for built-ins
+  price:         number;   // minor currency units; 0 = free
+  tags:          string[];
+  thumbnail:     string;   // small preview image (card)
+  preview:       string;   // large screenshot (apply modal)
+  builtIn:       boolean;  // true for bundled themes
+  schema:        StoreSchema; // the full, editable template
+}
+
+// Catalog listing entry — a manifest WITHOUT the heavy `schema` payload.
+export type ThemeCatalogEntry = Omit<ThemeManifest, 'schema'>;
 
 // ── Editor Field System ────────────────────────────────────────────────────
 // The registry defines field schemas; the editor renders them dynamically.

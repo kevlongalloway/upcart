@@ -1,0 +1,66 @@
+{
+  "id": "boutique",
+  "name": "Boutique",
+  "description": "Warm, soft and tactile — Playfair Display over Inter on toasted cream, with gently rounded cards. Made for considered, hand-made goods.",
+  "themeVersion": "1.0.0",
+  "engineVersion": "2.0",
+  "author": "Upcart",
+  "price": 0,
+  "tags": ["boutique", "warm", "serif", "soft"],
+  "thumbnail": "",
+  "preview": "",
+  "builtIn": true,
+  "schema": {
+    "version": "2.0",
+    "globalTheme": {
+      "preset": "boutique",
+      "colors": {
+        "primary": "#3d2c1e",
+        "primaryText": "#fdf8f3",
+        "secondary": "#8a7a6a",
+        "accent": "#c4a882",
+        "background": "#fdf8f3",
+        "surface": "#ffffff",
+        "text": "#3d2c1e",
+        "textMuted": "#8a7a6a",
+        "border": "#ece2d6"
+      },
+      "typography": {
+        "headingFont": "Playfair Display",
+        "bodyFont": "Inter",
+        "baseFontSize": 16,
+        "headingWeight": 600,
+        "bodyWeight": 400,
+        "lineHeight": 1.7,
+        "letterSpacing": 0
+      },
+      "spacing": {
+        "containerMaxWidth": 1200,
+        "sectionVerticalPadding": 100,
+        "borderRadius": 6,
+        "cardBorderRadius": 6,
+        "elementGap": 22
+      },
+      "customCSS": ""
+    },
+    "pages": {
+      "index": {
+        "id": "index",
+        "name": "Home",
+        "icon": "Home",
+        "slug": "index.html",
+        "sections": [
+          { "id": "seed-announce", "type": "announcement-bar" },
+          { "id": "seed-header", "type": "header", "settings": { "storeName": "Atelier" } },
+          { "id": "seed-hero", "type": "hero" },
+          { "id": "seed-features", "type": "features" },
+          { "id": "seed-shop", "type": "filter-product-grid" },
+          { "id": "seed-info", "type": "info" },
+          { "id": "seed-testimonials", "type": "testimonials" },
+          { "id": "seed-newsletter", "type": "newsletter" },
+          { "id": "seed-footer", "type": "footer" }
+        ]
+      }
+    }
+  }
+}

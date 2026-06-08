@@ -2,6 +2,9 @@
    Upcart Store Editor — API Helpers
 ================================================================= */
 
+import type { ThemeManifest, ThemeCatalogEntry } from './types';
+import { BUILTIN_THEMES, getTheme as getBundledTheme, listThemes as listBundledThemes } from './themes';
+
 const AUTH_KEYS = {
   token:  'upcart_admin_token',
   worker: 'upcart_worker_url',
@@ -69,6 +72,47 @@ export async function saveSettings(payload: Record<string, string>): Promise<voi
     method: 'PUT',
     body:   JSON.stringify(payload),
   });
+}
+
+// ── Theme catalog ───────────────────────────────────────────────────────────
+// Built-in themes are bundled (so the gallery works offline). When a central
+// catalog URL is configured (VITE_THEME_CATALOG_URL → the provisioning
+// service's `/themes`), we merge remote/purchasable themes on top. This is the
+// seam a future buy-flow plugs into; built-ins always remain available.
+
+function catalogBase(): string {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+  return (env?.VITE_THEME_CATALOG_URL ?? '').replace(/\/$/, '');
+}
+
+export async function listThemes(): Promise<ThemeCatalogEntry[]> {
+  const base = catalogBase();
+  if (!base) return listBundledThemes();
+  try {
+    const res  = await fetch(`${base}/themes`);
+    const body = await res.json() as { ok: boolean; data?: ThemeCatalogEntry[] };
+    if (!res.ok || !body.ok || !Array.isArray(body.data)) return listBundledThemes();
+    // De-dupe by id, bundled first so built-ins win on conflict.
+    const seen = new Set(BUILTIN_THEMES.map(t => t.id));
+    return [...listBundledThemes(), ...body.data.filter(t => !seen.has(t.id))];
+  } catch {
+    return listBundledThemes();
+  }
+}
+
+export async function getTheme(id: string): Promise<ThemeManifest | undefined> {
+  const bundled = getBundledTheme(id);
+  if (bundled) return bundled;
+  const base = catalogBase();
+  if (!base) return undefined;
+  try {
+    const res  = await fetch(`${base}/themes/${encodeURIComponent(id)}`);
+    const body = await res.json() as { ok: boolean; data?: ThemeManifest };
+    if (!res.ok || !body.ok || !body.data) return undefined;
+    return body.data;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function uploadImage(file: File): Promise<{ url: string }> {

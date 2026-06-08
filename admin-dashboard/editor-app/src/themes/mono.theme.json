@@ -1,0 +1,66 @@
+{
+  "id": "mono",
+  "name": "Mono",
+  "description": "High-contrast monochrome — condensed Bebas Neue headlines over Space Mono. Sharp, confident, zero radius.",
+  "themeVersion": "1.0.0",
+  "engineVersion": "2.0",
+  "author": "Upcart",
+  "price": 0,
+  "tags": ["monochrome", "bold", "editorial", "minimal"],
+  "thumbnail": "",
+  "preview": "",
+  "builtIn": true,
+  "schema": {
+    "version": "2.0",
+    "globalTheme": {
+      "preset": "mono",
+      "colors": {
+        "primary": "#000000",
+        "primaryText": "#ffffff",
+        "secondary": "#333333",
+        "accent": "#333333",
+        "background": "#f9f9f9",
+        "surface": "#ffffff",
+        "text": "#000000",
+        "textMuted": "#555555",
+        "border": "#e0e0e0"
+      },
+      "typography": {
+        "headingFont": "Bebas Neue",
+        "bodyFont": "Space Mono",
+        "baseFontSize": 15,
+        "headingWeight": 700,
+        "bodyWeight": 400,
+        "lineHeight": 1.6,
+        "letterSpacing": 0
+      },
+      "spacing": {
+        "containerMaxWidth": 1280,
+        "sectionVerticalPadding": 88,
+        "borderRadius": 0,
+        "cardBorderRadius": 0,
+        "elementGap": 18
+      },
+      "customCSS": ""
+    },
+    "pages": {
+      "index": {
+        "id": "index",
+        "name": "Home",
+        "icon": "Home",
+        "slug": "index.html",
+        "sections": [
+          { "id": "seed-announce", "type": "announcement-bar" },
+          { "id": "seed-header", "type": "header", "settings": { "storeName": "MONO" } },
+          { "id": "seed-hero", "type": "hero" },
+          { "id": "seed-features", "type": "features" },
+          { "id": "seed-shop", "type": "filter-product-grid" },
+          { "id": "seed-info", "type": "info" },
+          { "id": "seed-testimonials", "type": "testimonials" },
+          { "id": "seed-newsletter", "type": "newsletter" },
+          { "id": "seed-footer", "type": "footer" }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "id": "editorial-luxe",
+  "name": "Editorial Luxe",
+  "description": "Warm cream paper and ink with a brass accent — Fraunces display over Inter Tight. The clean-slate base every store starts from.",
+  "themeVersion": "1.0.0",
+  "engineVersion": "2.0",
+  "author": "Upcart",
+  "price": 0,
+  "tags": ["editorial", "luxury", "serif", "base"],
+  "thumbnail": "",
+  "preview": "",
+  "builtIn": true,
+  "schema": {
+    "version": "2.0",
+    "globalTheme": {
+      "preset": "base",
+      "colors": {
+        "primary": "#161310",
+        "primaryText": "#FBF7EE",
+        "secondary": "#807767",
+        "accent": "#B8884A",
+        "background": "#F4EFE6",
+        "surface": "#FBF7EE",
+        "text": "#161310",
+        "textMuted": "#807767",
+        "border": "#E4DCC9"
+      },
+      "typography": {
+        "headingFont": "Fraunces",
+        "bodyFont": "Inter Tight",
+        "baseFontSize": 15,
+        "headingWeight": 600,
+        "bodyWeight": 400,
+        "lineHeight": 1.6,
+        "letterSpacing": 0
+      },
+      "spacing": {
+        "containerMaxWidth": 1320,
+        "sectionVerticalPadding": 96,
+        "borderRadius": 0,
+        "cardBorderRadius": 0,
+        "elementGap": 20
+      },
+      "customCSS": ""
+    },
+    "pages": {
+      "index": {
+        "id": "index",
+        "name": "Home",
+        "icon": "Home",
+        "slug": "index.html",
+        "sections": [
+          { "id": "seed-announce", "type": "announcement-bar" },
+          { "id": "seed-header", "type": "header", "settings": { "storeName": "Maison" } },
+          { "id": "seed-hero", "type": "hero" },
+          { "id": "seed-features", "type": "features" },
+          { "id": "seed-shop", "type": "filter-product-grid" },
+          { "id": "seed-info", "type": "info" },
+          { "id": "seed-testimonials", "type": "testimonials" },
+          { "id": "seed-newsletter", "type": "newsletter" },
+          { "id": "seed-footer", "type": "footer" }
+        ]
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ import { TenantDB } from "../db.js";
 import { CloudflareAPI } from "../cloudflare-api.js";
 import { hashPassword } from "../password.js";
 import { generateOtpCode, sendEmailOtp, sendSmsOtp } from "../otp.js";
-import { DEFAULT_STORE_SCHEMA } from "../defaults/store-schema.js";
+import { getThemeSchema, resolveThemeId } from "../defaults/store-schema.js";
 
 // ─── Stripe helpers (raw fetch — no SDK needed in CF Workers) ────────────────
 
@@ -160,8 +160,6 @@ CREATE TABLE IF NOT EXISTS auto_withdrawal_settings (
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const VALID_THEMES = new Set(["base", "mono", "minimal", "boutique", "bold", "studio"]);
-
 const verifyPaymentSchema = z.object({
   currency: z.string().length(3).toLowerCase(),
   email:    z.string().email(),
@@ -184,7 +182,9 @@ const provisionSchema = z.object({
     description: z.string().max(500).optional().default(""),
     currency:    z.string().length(3),
     country:     z.string().length(2),
-    theme:       z.string().optional().default("base").transform(t => VALID_THEMES.has(t) ? t : "base"),
+    // Accept either a catalog theme id (e.g. "editorial-luxe") or a legacy
+    // preset name ("base", "mono", …). resolveThemeId() maps it at seed time.
+    theme:       z.string().max(64).optional().default("base"),
   }),
   admin: z.object({
     email:    z.string().email(),
@@ -713,18 +713,25 @@ async function runProvisioning(
   // Apply all store schema migrations to the new database
   await cf.runD1Migrations(d1.uuid, STORE_MIGRATIONS);
 
-  // Seed the editor's default page sections (Header / Hero / Gallery / Footer)
-  // so a fresh tenant's storefront renders something on first visit, before
-  // the merchant has opened the editor. The editor's own makeDefaultSchema()
-  // produces an equivalent shape, so opening the editor and clicking Save
-  // is the natural way to upgrade this stub to the registry-driven full
-  // schema.
+  // Seed the signup-chosen theme so a fresh tenant's storefront renders its
+  // selected look on first visit, before the merchant opens the editor.
+  // Opening the editor (which normalizes against the section registry) and
+  // clicking Save upgrades this stub to the full registry-driven schema.
+  const themeId = resolveThemeId(input.store.theme);
   await cf.runD1Query(
     d1.uuid,
     `INSERT INTO store_settings (key, value, tenant_id, updated_at)
      VALUES ('page_sections', ?, ?, datetime('now'))
      ON CONFLICT(key) DO NOTHING`,
-    [JSON.stringify(DEFAULT_STORE_SCHEMA), tenantId],
+    [JSON.stringify(getThemeSchema(themeId)), tenantId],
+  );
+  // Track which catalog theme is applied so the editor shows it as active.
+  await cf.runD1Query(
+    d1.uuid,
+    `INSERT INTO store_settings (key, value, tenant_id, updated_at)
+     VALUES ('active_theme_id', ?, ?, datetime('now'))
+     ON CONFLICT(key) DO NOTHING`,
+    [themeId, tenantId],
   );
 
   // ── Step 2: Create R2 bucket ──────────────────────────────────────────────

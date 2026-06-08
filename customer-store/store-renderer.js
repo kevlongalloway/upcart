@@ -37,6 +37,38 @@
     return `${prop}: ${sp.top}px ${sp.right}px ${sp.bottom}px ${sp.left}px;`;
   }
 
+  // Fallback design tokens — kept structurally identical to the editor's
+  // DEFAULT_GLOBAL_THEME. Used to guard themeToCssVars() against a malformed
+  // or partial globalTheme (the storefront applies raw saved page_sections
+  // without the editor's normalizer, and indexing a missing sub-object here
+  // would throw and white-screen the page).
+  const FALLBACK_THEME = {
+    colors: {
+      primary: '#161310', primaryText: '#FBF7EE', secondary: '#807767',
+      accent: '#B8884A', background: '#F4EFE6', surface: '#FBF7EE',
+      text: '#161310', textMuted: '#807767', border: '#E4DCC9',
+    },
+    typography: {
+      headingFont: 'Fraunces', bodyFont: 'Inter Tight', baseFontSize: 15,
+      headingWeight: 600, bodyWeight: 400, lineHeight: 1.6, letterSpacing: 0,
+    },
+    spacing: {
+      containerMaxWidth: 1320, sectionVerticalPadding: 96, borderRadius: 0,
+      cardBorderRadius: 0, elementGap: 20,
+    },
+    customCSS: '',
+  };
+
+  function normalizeTheme(theme) {
+    const t = theme || {};
+    return {
+      colors:     Object.assign({}, FALLBACK_THEME.colors, t.colors),
+      typography: Object.assign({}, FALLBACK_THEME.typography, t.typography),
+      spacing:    Object.assign({}, FALLBACK_THEME.spacing, t.spacing),
+      customCSS:  typeof t.customCSS === 'string' ? t.customCSS : '',
+    };
+  }
+
   function themeToCssVars(theme) {
     const c  = theme.colors;
     const t  = theme.typography;
@@ -1772,7 +1804,7 @@
       styleEl.id = 'uc-theme-vars';
       document.head.appendChild(styleEl);
     }
-    const theme = schema.globalTheme;
+    const theme = normalizeTheme(schema.globalTheme);
     // Only let `body { background, color, font-family, … }` apply on pages
     // that actually delegate the full body to the renderer. Subpages
     // (products / cart / etc.) only host the header + footer slots and have
