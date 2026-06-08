@@ -774,43 +774,327 @@ hr {
   border: 1px solid rgba(34, 197, 94, .4);
 }
 
-/* ── Dashboard revenue chart ─────────────────────────────────────── */
-.dash-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 180px;
+/* ── Font weight utility ─────────────────────────────────────────── */
+.fw-black { font-weight: 900 !important; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SELLER OVERVIEW — premium "glass" stage
+   A self-contained dark spotlight panel that sits on the otherwise light
+   dashboard. All colours are scoped here so the rest of the admin keeps
+   its light theme. This is the surface merchants screenshot to flex
+   their sales, so it leans into glassmorphism, glow and depth.
+   ═══════════════════════════════════════════════════════════════════ */
+.overview-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: clamp(18px, 3.2vw, 32px);
+  margin-bottom: 1.5rem;
+  color: #f4f3fb;
+  background:
+    radial-gradient(135% 130% at 100% 0%, #211f38 0%, #16142a 42%, #0c0b18 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 36px 90px -48px rgba(8, 6, 24, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
-.dash-bar-col {
+
+/* Floating colour auras behind the content */
+.overview-aura {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.overview-aura::before,
+.overview-aura::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+}
+.overview-aura::before {
+  width: 360px; height: 360px;
+  top: -130px; right: -70px;
+  background: radial-gradient(circle, rgba(201, 162, 39, 0.55), transparent 70%);
+  opacity: 0.6;
+  animation: auraFloat 16s ease-in-out infinite;
+}
+.overview-aura::after {
+  width: 320px; height: 320px;
+  bottom: -150px; left: -50px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.5), transparent 70%);
+  opacity: 0.5;
+  animation: auraFloat 22s ease-in-out infinite reverse;
+}
+@keyframes auraFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(26px, 34px) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview-aura::before, .overview-aura::after { animation: none; }
+}
+
+.overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.overview-head h2 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
+}
+
+/* Glass segmented period control */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.34rem 0.74rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.seg-btn:hover { color: #fff; }
+.seg-btn.active {
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  color: #1a1407;
+  box-shadow: 0 6px 16px -6px rgba(201, 162, 39, 0.8);
+}
+
+/* Hero sales figure */
+.ov-hero-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+}
+.ov-hero-value {
+  font-size: clamp(2.1rem, 7.5vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  background: linear-gradient(180deg, #ffffff 0%, #cfcbe9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ov-hero-sub {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 6px;
+}
+.ov-hero-sub .ov-dot {
+  display: inline-block;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  margin: 0 7px;
+  vertical-align: middle;
+}
+
+/* The glass graph */
+.glass-chart {
+  position: relative;
+  margin-top: 16px;
+  border-radius: 18px;
+  padding: 12px 8px 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.glass-chart svg { display: block; width: 100%; height: auto; }
+.glass-chart .ov-empty {
+  text-align: center;
+  padding: 48px 12px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85rem;
+}
+.glass-chart .ov-empty i { font-size: 1.8rem; display: block; margin-bottom: 8px; opacity: 0.6; }
+
+/* Chart vectors */
+.ov-line {
+  fill: none;
+  stroke: url(#ovStroke);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#ovGlow);
+}
+.ov-area { fill: url(#ovArea); }
+.ov-grid { stroke: rgba(255, 255, 255, 0.07); stroke-width: 1; }
+.ov-axis-label {
+  fill: rgba(255, 255, 255, 0.42);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+}
+.ov-end { fill: #fff; filter: url(#ovGlow); }
+.ov-col .ov-hit { fill: transparent; }
+.ov-col .ov-pt { fill: #fff; opacity: 0; transition: opacity 0.12s; }
+.ov-col .ov-hover-line {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.ov-col:hover .ov-pt { opacity: 1; }
+.ov-col:hover .ov-hover-line { opacity: 1; }
+
+/* Glass stat tiles */
+.ov-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+@media (max-width: 575px) {
+  .ov-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+.ov-tile {
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.ov-tile:hover {
+  border-color: var(--gold-border);
+  transform: translateY(-2px);
+}
+.ov-tile-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ov-tile-label i { color: var(--gold); font-size: 0.78rem; }
+.ov-tile-value { font-size: 1.2rem; font-weight: 700; margin-top: 5px; color: #fff; }
+.ov-tile-sub { font-size: 0.64rem; color: rgba(255, 255, 255, 0.4); margin-top: 2px; }
+
+/* Loading shimmer inside the stage */
+.ov-skel {
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.05) 63%);
+  background-size: 400% 100%;
+  animation: ovShimmer 1.3s ease infinite;
+}
+@keyframes ovShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* ── Setup checklist as swipeable step slides ────────────────────── */
+.setup-slides {
+  display: flex;
+  gap: 12px;
+}
+.setup-slide {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  height: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-base);
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.dash-bar-track {
-  flex: 1 1 auto;
-  width: 100%;
+.setup-slide:hover {
+  border-color: var(--gold-border);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -18px rgba(201, 162, 39, 0.5);
+}
+.setup-slide.done {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.07), transparent 70%), var(--bg-base);
+}
+.setup-slide.done .setup-step-icon {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.setup-slide-top {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
-.dash-bar-fill {
-  width: 70%;
-  max-width: 28px;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
-  transition: height .3s ease, opacity .15s;
-}
-.dash-bar-col:hover .dash-bar-fill { opacity: .8; }
-.dash-bar-fill.empty { background: var(--border-strong); }
-.dash-bar-label {
-  margin-top: 6px;
-  font-size: .62rem;
+.setup-slide-num {
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--text-muted);
-  white-space: nowrap;
-  height: 14px;
+  letter-spacing: 0.04em;
+}
+.setup-slide.done .setup-slide-num { color: #22c55e; }
+.setup-slide-title { font-weight: 700; line-height: 1.25; margin-bottom: 4px; }
+.setup-slide-sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  flex: 1 1 auto;
+  margin-bottom: 14px;
+}
+.setup-slide-action .btn { width: 100%; }
+.setup-dots {
+  display: none;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.setup-dots span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: width 0.2s, background 0.2s;
+}
+.setup-dots span.active {
+  width: 18px;
+  border-radius: 3px;
+  background: var(--gold);
+}
+
+@media (max-width: 767px) {
+  .setup-slides {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -4px;
+    padding: 2px 4px 4px;
+  }
+  .setup-slides::-webkit-scrollbar { display: none; }
+  .setup-slide {
+    flex: 0 0 80%;
+    scroll-snap-align: start;
+  }
+  .setup-dots { display: flex; }
 }
 

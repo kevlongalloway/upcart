@@ -515,21 +515,24 @@ const SetupChecklist = {
         </div>`;
     }
 
-    const stepRows = steps.map(s => `
-      <div class="setup-step ${s.done ? 'done' : ''}">
-        <span class="setup-step-icon">
-          <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
-        </span>
-        <div class="setup-step-body">
-          <div class="setup-step-title">${escHtml(s.title)}</div>
-          <div class="setup-step-sub">${escHtml(s.sub)}</div>
+    const slides = steps.map((s, i) => `
+      <div class="setup-slide ${s.done ? 'done' : ''}" data-setup-slide>
+        <div class="setup-slide-top">
+          <span class="setup-step-icon">
+            <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
+          </span>
+          <span class="setup-slide-num">${s.done ? 'Done' : `Step ${i + 1}/${total}`}</span>
         </div>
-        <div class="setup-step-action">
+        <div class="setup-slide-title">${escHtml(s.title)}</div>
+        <div class="setup-slide-sub">${escHtml(s.sub)}</div>
+        <div class="setup-slide-action">
           ${s.done
-            ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
+            ? '<span class="badge text-bg-success w-100 py-2"><i class="bi bi-check2 me-1"></i>Completed</span>'
             : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
         </div>
       </div>`).join('');
+
+    const dots = steps.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('');
 
     return `
       <div class="card setup-card mb-4">
@@ -537,7 +540,7 @@ const SetupChecklist = {
           <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
             <div>
               <h2 class="h5 fw-bold mb-1">Complete your store</h2>
-              <p class="small text-secondary mb-0">Finish these steps to start selling.</p>
+              <p class="small text-secondary mb-0">Swipe through these steps to start selling.</p>
             </div>
             <div class="text-end">
               <div class="setup-progress-count">${doneCount}<span class="text-secondary fw-normal">/${total}</span></div>
@@ -547,8 +550,11 @@ const SetupChecklist = {
           <div class="progress setup-progress mb-4" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
             <div class="progress-bar" style="width:${pct}%"></div>
           </div>
-          <div class="setup-steps">
-            ${stepRows}
+          <div class="setup-slides" data-setup-track>
+            ${slides}
+          </div>
+          <div class="setup-dots" data-setup-dots>
+            ${dots}
           </div>
         </div>
       </div>`;
@@ -570,6 +576,20 @@ const SetupChecklist = {
     container.querySelectorAll('[data-setup-step]').forEach(btn => {
       btn.addEventListener('click', () => this._handleStep(btn.dataset.setupStep, btn));
     });
+
+    // Keep the mobile slide dots in sync with the horizontal scroll position.
+    const track = container.querySelector('[data-setup-track]');
+    const dots  = container.querySelectorAll('[data-setup-dots] span');
+    if (track && dots.length) {
+      const sync = () => {
+        const slides = track.querySelectorAll('[data-setup-slide]');
+        if (!slides.length) return;
+        const slideW = slides[0].offsetWidth + 12; // width + gap
+        const idx = Math.min(dots.length - 1, Math.round(track.scrollLeft / slideW));
+        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+      };
+      track.addEventListener('scroll', () => window.requestAnimationFrame(sync), { passive: true });
+    }
   },
 
   async _handleStep(key, btn) {
@@ -3225,9 +3245,8 @@ const DashboardView = {
   _awaiting:        0,
 
   render() {
-    const pills = DASH_PERIODS.map((p, i) => `
-      <input type="radio" class="btn-check" name="dash-period" id="dp-${p.key}" value="${p.key}" ${p.key === this._period ? 'checked' : ''}>
-      <label class="btn btn-outline-secondary" for="dp-${p.key}">${p.label}</label>`).join('');
+    const seg = DASH_PERIODS.map(p => `
+      <button type="button" class="seg-btn ${p.key === this._period ? 'active' : ''}" data-period="${p.key}">${p.label}</button>`).join('');
 
     return `
       ${renderNavbar()}
@@ -3245,34 +3264,29 @@ const DashboardView = {
         <!-- Complete your store -->
         <div id="setup-checklist"></div>
 
-        <!-- Overview header + period selector -->
-        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
-          <h2 class="h5 fw-bold mb-0">Overview</h2>
-          <div class="btn-group btn-group-sm" role="group" id="dash-period-group">
-            ${pills}
-          </div>
-        </div>
-
         <div id="dash-error" class="alert alert-danger d-none"></div>
 
-        <!-- Metric cards -->
-        <div class="row g-3 mb-4" id="dash-metrics">
-          ${this._skeletonMetrics()}
-        </div>
-
-        <!-- Revenue chart -->
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="small fw-semibold text-uppercase text-secondary">Revenue</span>
-            <span class="small text-secondary" id="dash-chart-total"></span>
-          </div>
-          <div class="card-body">
-            <div id="dash-chart" class="dash-chart">
-              <div class="text-center py-5 w-100">
-                <div class="spinner-border text-success" role="status"></div>
-              </div>
+        <!-- Overview — premium glass stage -->
+        <div class="overview-stage" id="dash-stage">
+          <div class="overview-aura"></div>
+          <div class="overview-head">
+            <h2>Overview</h2>
+            <div class="seg" id="dash-period-group" role="group" aria-label="Time period">
+              ${seg}
             </div>
           </div>
+
+          <div class="ov-hero-label" id="ov-hero-label">Sales</div>
+          <div class="ov-hero-value" id="ov-hero-value">
+            <span class="ov-skel d-inline-block" style="width:180px;height:2.6rem">&nbsp;</span>
+          </div>
+          <div class="ov-hero-sub" id="ov-hero-sub">&nbsp;</div>
+
+          <div class="glass-chart" id="ov-chart">
+            <div class="ov-empty"><span class="ov-skel d-block" style="width:100%;height:180px"></span></div>
+          </div>
+
+          <div class="ov-tiles" id="ov-tiles"></div>
         </div>
 
         <!-- Store health + earnings -->
@@ -3297,23 +3311,15 @@ const DashboardView = {
       </div>`;
   },
 
-  _skeletonMetrics() {
-    return [0, 1, 2, 3].map(() => `
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body">
-          <div class="placeholder-glow">
-            <span class="placeholder col-6"></span>
-            <span class="placeholder col-8 d-block mt-2" style="height:1.4rem"></span>
-          </div>
-        </div></div>
-      </div>`).join('');
-  },
-
   async init() {
     document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
 
-    document.getElementById('dash-period-group').addEventListener('change', e => {
-      this._period = e.target.value;
+    document.getElementById('dash-period-group').addEventListener('click', e => {
+      const btn = e.target.closest('.seg-btn');
+      if (!btn || btn.classList.contains('active')) return;
+      this._period = btn.dataset.period;
+      document.querySelectorAll('#dash-period-group .seg-btn').forEach(b =>
+        b.classList.toggle('active', b === btn));
       this._renderStats();
     });
 
@@ -3373,14 +3379,12 @@ const DashboardView = {
     }
   },
 
-  _metricCard(label, value, sub) {
+  _tile(label, value, sub, icon) {
     return `
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body">
-          <p class="small text-secondary mb-1">${escHtml(label)}</p>
-          <p class="fs-4 fw-bold mb-0">${value}</p>
-          <p class="small text-secondary mt-1 mb-0">${sub}</p>
-        </div></div>
+      <div class="ov-tile">
+        <div class="ov-tile-label">${icon ? `<i class="bi ${icon}"></i>` : ''}${escHtml(label)}</div>
+        <div class="ov-tile-value">${value}</div>
+        <div class="ov-tile-sub">${escHtml(sub)}</div>
       </div>`;
   },
 
@@ -3392,51 +3396,140 @@ const DashboardView = {
   },
 
   _renderStats() {
-    const stats   = computeStats(this._orders, this._period);
-    const cur     = this._currency;
-    const metrics = document.getElementById('dash-metrics');
-    const chart   = document.getElementById('dash-chart');
-    const chartTotal = document.getElementById('dash-chart-total');
-    if (!metrics || !chart) return;
+    const stats = computeStats(this._orders, this._period);
+    const cur   = this._currency;
+
+    const heroLabel = document.getElementById('ov-hero-label');
+    const heroValue = document.getElementById('ov-hero-value');
+    const heroSub   = document.getElementById('ov-hero-sub');
+    const chart     = document.getElementById('ov-chart');
+    const tiles     = document.getElementById('ov-tiles');
+    if (!heroValue || !chart || !tiles) return;
 
     const periodLabel = (DASH_PERIODS.find(p => p.key === this._period) || {}).label || '';
     const avail = this._balance ? (this._balance.available_balance ?? 0) : null;
 
-    metrics.innerHTML = [
-      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`),
-      this._metricCard('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`),
-      this._metricCard('Avg order value', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order'),
-      this._metricCard(
-        'Available to withdraw',
-        avail === null ? '—' : formatPrice(avail, cur),
-        avail === null ? 'Set up payouts' : 'In your balance',
-      ),
-    ].join('');
-
-    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)} · ${periodLabel}`;
-
-    const max = Math.max(...stats.bucketRevenue, 0);
-    if (max <= 0) {
-      chart.innerHTML = `
-        <div class="text-center text-secondary py-5 w-100">
-          <i class="bi bi-bar-chart fs-2 d-block mb-2 opacity-50"></i>
-          No sales in this period yet.
-        </div>`;
-      return;
+    if (heroLabel) heroLabel.textContent = `Sales · ${periodLabel}`;
+    heroValue.textContent = formatPrice(stats.revenue, cur);
+    if (heroSub) {
+      heroSub.innerHTML = stats.orderCount
+        ? `${stats.orderCount} order${stats.orderCount === 1 ? '' : 's'}<span class="ov-dot"></span>${formatPrice(stats.aov, cur)} avg order`
+        : 'No paid orders in this period yet';
     }
 
-    chart.innerHTML = stats.buckets.map((b, i) => {
-      const rev = stats.bucketRevenue[i];
-      const h   = rev > 0 ? Math.max(3, Math.round((rev / max) * 100)) : 0;
-      const tip = `${this._bucketTooltip(b)} · ${formatPrice(rev, cur)}`;
+    chart.innerHTML = this._buildChartSvg(stats, cur);
+
+    tiles.innerHTML = [
+      this._tile('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`, 'bi-bag-check'),
+      this._tile('Avg order', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order', 'bi-graph-up'),
+      this._tile('Available', avail === null ? '—' : formatPrice(avail, cur),
+        avail === null ? 'Set up payouts' : 'To withdraw', 'bi-wallet2'),
+      this._tile('Lifetime', formatPrice(this._lifetimeRevenue, cur),
+        `${this._lifetimeOrders} order${this._lifetimeOrders === 1 ? '' : 's'} all-time`, 'bi-trophy'),
+    ].join('');
+  },
+
+  // Build the glowing "glass" area chart as an inline SVG. Smooth Catmull-Rom
+  // curve, gradient area fill, glow filter, and per-point hover markers.
+  _buildChartSvg(stats, cur) {
+    const data = stats.bucketRevenue || [];
+    const max  = Math.max(...data, 0);
+
+    if (max <= 0) {
       return `
-        <div class="dash-bar-col" title="${escHtml(tip)}">
-          <div class="dash-bar-track">
-            <div class="dash-bar-fill ${rev > 0 ? '' : 'empty'}" style="height:${h}%"></div>
-          </div>
-          <div class="dash-bar-label">${escHtml(b.label || '')}</div>
+        <div class="ov-empty">
+          <i class="bi bi-graph-up-arrow"></i>
+          No sales in this period yet — your chart will glow up here.
         </div>`;
+    }
+
+    const W = 620, H = 210, padX = 10, padTop = 18, padBot = 26;
+    const n = data.length;
+    const innerW = W - padX * 2;
+    const innerH = H - padTop - padBot;
+    const baseY  = padTop + innerH;
+
+    const xFor = i => padX + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+    const yFor = v => padTop + innerH - (v / max) * innerH;
+
+    const pts = data.map((v, i) => ({ x: xFor(i), y: yFor(v), v, b: stats.buckets[i] }));
+
+    // Smooth path via Catmull-Rom → cubic bezier.
+    let line = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+      line += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    const area = `${line} L${pts[pts.length - 1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
+
+    // Horizontal gridlines.
+    const grid = [0, 0.5, 1].map(f => {
+      const y = (padTop + innerH - f * innerH).toFixed(1);
+      return `<line class="ov-grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"></line>`;
     }).join('');
+
+    // X axis labels (only buckets flagged with a label).
+    const labels = pts.map((p, i) => {
+      const lbl = stats.buckets[i] && stats.buckets[i].label;
+      if (!lbl) return '';
+      let anchor = 'middle';
+      if (i === 0) anchor = 'start';
+      else if (i === n - 1) anchor = 'end';
+      const x = i === 0 ? padX : (i === n - 1 ? W - padX : p.x);
+      return `<text class="ov-axis-label" x="${x.toFixed(1)}" y="${H - 8}" text-anchor="${anchor}">${escHtml(lbl)}</text>`;
+    }).join('');
+
+    // Hover columns + point markers.
+    const colW = n > 1 ? innerW / (n - 1) : innerW;
+    const cols = pts.map((p, i) => {
+      const tip = `${this._bucketTooltip(p.b)} · ${formatPrice(p.v, cur)}`;
+      const hitX = (p.x - colW / 2).toFixed(1);
+      return `
+        <g class="ov-col">
+          <title>${escHtml(tip)}</title>
+          <rect class="ov-hit" x="${hitX}" y="0" width="${colW.toFixed(1)}" height="${H}"></rect>
+          <line class="ov-hover-line" x1="${p.x.toFixed(1)}" y1="${padTop}" x2="${p.x.toFixed(1)}" y2="${baseY}"></line>
+          <circle class="ov-pt" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"></circle>
+        </g>`;
+    }).join('');
+
+    const last = pts[pts.length - 1];
+
+    return `
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue chart">
+        <defs>
+          <linearGradient id="ovArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(201,162,39,0.45)"></stop>
+            <stop offset="55%" stop-color="rgba(201,162,39,0.12)"></stop>
+            <stop offset="100%" stop-color="rgba(201,162,39,0)"></stop>
+          </linearGradient>
+          <linearGradient id="ovStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#f2d979"></stop>
+            <stop offset="55%" stop-color="#e6c14f"></stop>
+            <stop offset="100%" stop-color="#c9a227"></stop>
+          </linearGradient>
+          <filter id="ovGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="b"></feGaussianBlur>
+            <feMerge>
+              <feMergeNode in="b"></feMergeNode>
+              <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+          </filter>
+        </defs>
+        ${grid}
+        <path class="ov-area" d="${area}"></path>
+        <path class="ov-line" d="${line}"></path>
+        <circle class="ov-end" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4.5"></circle>
+        ${labels}
+        ${cols}
+      </svg>`;
   },
 
   _renderHealth() {
