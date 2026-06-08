@@ -4,6 +4,7 @@ import TopBar from './TopBar';
 import LeftPanel from './LeftPanel';
 import Canvas from './Canvas';
 import RightPanel from './RightPanel';
+import Tutorial from './Tutorial';
 
 export default function App() {
   const loadSchema = useEditor(s => s.loadSchema);
@@ -37,6 +38,7 @@ export default function App() {
         </main>
         <RightPanel />
       </div>
+      <Tutorial />
     </div>
   );
 }

@@ -133,32 +133,44 @@ function SectionSettingsPanel({ section }: { section: Section }) {
   if (!def) return null;
 
   const handleChange = useCallback((key: string, v: unknown) => {
-    // Layout fields are prefixed with "layout." in the key
-    if (key.startsWith('layout.')) {
-      const layoutKey = key.slice(7);
+    // Layout fields are prefixed with "layout__" in the registry. Route them
+    // to updateSectionLayout so they actually mutate section.layout instead of
+    // silently landing in section.settings under a bogus key.
+    if (key.startsWith('layout__')) {
+      const layoutKey = key.slice('layout__'.length);
       updateLayout(section.id, { [layoutKey]: v } as Partial<SectionLayout>);
     } else {
       updateSettings(section.id, { [key]: v });
     }
   }, [section.id, updateSettings, updateLayout]);
 
-  // Group fields by their `group` property
-  const grouped = def.settingsFields.reduce<Record<string, FieldDef[]>>((acc, field) => {
+  // Content tab shows only true content fields. Layout, custom-CSS, and
+  // blocks-manager have their own dedicated tabs/UI below — including them
+  // here produced duplicate (and historically broken) controls.
+  const contentFields = def.settingsFields.filter(f =>
+    f.type !== 'blocks-manager' &&
+    f.type !== 'custom-css' &&
+    !f.key.startsWith('layout__'),
+  );
+  const hasBlocks = def.settingsFields.some(f => f.type === 'blocks-manager');
+
+  // Group content fields by their `group` property for collapsible sections.
+  const grouped = contentFields.reduce<Record<string, FieldDef[]>>((acc, field) => {
     const g = field.group ?? '';
     (acc[g] ??= []).push(field);
     return acc;
   }, {});
 
-  // Check condition
+  // Check condition. Conditions can reference either a settings field or a
+  // layout field — try settings first, then fall back to layout.
   const isVisible = (field: FieldDef) => {
     if (!field.condition) return true;
-    const condValue = section.settings[field.condition.key];
+    const k = field.condition.key;
+    const condValue = k in section.settings
+      ? section.settings[k]
+      : (section.layout as unknown as Record<string, unknown>)[k];
     return condValue === field.condition.value;
   };
-
-  const contentFields  = def.settingsFields.filter(f => f.type !== 'blocks-manager' && !f.key.startsWith('layout.'));
-  const hasBlocks      = def.settingsFields.some(f => f.type === 'blocks-manager');
-  const layoutFields   = def.settingsFields.filter(f => f.key.startsWith('layout.'));
 
   return (
     <div className="flex flex-col h-full">
