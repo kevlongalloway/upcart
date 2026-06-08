@@ -3292,17 +3292,17 @@ const DashboardView = {
         <!-- Store health + earnings -->
         <div class="row g-3" id="dash-bottom">
           <div class="col-lg-7">
-            <div class="card h-100">
-              <div class="card-header small fw-semibold text-uppercase text-secondary">Store health</div>
-              <div class="card-body" id="dash-health">
+            <div class="glass-panel h-100">
+              <div class="glass-panel-head">Store health</div>
+              <div class="glass-panel-body" id="dash-health">
                 <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
               </div>
             </div>
           </div>
           <div class="col-lg-5">
-            <div class="card h-100">
-              <div class="card-header small fw-semibold text-uppercase text-secondary">Earnings</div>
-              <div class="card-body" id="dash-earnings">
+            <div class="glass-panel h-100">
+              <div class="glass-panel-head">Earnings</div>
+              <div class="glass-panel-body" id="dash-earnings">
                 <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
               </div>
             </div>
@@ -3538,32 +3538,26 @@ const DashboardView = {
     const cur = this._currency;
     const charges = !!this._status.charges_enabled;
 
-    const row = (icon, label, value, valClass = '') => `
-      <div class="d-flex align-items-center justify-content-between py-2 border-bottom border-secondary-subtle">
-        <span class="d-flex align-items-center gap-2 text-secondary small">
-          <i class="bi ${icon}"></i>${escHtml(label)}
-        </span>
-        <span class="fw-semibold ${valClass}">${value}</span>
+    const row = (icon, label, value) => `
+      <div class="gp-row">
+        <span class="gp-row-label"><i class="bi ${icon}"></i>${escHtml(label)}</span>
+        <span class="gp-row-value">${value}</span>
       </div>`;
 
     el.innerHTML = `
       ${row('bi-credit-card', 'Payments',
         charges
-          ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
-          : '<span class="text-warning"><i class="bi bi-exclamation-circle-fill me-1"></i>Needs setup</span>')}
+          ? '<span class="gp-ok"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
+          : '<span class="gp-warn"><i class="bi bi-exclamation-circle-fill me-1"></i>Needs setup</span>')}
       ${row('bi-box-seam', 'Active products',
-        `${this._activeProducts}<span class="text-secondary fw-normal"> / ${this._totalProducts}${this._totalProducts >= 100 ? '+' : ''}</span>`)}
+        `${this._activeProducts}<span class="gp-muted"> / ${this._totalProducts}${this._totalProducts >= 100 ? '+' : ''}</span>`)}
       ${row('bi-truck', 'Awaiting fulfillment',
-        `${this._awaiting}`, this._awaiting > 0 ? 'text-warning' : '')}
-      <div class="d-flex align-items-center justify-content-between pt-2">
-        <span class="d-flex align-items-center gap-2 text-secondary small">
-          <i class="bi bi-graph-up-arrow"></i>Lifetime revenue
-        </span>
-        <span class="fw-bold text-success">${formatPrice(this._lifetimeRevenue, cur)}</span>
-      </div>
+        `<span class="${this._awaiting > 0 ? 'gp-warn' : ''}">${this._awaiting}</span>`)}
+      ${row('bi-graph-up-arrow', 'Lifetime revenue',
+        `<span class="gp-gold">${formatPrice(this._lifetimeRevenue, cur)}</span>`)}
       <div class="d-flex gap-2 mt-3">
-        <a href="#/orders" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-receipt me-1"></i>Orders</a>
-        <a href="#/products" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-box-seam me-1"></i>Products</a>
+        <a href="#/orders" class="gp-btn flex-fill"><i class="bi bi-receipt"></i>Orders</a>
+        <a href="#/products" class="gp-btn flex-fill"><i class="bi bi-box-seam"></i>Products</a>
       </div>`;
   },
 
@@ -3576,9 +3570,9 @@ const DashboardView = {
     if (!charges) {
       el.innerHTML = `
         <div class="text-center py-3">
-          <i class="bi bi-cash-stack fs-2 text-secondary d-block mb-2"></i>
-          <p class="small text-secondary mb-3">Set up payouts to start tracking and withdrawing your earnings.</p>
-          <a href="#/payouts" class="btn btn-sm btn-primary">Set up payouts</a>
+          <i class="bi bi-cash-stack d-block mb-2" style="font-size:1.8rem;color:rgba(255,255,255,0.4)"></i>
+          <p class="mb-3" style="font-size:0.82rem;color:rgba(255,255,255,0.55)">Set up payouts to start tracking and withdrawing your earnings.</p>
+          <a href="#/payouts" class="gp-btn gp-btn-gold">Set up payouts</a>
         </div>`;
       return;
     }
@@ -3587,18 +3581,18 @@ const DashboardView = {
     const pending = this._balance ? (this._balance.pending_balance ?? 0) : 0;
 
     el.innerHTML = `
-      <div class="mb-3">
-        <p class="small text-secondary mb-1">Available to withdraw</p>
-        <p class="fs-3 fw-bold mb-0">${formatPrice(avail, cur)}</p>
+      <div class="mb-2">
+        <div class="ov-tile-label mb-1">Available to withdraw</div>
+        <div class="ov-hero-value" style="font-size:2rem">${formatPrice(avail, cur)}</div>
       </div>
-      <div class="mb-3">
-        <p class="small text-secondary mb-1">Pending</p>
-        <p class="fs-5 fw-semibold mb-0">${formatPrice(pending, cur)}</p>
-        <p class="small text-secondary mb-0">Released as orders are delivered</p>
+      <div class="gp-row" style="border-bottom:0;border-top:1px solid rgba(255,255,255,0.07);padding-top:12px">
+        <span class="gp-row-label" style="flex-direction:column;align-items:flex-start;gap:2px">
+          <span><i class="bi bi-hourglass-split"></i> Pending</span>
+          <span style="font-size:0.66rem;color:rgba(255,255,255,0.4);padding-left:1.4rem">Released as orders are delivered</span>
+        </span>
+        <span class="gp-row-value">${formatPrice(pending, cur)}</span>
       </div>
-      <a href="#/payouts" class="btn btn-sm btn-primary w-100">
-        <i class="bi bi-bank me-1"></i>Manage payouts
-      </a>`;
+      <a href="#/payouts" class="gp-btn gp-btn-gold w-100 mt-3"><i class="bi bi-bank"></i>Manage payouts</a>`;
   },
 };
 

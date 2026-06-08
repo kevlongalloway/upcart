@@ -1002,6 +1002,79 @@ hr {
 .ov-tile-value { font-size: 1.2rem; font-weight: 700; margin-top: 5px; color: #fff; }
 .ov-tile-sub { font-size: 0.64rem; color: rgba(255, 255, 255, 0.4); margin-top: 2px; }
 
+/* ── Dark glass panels (store health / earnings) ─────────────────── */
+.glass-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  color: #f4f3fb;
+  background: radial-gradient(135% 130% at 0% 0%, #1b1930 0%, #131125 55%, #0c0b18 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 24px 70px -52px rgba(8, 6, 24, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.glass-panel-head {
+  padding: 16px 20px 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.glass-panel-body { padding: 12px 20px 20px; }
+
+.gp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.gp-row:last-of-type { border-bottom: 0; }
+.gp-row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+.gp-row-label i { color: var(--gold); font-size: 0.92rem; }
+.gp-row-value { font-weight: 600; font-size: 0.9rem; color: #fff; white-space: nowrap; }
+.gp-muted { color: rgba(255, 255, 255, 0.4); font-weight: 400; }
+.gp-ok   { color: #34d399; }
+.gp-warn { color: #fbbf24; }
+.gp-gold { color: #f2d979; }
+
+.gp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.55rem 0.85rem;
+  border-radius: 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  transition: background 0.15s, color 0.15s, border-color 0.15s, filter 0.15s;
+}
+.gp-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: var(--gold-border);
+}
+.gp-btn-gold {
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border-color: transparent;
+  color: #1a1407;
+  box-shadow: 0 6px 16px -6px rgba(201, 162, 39, 0.8);
+}
+.gp-btn-gold:hover { color: #1a1407; filter: brightness(1.06); border-color: transparent; }
+
 /* Loading shimmer inside the stage */
 .ov-skel {
   border-radius: 12px;
