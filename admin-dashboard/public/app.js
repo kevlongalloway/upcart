@@ -345,18 +345,18 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
 }
 
 // ── Shared navbar ───────────────────────────────────────────────
-// Custom mobile nav drawer (no Bootstrap offcanvas). A single .nav-menu
-// element is a slide-in drawer below the lg breakpoint and an inline nav at
-// lg+, toggled by adding/removing `.open`.
-function openNav() {
-  document.getElementById('navMenu')?.classList.add('open');
-  document.querySelector('.nav-scrim')?.classList.add('open');
-  document.body.classList.add('nav-open');
+// Mobile nav dropdown. #navMenu + its scrim are top-level siblings of the
+// navbar (so the sticky bar's stacking context can't swallow them); toggling
+// `.open` fades/drops the menu in.
+function setNav(open) {
+  document.getElementById('navMenu')?.classList.toggle('open', open);
+  document.querySelector('.nav-dd-scrim')?.classList.toggle('open', open);
+  document.body.classList.toggle('nav-open', open);
 }
-function closeNav() {
-  document.getElementById('navMenu')?.classList.remove('open');
-  document.querySelector('.nav-scrim')?.classList.remove('open');
-  document.body.classList.remove('nav-open');
+function closeNav()  { setNav(false); }
+function toggleNav() {
+  const open = document.getElementById('navMenu')?.classList.contains('open');
+  setNav(!open);
 }
 
 function renderNavbar() {
@@ -370,13 +370,31 @@ function renderNavbar() {
   const storeName     = escHtml(ctx.store_name || 'Your Store');
   const storeUrl      = ctx.store_url ? escHtml(ctx.store_url) : null;
 
-  const navItem = (active, href, icon, label, extra = '') => `
+  // One source of truth for the destinations, rendered twice: inline pills
+  // for the desktop bar and stacked rows for the mobile dropdown.
+  const items = [
+    [onDashboard, '#/dashboard',     'bi-speedometer2', 'Dashboard', ''],
+    [onProducts,  '#/products',      'bi-box-seam',     'Products',  ''],
+    [onOrders,    '#/orders',        'bi-receipt',      'Orders',    ''],
+    [onDiscounts, '#/discounts',     'bi-tag',          'Discounts', ''],
+    [onPayouts,   '#/payouts',       'bi-cash-stack',   'Payouts',   ''],
+    [false,       '/store-editor/',  'bi-palette2',     'Customize', ' title="Edit theme, sections, colors, fonts, and layout"'],
+  ];
+  const desktopItems = items.map(([a, h, i, l, e]) => `
     <li class="nav-item">
-      <a class="nav-link nav-menu-link d-flex align-items-center ${active ? 'active' : ''}" href="${href}"${extra}>
-        <i class="bi ${icon}"></i><span class="nav-label">${label}</span>
+      <a class="nav-link py-1 px-2 ${a ? 'active' : ''}" href="${h}"${e}>
+        <i class="bi ${i}"></i><span class="nav-label ms-1">${l}</span>
       </a>
-    </li>`;
+    </li>`).join('');
+  const dropItems = items.map(([a, h, i, l, e]) => `
+    <a class="nav-dd-link ${a ? 'active' : ''}" href="${h}"${e}>
+      <i class="bi ${i}"></i><span>${l}</span>
+    </a>`).join('');
 
+  // The mobile dropdown is rendered as a SIBLING of <nav>, not nested inside
+  // it — the sticky navbar creates its own stacking context, which was
+  // swallowing the panel's contents. As a top-level element with a high
+  // z-index it paints cleanly above everything.
   return `
     <nav class="navbar border-bottom">
       <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="min-height:56px">
@@ -388,39 +406,36 @@ function renderNavbar() {
           </span>
         </a>
 
-        <button class="nav-burger d-lg-none" type="button" data-nav-open aria-controls="navMenu" aria-label="Open menu">
+        <div class="d-none d-lg-flex align-items-center gap-2">
+          <ul class="nav nav-pills gap-1 mb-0">${desktopItems}</ul>
+          ${storeUrl ? `
+            <a class="btn btn-outline-secondary btn-sm" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
+              <i class="bi bi-box-arrow-up-right"></i><span class="ms-1">Storefront</span>
+            </a>` : ''}
+          <button class="btn btn-outline-secondary btn-sm" id="logout-btn">
+            <i class="bi bi-box-arrow-right"></i><span class="ms-1">Logout</span>
+          </button>
+        </div>
+
+        <button class="nav-burger d-lg-none" type="button" data-nav-toggle aria-controls="navMenu" aria-label="Menu">
           <i class="bi bi-list"></i>
         </button>
-
-        <div class="nav-scrim" data-nav-close aria-hidden="true"></div>
-
-        <div class="nav-menu" id="navMenu">
-          <div class="nav-menu-head d-lg-none">
-            <span class="nav-menu-title">Menu</span>
-            <button class="nav-menu-close" type="button" data-nav-close aria-label="Close menu">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-          <ul class="nav nav-pills nav-menu-list mb-0">
-            ${navItem(onDashboard, '#/dashboard', 'bi-speedometer2', 'Dashboard')}
-            ${navItem(onProducts,  '#/products',  'bi-box-seam',     'Products')}
-            ${navItem(onOrders,    '#/orders',    'bi-receipt',      'Orders')}
-            ${navItem(onDiscounts, '#/discounts', 'bi-tag',          'Discounts')}
-            ${navItem(onPayouts,   '#/payouts',   'bi-cash-stack',   'Payouts')}
-            ${navItem(false, '/store-editor/', 'bi-palette2', 'Customize', ' title="Edit theme, sections, colors, fonts, and layout"')}
-          </ul>
-          <div class="nav-menu-actions">
-            ${storeUrl ? `
-              <a class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
-                <i class="bi bi-box-arrow-up-right me-2"></i>Storefront
-              </a>` : ''}
-            <button class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" id="logout-btn">
-              <i class="bi bi-box-arrow-right me-2"></i>Logout
-            </button>
-          </div>
-        </div>
       </div>
-    </nav>`;
+    </nav>
+
+    <div class="nav-dd-scrim d-lg-none" data-nav-close aria-hidden="true"></div>
+    <div class="nav-dd d-lg-none" id="navMenu" role="menu">
+      <div class="nav-dd-list">${dropItems}</div>
+      <div class="nav-dd-actions">
+        ${storeUrl ? `
+          <a class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" href="${storeUrl}" target="_blank" rel="noopener">
+            <i class="bi bi-box-arrow-up-right me-2"></i>Storefront
+          </a>` : ''}
+        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" data-logout>
+          <i class="bi bi-box-arrow-right me-2"></i>Logout
+        </button>
+      </div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3645,12 +3660,15 @@ const Router = {
   init() {
     window.addEventListener('hashchange', () => this._route());
 
-    // Drive the custom mobile nav drawer via event delegation, since #app
-    // (and the navbar within it) is re-rendered on every navigation.
+    // Drive the mobile nav dropdown via event delegation, since #app (and the
+    // navbar within it) is re-rendered on every navigation.
     document.addEventListener('click', (e) => {
-      if (e.target.closest('[data-nav-open]'))  { openNav();  return; }
-      if (e.target.closest('[data-nav-close]')) { closeNav(); return; }
-      if (e.target.closest('#navMenu a, #navMenu #logout-btn')) closeNav();
+      if (e.target.closest('[data-nav-toggle]')) { toggleNav(); return; }
+      if (e.target.closest('[data-nav-close]'))  { closeNav();  return; }
+      if (e.target.closest('[data-logout]'))     { closeNav(); Auth.logout(); return; }
+      if (e.target.closest('#navMenu a')) closeNav();
+      // Tapping anywhere outside an open menu closes it.
+      else if (!e.target.closest('#navMenu, [data-nav-toggle]')) closeNav();
     });
     window.addEventListener('hashchange', closeNav);
 

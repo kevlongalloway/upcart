@@ -159,10 +159,12 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Mobile nav — custom frosted slide-out drawer (no Bootstrap offcanvas)
+   Mobile nav — frosted dropdown menu
 
-   A single .nav-menu element is a fixed slide-in drawer below 992px and an
-   inline horizontal nav at >=992px. Toggling `.open` slides it in/out.
+   The desktop bar shows inline pills (.d-none.d-lg-flex). On mobile a
+   hamburger toggles #navMenu (.nav-dd), a dropdown rendered as a top-level
+   sibling of the navbar so the sticky bar's stacking context can't swallow
+   it. Toggling `.open` drops/fades it in.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* Hamburger button (mobile only) */
@@ -183,139 +185,75 @@ body {
 .nav-burger:hover { background: rgba(255, 255, 255, 0.9); }
 .nav-burger:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
-/* Dimming scrim behind the drawer */
-.nav-scrim {
+/* Click-catching scrim (subtle dim, closes the menu on tap) */
+.nav-dd-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(17, 20, 28, 0.40);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(17, 20, 28, 0.30);
   opacity: 0;
   visibility: hidden;
-  transition: opacity .3s ease, visibility .3s ease;
-  z-index: 1044;
+  transition: opacity .22s ease, visibility .22s ease;
+  z-index: 1990;
 }
-.nav-scrim.open { opacity: 1; visibility: visible; }
+.nav-dd-scrim.open { opacity: 1; visibility: visible; }
 
-/* The drawer panel */
-.nav-menu {
+/* The dropdown panel */
+.nav-dd {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(82vw, 320px);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.9);
+  top: 62px;
+  left: 12px;
+  right: 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
-  border-left: 1px solid var(--glass-border);
-  box-shadow: -24px 0 60px -24px var(--accent-glow);
-  transform: translateX(100%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow:
+    0 26px 60px -22px rgba(31, 38, 135, 0.40),
+    0 0 0 1px rgba(124, 58, 237, 0.05);
+  opacity: 0;
   visibility: hidden;
-  transition: transform .34s cubic-bezier(.22, .61, .36, 1), visibility .34s;
-  will-change: transform;
-  overflow-y: auto;
-  z-index: 1045;
+  transform: translateY(-10px) scale(.985);
+  transform-origin: top center;
+  transition: opacity .2s ease, transform .24s cubic-bezier(.22, .61, .36, 1), visibility .24s;
+  z-index: 1991;
 }
-.nav-menu.open { transform: translateX(0); visibility: visible; }
+.nav-dd.open { opacity: 1; visibility: visible; transform: none; }
 
-.nav-menu-head {
+.nav-dd-list { display: flex; flex-direction: column; gap: 2px; }
+.nav-dd-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 2px 4px 12px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--glass-border);
+  gap: .8rem;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: .98rem;
+  font-weight: 500;
+  color: var(--text) !important;
+  text-decoration: none;
+  transition: background .14s ease, color .14s ease;
 }
-.nav-menu-title {
-  font-size: .7rem;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.nav-menu-close {
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 1.05rem;
-  line-height: 1;
-  padding: 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease;
-}
-.nav-menu-close:hover { background: rgba(0, 0, 0, .05); color: var(--text); }
-
-.nav-menu-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.nav-menu-link {
-  width: 100%;
-  border-radius: 10px;
-  padding: 11px 12px !important;
-  font-size: .95rem;
-  gap: .7rem;
-  color: var(--text-dim) !important;
-}
-.nav-menu-link i { width: 1.3rem; text-align: center; font-size: 1.05rem; opacity: .9; }
-.nav-menu-link:hover { background-color: rgba(0, 0, 0, .04); color: var(--text) !important; }
-.nav-menu-link.active {
-  background-color: var(--accent-soft) !important;
+.nav-dd-link i { width: 1.4rem; text-align: center; font-size: 1.1rem; opacity: .8; }
+.nav-dd-link:hover,
+.nav-dd-link:active { background: rgba(0, 0, 0, .05); }
+.nav-dd-link.active {
+  background: var(--accent-soft);
   color: var(--accent) !important;
 }
+.nav-dd-link.active i { opacity: 1; }
 
-.nav-menu-actions {
+.nav-dd-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--glass-border);
 }
-.nav-menu-actions .btn { width: 100%; }
+.nav-dd-actions .btn { width: 100%; }
 
-/* ≥992px: flatten the drawer back into the top bar as an inline nav */
-@media (min-width: 992px) {
-  .nav-scrim,
-  .nav-menu-head { display: none !important; }
-  .nav-menu {
-    position: static;
-    width: auto;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    transform: none;
-    visibility: visible;
-    overflow: visible;
-  }
-  .nav-menu-list { flex-direction: row; gap: 4px; }
-  .nav-menu-link { width: auto; padding: 6px 10px !important; font-size: .78rem; }
-  .nav-menu-link i { font-size: 1rem; }
-  .nav-menu-actions {
-    flex-direction: row;
-    gap: 8px;
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
-  .nav-menu-actions .btn { width: auto; }
-}
-
-/* Lock background scroll while the drawer is open (:has covers the real
+/* Lock background scroll while the menu is open (:has covers the real
    document scroller; the body rule is the fallback for older engines) */
 html:has(body.nav-open),
 body.nav-open { overflow: hidden; }
