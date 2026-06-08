@@ -122,18 +122,18 @@ export const DEFAULT_BUTTON: ButtonStyle = {
   openInNewTab:         false,
   variant:              'solid',
   size:                 'md',
-  backgroundColor:      '#111111',
-  textColor:            '#ffffff',
-  borderColor:          '#111111',
-  borderRadius:         4,
-  borderWidth:          2,
-  paddingX:             24,
-  paddingY:             12,
-  fontSize:             14,
-  fontWeight:           600,
+  backgroundColor:      '#161310',
+  textColor:            '#FBF7EE',
+  borderColor:          '#161310',
+  borderRadius:         0,
+  borderWidth:          1,
+  paddingX:             32,
+  paddingY:             16,
+  fontSize:             11,
+  fontWeight:           500,
   shadow:               'none',
-  hoverBackgroundColor: '#333333',
-  hoverTextColor:       '#ffffff',
+  hoverBackgroundColor: '#8C6128',
+  hoverTextColor:       '#FBF7EE',
   fullWidth:            false,
 };
 
@@ -179,34 +179,37 @@ export interface GlobalTheme {
   customCSS:  string;
 }
 
+// Editorial luxe defaults: warm cream paper + ink, brass accent, Fraunces
+// (variable serif with optical sizes) for display + Inter Tight for UI.
+// Every brand-new tenant ships with this look; merchants tune from here.
 export const DEFAULT_GLOBAL_THEME: GlobalTheme = {
   preset: 'base',
   colors: {
-    primary:     '#111111',
-    primaryText: '#ffffff',
-    secondary:   '#555555',
-    accent:      '#f5c000',
-    background:  '#ffffff',
-    surface:     '#f5f5f5',
-    text:        '#111111',
-    textMuted:   '#888888',
-    border:      'rgba(0,0,0,0.1)',
+    primary:     '#161310',
+    primaryText: '#FBF7EE',
+    secondary:   '#807767',
+    accent:      '#B8884A',
+    background:  '#F4EFE6',
+    surface:     '#FBF7EE',
+    text:        '#161310',
+    textMuted:   '#807767',
+    border:      '#E4DCC9',
   },
   typography: {
-    headingFont:   'inherit',
-    bodyFont:      'inherit',
-    baseFontSize:  16,
-    headingWeight: 700,
+    headingFont:   'Fraunces',
+    bodyFont:      'Inter Tight',
+    baseFontSize:  15,
+    headingWeight: 600,
     bodyWeight:    400,
     lineHeight:    1.6,
     letterSpacing: 0,
   },
   spacing: {
-    containerMaxWidth:      1200,
-    sectionVerticalPadding: 80,
-    borderRadius:           4,
-    cardBorderRadius:       4,
-    elementGap:             16,
+    containerMaxWidth:      1320,
+    sectionVerticalPadding: 96,
+    borderRadius:           0,
+    cardBorderRadius:       0,
+    elementGap:             20,
   },
   customCSS: '',
 };
@@ -317,6 +320,7 @@ export type FieldType =
   | 'typography'
   | 'button-style'
   | 'custom-css'
+  | 'list'           // editable array of objects, configured via `itemFields`
   | 'blocks-manager'; // renders the block list for this section
 
 export interface SelectOption {
@@ -342,6 +346,12 @@ export interface FieldDef {
   step?:        number;
   group?:       string;    // group heading in the panel
   condition?:   FieldCondition;
+  // ── list field (type === 'list') ──
+  itemFields?:  FieldDef[];                // schema for one item in the array
+  itemLabel?:   string | ((item: Record<string, unknown>, index: number) => string);
+  itemDefault?: Record<string, unknown>;   // default object inserted on Add
+  addLabel?:    string;                    // button label, defaults to "Add"
+  maxItems?:    number;
 }
 
 // ── Block Type ─────────────────────────────────────────────────────────────

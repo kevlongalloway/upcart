@@ -13,33 +13,39 @@
   /* ── Theme definitions ───────────────────────────────────────────────────── */
   var THEMES = {
 
-    // ── Base ──────────────────────────────────────────────────────────────────
-    // Default theme. System fonts only — zero external deps, no broken-network
-    // FOUC. Designed as the neutral starting point that merchants customize on
-    // top of via the editor (colors, fonts, sections). Keep this minimal.
+    // ── Base (Editorial luxe — Fraunces + Inter Tight) ───────────────────────
+    // The default theme that ships with every brand-new tenant. Designed to
+    // feel like a high-end editorial / luxury brand the moment a merchant
+    // lands on it: warm cream paper, ink-dark type, restrained brass accent,
+    // Fraunces (variable serif w/ optical sizes) for display + Inter Tight
+    // for UI. Painted synchronously so there is zero FOUC on first visit.
     base: {
-      fonts: null,
+      fonts: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@300;400;500;600;700&display=swap',
       vars: [
-        '--font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--font-hero:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
-        '--color-bg:#ffffff',
-        '--color-text:#111111',
-        '--color-muted:#6b6b6b',
-        '--color-surface:#f5f5f5',
-        '--color-surface-border:#e8e8e8',
-        '--color-border:rgba(0,0,0,0.08)',
-        '--color-border-mid:rgba(0,0,0,0.14)',
-        '--color-accent:#111111',
-        '--color-accent-soft:rgba(17,17,17,0.08)',
-        '--color-danger:#b84c4c',
-        '--color-ticker-bg:#111111',
-        '--color-ticker-text:#ffffff',
-        '--color-footer-bg:#111111',
-        '--color-footer-text:#ffffff',
-        '--color-footer-border:rgba(255,255,255,0.12)',
-        '--color-btn-bg:#111111',
-        '--color-btn-text:#ffffff',
+        '--font-body:"Inter Tight","Inter",system-ui,-apple-system,sans-serif',
+        '--font-display:"Fraunces","Times New Roman",Georgia,serif',
+        '--font-hero:"Fraunces","Times New Roman",Georgia,serif',
+        // Warm paper-cream → deep ink. Slightly desaturated vs ARCH so brass
+        // pops and product photography does the talking.
+        '--color-bg:#F4EFE6',
+        '--color-text:#161310',
+        '--color-muted:#807767',
+        '--color-surface:#FBF7EE',
+        '--color-surface-border:#E4DCC9',
+        '--color-border:#E4DCC9',
+        '--color-border-mid:rgba(22,19,16,0.14)',
+        // Brass / antique gold — used for thin rules, hover states, accents.
+        '--color-accent:#B8884A',
+        '--color-accent-d:#8C6128',
+        '--color-accent-soft:rgba(184,136,74,0.14)',
+        '--color-danger:#B84C4C',
+        '--color-ticker-bg:#161310',
+        '--color-ticker-text:#FBF7EE',
+        '--color-footer-bg:#161310',
+        '--color-footer-text:#FBF7EE',
+        '--color-footer-border:rgba(251,247,238,0.10)',
+        '--color-btn-bg:#161310',
+        '--color-btn-text:#FBF7EE',
       ],
     },
 
@@ -274,10 +280,14 @@
           n.style.backgroundImage = 'url("' + settings.logo_url.replace(/"/g,'%22') + '")';
         }
       });
-      // Hero section content — falls back to store name/description if not set.
-      var heroTitle = settings.hero_title || settings.store_name || '';
-      if (heroTitle) {
-        document.querySelectorAll('[data-hero-title]').forEach(function (n) { n.textContent = heroTitle; });
+      // Hero section content — only override the title when the merchant has
+      // explicitly set hero_title. Falling back to store_name made the hero
+      // read "<KICKER> / <STORE NAME>" right next to the header wordmark, so
+      // the store name was duplicated on the home page.
+      if (settings.hero_title) {
+        document.querySelectorAll('[data-hero-title]').forEach(function (n) {
+          n.textContent = settings.hero_title;
+        });
       }
       if (settings.hero_subtitle) {
         document.querySelectorAll('[data-hero-subtitle]').forEach(function (n) { n.textContent = settings.hero_subtitle; });
@@ -297,6 +307,15 @@
     var evt = new CustomEvent('bst:settings', { detail: settings });
     document.dispatchEvent(evt);
   }
+
+  // Expose a re-apply hook so store-renderer.js can repopulate
+  // [data-store-name] / [data-hero-title] / etc. on the new DOM after it
+  // re-renders sections from the saved schema. Without this, dynamic
+  // sections rendered after the initial /settings/public fetch would never
+  // pick up store name / logo / hero copy from the live settings.
+  window.applyStoreBrand = function () {
+    if (window.STORE_SETTINGS) applyBrandOverrides(window.STORE_SETTINGS);
+  };
 
   function contrastText(hex) {
     var r = parseInt(hex.slice(1, 3), 16);

@@ -1,49 +1,105 @@
 /* ── Root Variables ──────────────────────────────────────────────── */
+/* Light frosted-glass theme. The primary accent is a vibrant neon gradient
+   (violet → indigo → cyan) that drives the "aura"; gold is demoted to a
+   secondary "money/revenue" highlight. Surfaces are translucent glass that
+   refract a soft gradient-mesh page background. */
 :root {
+  /* ── Neon gradient accent (primary) ── */
+  --accent:        #7C3AED;   /* violet — primary solid accent */
+  --accent-mid:    #4F46E5;   /* indigo */
+  --accent-2:      #06B6D4;   /* cyan */
+  --accent-grad:   linear-gradient(135deg, #7C3AED 0%, #4F46E5 45%, #06B6D4 100%);
+  --accent-soft:   rgba(124, 58, 237, 0.12);
+  --accent-border: rgba(124, 58, 237, 0.45);
+  --accent-glow:   rgba(124, 58, 237, 0.35);
+  --accent-glow-2: rgba(6, 182, 212, 0.30);
+
+  /* ── Gold (secondary — revenue/money figures only) ── */
   --gold:          #C9A227;
-  --gold-dim:      #a88520;
-  --gold-dark:     #7a6018;
-  --gold-glow:     rgba(201, 162, 39, 0.12);
-  --gold-border:   rgba(201, 162, 39, 0.28);
-  --bg-base:       #080808;
-  --bg-card:       #0d0d0d;
-  --bg-input:      #0a0a0a;
-  --border:        #1a1a1a;
-  --border-strong: #252525;
-  --text:          #f0f0f0;
-  --text-dim:      #999999;
-  --text-muted:    #555555;
-  --red:           #e05252;
-  --red-glow:      rgba(224, 82, 82, 0.12);
-  --red-border:    rgba(224, 82, 82, 0.28);
-  --amber:         #f59e0b;
-  --blue:          #60a5fa;
+  --gold-dim:      #b08e1f;
+  --gold-dark:     #8a6f17;
+  --gold-text:     #8a6d12;
+  --gold-glow:     rgba(201, 162, 39, 0.14);
+  --gold-border:   rgba(201, 162, 39, 0.45);
+
+  /* ── Surfaces ── */
+  --bg-base:       #eef1f6;   /* page background base (mesh painted on body) */
+  --bg-card:       #ffffff;
+  --bg-input:      #ffffff;
+  --border:        #e6e8eb;
+  --border-strong: #d3d7dd;
+  --text:          #1b1f24;
+  --text-dim:      #5b6571;
+  --text-muted:    #97a0ac;
+  --red:           #d6453f;
+  --red-glow:      rgba(214, 69, 63, 0.10);
+  --red-border:    rgba(214, 69, 63, 0.32);
+  --amber:         #b9770b;
+  --blue:          #4f46e5;   /* legacy alias → folded into the accent family */
+
+  /* ── Glass ── */
+  --glass-bg:      rgba(255, 255, 255, 0.55);
+  --glass-border:  rgba(255, 255, 255, 0.70);
+  --glass-shadow:  0 10px 40px -12px rgba(31, 38, 135, 0.20);
 }
 
-/* ── Override Bootstrap dark theme ──────────────────────────────── */
-[data-bs-theme="dark"] {
+/* ── Reusable glass + aura helpers ───────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.aura {
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 1px rgba(124, 58, 237, 0.05),
+    0 18px 50px -22px var(--accent-glow);
+}
+
+/* ── Override Bootstrap light theme ─────────────────────────────── */
+[data-bs-theme="light"] {
   --bs-body-bg:       var(--bg-base);
   --bs-body-color:    var(--text);
-  --bs-primary-rgb:   201, 162, 39;
+  --bs-primary-rgb:   124, 58, 237;
+  --bs-border-color:  var(--border-strong);
 }
 
 /* ── Base ────────────────────────────────────────────────────────── */
+/* Soft gradient-mesh so the frosted glass has colour to refract and the
+   neon "aura" reads. Fixed so it stays put while content scrolls. */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
   background-color: var(--bg-base);
+  background-image:
+    radial-gradient(58% 50% at 12% 0%,   rgba(124, 58, 237, 0.16) 0%, transparent 62%),
+    radial-gradient(50% 45% at 100% 6%,  rgba(6, 182, 212, 0.16)  0%, transparent 60%),
+    radial-gradient(46% 48% at 50% 108%, rgba(219, 39, 119, 0.10) 0%, transparent 60%);
+  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Clip stray horizontal overflow (off-screen drawer, wide controls) so
+     the page can never render wider than the viewport — which is what made
+     mobile load zoomed-in and shifted. `clip` is sticky-safe (unlike
+     `hidden`, it doesn't turn the body into a scroll container). */
+  overflow-x: clip;
 }
 
 /* ── Navbar ─────────────────────────────────────────────────────── */
 .navbar {
-  background-color: #000 !important;
-  border-bottom: 1px solid var(--border-strong) !important;
+  background-color: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid var(--glass-border) !important;
   min-height: 56px;
   padding-top: 0;
   padding-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
 }
 
 .navbar-brand {
@@ -71,7 +127,7 @@ body {
   letter-spacing: 0.14em;
   font-size: 0.55rem;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-text);
   border: 1px solid var(--gold-border);
   background: var(--gold-glow);
   padding: 2px 6px;
@@ -93,26 +149,129 @@ body {
 
 .nav-link:hover {
   color: var(--text) !important;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .nav-link.active {
-  background-color: var(--gold-glow) !important;
-  color: var(--gold) !important;
-  border-color: var(--gold-border) !important;
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent-border) !important;
 }
 
-/* ── Cards ──────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   Mobile nav — frosted dropdown menu
+
+   The desktop bar shows inline pills (.d-none.d-lg-flex). On mobile a
+   hamburger toggles #navMenu (.nav-dd), a dropdown rendered as a top-level
+   sibling of the navbar so the sticky bar's stacking context can't swallow
+   it. Toggling `.open` drops/fades it in.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Hamburger button (mobile only) */
+.nav-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.nav-burger:hover { background: rgba(255, 255, 255, 0.9); }
+.nav-burger:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Click-catching scrim (subtle dim, closes the menu on tap) */
+.nav-dd-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 20, 28, 0.30);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .22s ease, visibility .22s ease;
+  z-index: 1990;
+}
+.nav-dd-scrim.open { opacity: 1; visibility: visible; }
+
+/* The dropdown panel */
+.nav-dd {
+  position: fixed;
+  top: 62px;
+  left: 12px;
+  right: 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow:
+    0 26px 60px -22px rgba(31, 38, 135, 0.40),
+    0 0 0 1px rgba(124, 58, 237, 0.05);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px) scale(.985);
+  transform-origin: top center;
+  transition: opacity .2s ease, transform .24s cubic-bezier(.22, .61, .36, 1), visibility .24s;
+  z-index: 1991;
+}
+.nav-dd.open { opacity: 1; visibility: visible; transform: none; }
+
+.nav-dd-list { display: flex; flex-direction: column; gap: 2px; }
+.nav-dd-link {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: .98rem;
+  font-weight: 500;
+  color: var(--text) !important;
+  text-decoration: none;
+  transition: background .14s ease, color .14s ease;
+}
+.nav-dd-link i { width: 1.4rem; text-align: center; font-size: 1.1rem; opacity: .8; }
+.nav-dd-link:hover,
+.nav-dd-link:active { background: rgba(0, 0, 0, .05); }
+.nav-dd-link.active {
+  background: var(--accent-soft);
+  color: var(--accent) !important;
+}
+.nav-dd-link.active i { opacity: 1; }
+
+.nav-dd-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+}
+.nav-dd-actions .btn { width: 100%; }
+
+/* Lock background scroll while the menu is open (:has covers the real
+   document scroller; the body rule is the fallback for older engines) */
+html:has(body.nav-open),
+body.nav-open { overflow: hidden; }
+
+/* ── Cards (frosted glass) ──────────────────────────────────────── */
 .card {
-  background-color: var(--bg-card);
-  border-color: var(--border) !important;
-  border-radius: 8px;
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow);
 }
 
 .card-header,
 .card-footer {
-  background-color: rgba(255, 255, 255, 0.02);
-  border-color: var(--border) !important;
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: var(--glass-border) !important;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -120,9 +279,11 @@ body {
 }
 
 /* ── Table ──────────────────────────────────────────────────────── */
-.table-dark {
+.table {
   --bs-table-bg:          transparent;
-  --bs-table-hover-bg:    rgba(255, 255, 255, 0.025);
+  --bs-table-color:       var(--text);
+  --bs-table-hover-bg:    rgba(0, 0, 0, 0.03);
+  --bs-table-hover-color: var(--text);
   --bs-table-border-color: var(--border);
 }
 
@@ -144,7 +305,7 @@ body {
 }
 
 .table tbody tr:hover td {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 /* ── Forms ──────────────────────────────────────────────────────── */
@@ -161,9 +322,9 @@ body {
 .form-control:focus,
 .form-select:focus {
   background-color: var(--bg-input);
-  border-color: var(--gold);
+  border-color: var(--accent);
   color: var(--text);
-  box-shadow: 0 0 0 3px var(--gold-glow);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .form-control::placeholder {
@@ -179,7 +340,7 @@ body {
 }
 
 .form-select option {
-  background-color: #111;
+  background-color: #fff;
 }
 
 textarea.form-control {
@@ -209,35 +370,48 @@ textarea.form-control {
 }
 
 .btn-primary {
-  --bs-btn-bg:              var(--gold);
-  --bs-btn-border-color:    var(--gold);
-  --bs-btn-color:           #000;
-  --bs-btn-hover-bg:        var(--gold-dim);
-  --bs-btn-hover-border-color: var(--gold-dim);
-  --bs-btn-hover-color:     #000;
-  --bs-btn-active-bg:       var(--gold-dark);
-  --bs-btn-active-border-color: var(--gold-dark);
-  --bs-btn-active-color:    #000;
+  --bs-btn-bg:              transparent;
+  --bs-btn-border-color:    transparent;
+  --bs-btn-color:           #fff;
+  --bs-btn-hover-bg:        transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-hover-color:     #fff;
+  --bs-btn-active-bg:       transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-active-color:    #fff;
+  background-image: var(--accent-grad);
+  border: none;
+  box-shadow: 0 8px 22px -8px var(--accent-glow);
   font-weight: 700;
   letter-spacing: 0.03em;
+  transition: box-shadow 0.15s ease, transform 0.08s ease, filter 0.15s ease;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow: 0 10px 28px -8px var(--accent-glow), 0 0 0 1px rgba(255,255,255,0.08) inset;
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
 }
 
 .btn-secondary {
-  --bs-btn-bg:              #161616;
+  --bs-btn-bg:              #eef0f3;
   --bs-btn-border-color:    var(--border-strong);
   --bs-btn-color:           var(--text-dim);
-  --bs-btn-hover-bg:        #1e1e1e;
-  --bs-btn-hover-border-color: #333;
+  --bs-btn-hover-bg:        #e2e5e9;
+  --bs-btn-hover-border-color: #c2c8d0;
   --bs-btn-hover-color:     var(--text);
 }
 
 .btn-outline-secondary {
   --bs-btn-color:           var(--text-dim);
   --bs-btn-border-color:    var(--border-strong);
-  --bs-btn-hover-bg:        rgba(255,255,255,0.05);
+  --bs-btn-hover-bg:        rgba(0,0,0,0.05);
   --bs-btn-hover-color:     var(--text);
-  --bs-btn-hover-border-color: #333;
-  --bs-btn-active-bg:       rgba(255,255,255,0.08);
+  --bs-btn-hover-border-color: #c2c8d0;
+  --bs-btn-active-bg:       rgba(0,0,0,0.08);
   --bs-btn-active-color:    var(--text);
 }
 
@@ -258,10 +432,10 @@ textarea.form-control {
 }
 
 .btn-outline-success {
-  --bs-btn-color:           var(--gold);
+  --bs-btn-color:           var(--gold-text);
   --bs-btn-border-color:    var(--gold-border);
   --bs-btn-hover-bg:        var(--gold-glow);
-  --bs-btn-hover-color:     var(--gold);
+  --bs-btn-hover-color:     var(--gold-text);
   --bs-btn-hover-border-color: var(--gold);
 }
 
@@ -283,9 +457,9 @@ textarea.form-control {
 
 /* Filter radio buttons */
 .btn-check:checked + .btn-outline-secondary {
-  background-color: var(--gold-glow) !important;
-  color: var(--gold) !important;
-  border-color: var(--gold-border) !important;
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent-border) !important;
 }
 
 /* ── Badges ─────────────────────────────────────────────────────── */
@@ -300,13 +474,13 @@ textarea.form-control {
 /* success = gold (Active, In stock) */
 .text-bg-success {
   background-color: var(--gold-glow) !important;
-  color: var(--gold) !important;
+  color: var(--gold-text) !important;
   border: 1px solid var(--gold-border);
 }
 
 /* secondary = dim grey */
 .text-bg-secondary {
-  background-color: rgba(255,255,255,0.07) !important;
+  background-color: rgba(0,0,0,0.06) !important;
   color: var(--text-dim) !important;
 }
 
@@ -334,12 +508,12 @@ textarea.form-control {
 /* primary = gold (used for "fulfilled" order status) */
 .text-bg-primary {
   background-color: var(--gold-glow) !important;
-  color: var(--gold) !important;
+  color: var(--gold-text) !important;
   border: 1px solid var(--gold-border);
 }
 
 /* ── Color utilities ────────────────────────────────────────────── */
-.text-success  { color: var(--gold) !important; }
+.text-success  { color: var(--gold-text) !important; }
 .text-secondary { color: var(--text-dim) !important; }
 
 /* ── Quick filter pills ─────────────────────────────────────────── */
@@ -362,10 +536,11 @@ textarea.form-control {
 }
 
 .quick-filter.active {
-  background-color: var(--gold) !important;
-  border-color: var(--gold) !important;
-  color: #000 !important;
+  background-image: var(--accent-grad) !important;
+  border-color: transparent !important;
+  color: #fff !important;
   font-weight: 700;
+  box-shadow: 0 6px 16px -8px var(--accent-glow);
 }
 
 /* ── Image gallery ──────────────────────────────────────────────── */
@@ -414,15 +589,21 @@ textarea.form-control {
   padding: 1.5rem;
   background-color: var(--bg-base);
   background-image:
-    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,162,39,0.07) 0%, transparent 70%);
+    radial-gradient(ellipse 55% 45% at 30% 0%,  rgba(124,58,237,0.20) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 45% at 80% 10%, rgba(6,182,212,0.18)  0%, transparent 62%);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
-  border-color: var(--border-strong) !important;
-  border-radius: 12px;
-  background-color: #0d0d0d;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 18px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    var(--glass-shadow),
+    0 22px 60px -24px var(--accent-glow);
 }
 
 .login-logo {
@@ -442,7 +623,7 @@ textarea.form-control {
 
 /* ── Modals ─────────────────────────────────────────────────────── */
 .modal-content {
-  background-color: #0d0d0d;
+  background-color: var(--bg-card);
   border-color: var(--border-strong);
   border-radius: 10px;
 }
@@ -452,13 +633,9 @@ textarea.form-control {
   border-color: var(--border-strong) !important;
 }
 
-.btn-close-white {
-  filter: invert(1) grayscale(1) brightness(0.7);
-}
-
 /* ── Toasts ─────────────────────────────────────────────────────── */
 .toast {
-  background-color: #111;
+  background-color: var(--bg-card);
   border-color: var(--border-strong);
 }
 
@@ -470,7 +647,7 @@ textarea.form-control {
 }
 
 .alert-secondary {
-  background-color: rgba(255,255,255,0.03);
+  background-color: rgba(0,0,0,0.03);
   border-color: var(--border-strong);
   color: var(--text);
 }
@@ -485,8 +662,8 @@ textarea.form-control {
 
 /* ── Form switch ────────────────────────────────────────────────── */
 .form-switch .form-check-input:checked {
-  background-color: var(--gold);
-  border-color: var(--gold);
+  background-color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ── Divider ────────────────────────────────────────────────────── */
@@ -555,7 +732,7 @@ hr {
 
   /* Card border radius reduction */
   .card {
-    border-radius: 6px;
+    border-radius: 12px;
   }
 
   /* Pagination buttons: smaller text */
@@ -576,9 +753,6 @@ hr {
   /* Navbar brand: scale logo down on tiny screens */
   .brand-logo { height: 26px; }
   .navbar-brand .brand-sub { display: none; }
-
-  /* Nav links: icon only */
-  .nav-link .nav-label { display: none; }
 
   /* Filter group: wrap nicely */
   .btn-group.btn-group-sm .btn {
@@ -624,7 +798,7 @@ hr {
 
 /* ── Theme editor presets ───────────────────────────────────────── */
 .theme-preset { cursor: pointer; }
-.theme-preset:focus-visible .theme-swatch { outline: 2px solid #0d6efd; outline-offset: 2px; }
+.theme-preset:focus-visible .theme-swatch { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-swatch {
   position: relative;
   border-radius: 10px;
@@ -641,9 +815,9 @@ hr {
   width: 72px; height: 72px;
   border-radius: 12px;
   background-size: cover; background-position: center;
-  border: 2px dashed var(--bs-border-color, #444);
+  border: 2px dashed var(--bs-border-color, #cbd2da);
   flex-shrink: 0;
-  background-color: rgba(255,255,255,.04);
+  background-color: rgba(0,0,0,.04);
 }
 
 /* ── Live storefront preview card ───────────────────────────────── */
@@ -690,5 +864,241 @@ hr {
   letter-spacing: .1em;
   font-size: .78rem;
   cursor: pointer;
+}
+
+/* ── Setup checklist ("Complete your store") ─────────────────────── */
+.setup-card {
+  border: 1px solid var(--glass-border) !important;
+  background:
+    linear-gradient(180deg, var(--accent-soft), transparent 55%),
+    var(--glass-bg);
+  box-shadow: var(--glass-shadow), 0 18px 50px -24px var(--accent-glow);
+}
+.setup-card-done {
+  border-color: rgba(34, 197, 94, .35) !important;
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, .12), transparent 55%),
+    var(--glass-bg);
+}
+.setup-progress-count {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.progress.setup-progress {
+  height: 8px;
+  background-color: rgba(124, 58, 237, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.setup-progress .progress-bar {
+  background-image: var(--accent-grad);
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+
+/* Step track — swipeable peeking carousel on mobile, grid on desktop. */
+.setup-steps {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+.setup-steps::-webkit-scrollbar { display: none; }
+
+.setup-step {
+  scroll-snap-align: start;
+  flex: 0 0 82%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.setup-step:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 12px 30px -16px var(--accent-glow);
+}
+.setup-step.done {
+  opacity: .8;
+  background: rgba(34, 197, 94, .06);
+  border-color: rgba(34, 197, 94, .28);
+}
+.setup-step-icon {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+.setup-step.done .setup-step-icon {
+  background: rgba(34, 197, 94, .12);
+  color: #16a34a;
+  border-color: rgba(34, 197, 94, .35);
+}
+.setup-step-body { flex: 1 1 auto; min-width: 0; }
+.setup-step-title { font-weight: 700; line-height: 1.25; }
+.setup-step-sub { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
+.setup-step-action { margin-top: auto; }
+.setup-step-action .btn { width: 100%; }
+
+/* Dots / nav under the track. */
+.setup-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.setup-dot {
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: rgba(124, 58, 237, 0.22);
+  cursor: pointer;
+  transition: width .2s ease, background .2s ease;
+}
+.setup-dot.active {
+  width: 20px;
+  background-image: var(--accent-grad);
+}
+
+.setup-done-badge {
+  flex-shrink: 0;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  background: rgba(34, 197, 94, .14);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, .4);
+}
+
+/* Desktop: drop the carousel, lay steps out as an even grid. */
+@media (min-width: 768px) {
+  .setup-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: visible;
+  }
+  .setup-step { flex: initial; }
+  .setup-nav { display: none; }
+}
+
+/* ── Dashboard revenue chart (glowing gradient area chart) ───────── */
+.dash-chart {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+}
+.dash-chart-svg {
+  display: block;
+  width: 100%;
+  height: 200px;
+  overflow: visible;
+}
+/* Animated draw-in of the area + line. */
+.dash-area { transition: opacity .4s ease; }
+.dash-line {
+  fill: none;
+  stroke: url(#dashStroke);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 10px rgba(124, 58, 237, 0.55))
+          drop-shadow(0 0 4px rgba(6, 182, 212, 0.35));
+}
+.dash-dot {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 2;
+  opacity: 0;
+  transition: opacity .15s ease, r .15s ease;
+  cursor: pointer;
+}
+.dash-dot:hover { opacity: 1; r: 5; }
+.dash-hot { fill: transparent; cursor: pointer; }
+.dash-hot:hover + .dash-dot { opacity: 1; }
+.dash-xlabel {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+.dash-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-height: 200px;
+  color: var(--text-muted);
+}
+.dash-xaxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: .62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Revenue/money figures keep the secondary gold accent. */
+.metric-money {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Dashboard period control (glass segmented) ──────────────────── */
+#dash-period-group {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+#dash-period-group .btn {
+  border: none !important;
+  border-radius: 999px !important;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+#dash-period-group .btn-check:checked + .btn {
+  background-image: var(--accent-grad) !important;
+  background-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px -4px var(--accent-glow);
+}
+/* On narrow screens the 5-pill control can exceed the row width; let it
+   scroll horizontally instead of pushing the page wider. */
+@media (max-width: 575.98px) {
+  #dash-period-group {
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #dash-period-group::-webkit-scrollbar { display: none; }
+  #dash-period-group .btn { flex: 0 0 auto; }
 }
 

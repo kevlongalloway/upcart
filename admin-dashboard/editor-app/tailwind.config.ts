@@ -5,24 +5,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Editor dark UI palette
+        // Editor UI palette. Values are driven by CSS variables (RGB
+        // channels) defined in index.css so the whole editor chrome can
+        // switch between light and dark — see the theme switcher in the
+        // top bar. The `<alpha-value>` placeholder keeps Tailwind opacity
+        // modifiers (e.g. bg-ed-accent/15) working.
         ed: {
-          bg:       '#0d0d0d',
-          surface:  '#141414',
-          panel:    '#181818',
-          border:   '#242424',
-          border2:  '#2e2e2e',
-          hover:    '#1e1e1e',
-          active:   '#1a2840',
-          text:     '#e0e0e0',
-          muted:    '#888888',
-          'text-2': '#a0a0a0',
-          'text-3': '#666666',
-          accent:   '#0d6efd',
-          'accent-hover': '#0b5ed7',
-          danger:   '#ef4444',
-          success:  '#22c55e',
-          warning:  '#f59e0b',
+          bg:       'rgb(var(--ed-bg) / <alpha-value>)',
+          surface:  'rgb(var(--ed-surface) / <alpha-value>)',
+          panel:    'rgb(var(--ed-panel) / <alpha-value>)',
+          border:   'rgb(var(--ed-border) / <alpha-value>)',
+          border2:  'rgb(var(--ed-border2) / <alpha-value>)',
+          hover:    'rgb(var(--ed-hover) / <alpha-value>)',
+          active:   'rgb(var(--ed-active) / <alpha-value>)',
+          text:     'rgb(var(--ed-text) / <alpha-value>)',
+          muted:    'rgb(var(--ed-muted) / <alpha-value>)',
+          'text-2': 'rgb(var(--ed-text-2) / <alpha-value>)',
+          'text-3': 'rgb(var(--ed-text-3) / <alpha-value>)',
+          accent:   'rgb(var(--ed-accent) / <alpha-value>)',
+          'accent-hover': 'rgb(var(--ed-accent-hover) / <alpha-value>)',
+          danger:   'rgb(var(--ed-danger) / <alpha-value>)',
+          success:  'rgb(var(--ed-success) / <alpha-value>)',
+          warning:  'rgb(var(--ed-warning) / <alpha-value>)',
         },
       },
       fontFamily: {

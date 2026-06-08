@@ -241,7 +241,7 @@ const Toast = {
             <i class="bi ${icon}"></i>
             <span>${escHtml(message)}</span>
           </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
         </div>
       </div>`;
     this._container.insertAdjacentHTML('beforeend', html);
@@ -321,7 +321,7 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">${escHtml(title)}</h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">${bodyHtml}</div>
             <div class="modal-footer">
@@ -345,173 +345,457 @@ function confirmModal(title, bodyHtml, btnLabel = 'Delete', btnClass = 'btn-dang
 }
 
 // ── Shared navbar ───────────────────────────────────────────────
+// Mobile nav dropdown. #navMenu + its scrim are top-level siblings of the
+// navbar (so the sticky bar's stacking context can't swallow them); toggling
+// `.open` fades/drops the menu in.
+function setNav(open) {
+  document.getElementById('navMenu')?.classList.toggle('open', open);
+  document.querySelector('.nav-dd-scrim')?.classList.toggle('open', open);
+  document.body.classList.toggle('nav-open', open);
+}
+function closeNav()  { setNav(false); }
+function toggleNav() {
+  const open = document.getElementById('navMenu')?.classList.contains('open');
+  setNav(!open);
+}
+
 function renderNavbar() {
   const hash          = location.hash.replace(/^#/, '');
   const onOrders      = hash.startsWith('/orders');
   const onDiscounts   = hash.startsWith('/discounts');
   const onPayouts     = hash.startsWith('/payouts');
-  const onProducts    = !onOrders && !onDiscounts && !onPayouts;
+  const onProducts    = hash.startsWith('/products');
+  const onDashboard   = !onOrders && !onDiscounts && !onPayouts && !onProducts;
   const ctx           = Auth.getContext() || {};
   const storeName     = escHtml(ctx.store_name || 'Your Store');
   const storeUrl      = ctx.store_url ? escHtml(ctx.store_url) : null;
+
+  // One source of truth for the destinations, rendered twice: inline pills
+  // for the desktop bar and stacked rows for the mobile dropdown.
+  const items = [
+    [onDashboard, '#/dashboard',     'bi-speedometer2', 'Dashboard', ''],
+    [onProducts,  '#/products',      'bi-box-seam',     'Products',  ''],
+    [onOrders,    '#/orders',        'bi-receipt',      'Orders',    ''],
+    [onDiscounts, '#/discounts',     'bi-tag',          'Discounts', ''],
+    [onPayouts,   '#/payouts',       'bi-cash-stack',   'Payouts',   ''],
+    [false,       '/store-editor/',  'bi-palette2',     'Customize', ' title="Edit theme, sections, colors, fonts, and layout"'],
+  ];
+  const desktopItems = items.map(([a, h, i, l, e]) => `
+    <li class="nav-item">
+      <a class="nav-link py-1 px-2 ${a ? 'active' : ''}" href="${h}"${e}>
+        <i class="bi ${i}"></i><span class="nav-label ms-1">${l}</span>
+      </a>
+    </li>`).join('');
+  const dropItems = items.map(([a, h, i, l, e]) => `
+    <a class="nav-dd-link ${a ? 'active' : ''}" href="${h}"${e}>
+      <i class="bi ${i}"></i><span>${l}</span>
+    </a>`).join('');
+
+  // The mobile dropdown is rendered as a SIBLING of <nav>, not nested inside
+  // it — the sticky navbar creates its own stacking context, which was
+  // swallowing the panel's contents. As a top-level element with a high
+  // z-index it paints cleanly above everything.
   return `
     <nav class="navbar border-bottom">
-      <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="height:56px">
-        <a class="navbar-brand d-flex align-items-center" href="#/products" style="gap:.6rem;min-width:0">
+      <div class="container-fluid d-flex align-items-center justify-content-between gap-2" style="min-height:56px">
+        <a class="navbar-brand d-flex align-items-center" href="#/dashboard" style="gap:.6rem;min-width:0">
           <span class="brand-badge" aria-hidden="true">U</span>
           <span class="d-flex flex-column text-truncate">
             <span class="fw-semibold text-truncate" style="line-height:1.1">${storeName}</span>
             <span class="brand-sub" style="font-size:.62rem;letter-spacing:.16em">ADMIN</span>
           </span>
         </a>
-        <div class="d-flex align-items-center gap-2">
-          <ul class="nav nav-pills d-flex gap-1 mb-0">
-            <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onProducts ? 'active' : ''}" href="#/products">
-                <i class="bi bi-box-seam"></i><span class="nav-label ms-1">Products</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onOrders ? 'active' : ''}" href="#/orders">
-                <i class="bi bi-receipt"></i><span class="nav-label ms-1">Orders</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onDiscounts ? 'active' : ''}" href="#/discounts">
-                <i class="bi bi-tag"></i><span class="nav-label ms-1">Discounts</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link py-1 px-2 ${onPayouts ? 'active' : ''}" href="#/payouts">
-                <i class="bi bi-cash-stack"></i><span class="nav-label ms-1">Payouts</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link py-1 px-2" href="/store-editor/" title="Edit theme, sections, colors, fonts, and layout">
-                <i class="bi bi-palette2"></i><span class="nav-label ms-1">Customize</span>
-              </a>
-            </li>
-          </ul>
+
+        <div class="d-none d-lg-flex align-items-center gap-2">
+          <ul class="nav nav-pills gap-1 mb-0">${desktopItems}</ul>
           ${storeUrl ? `
             <a class="btn btn-outline-secondary btn-sm" href="${storeUrl}" target="_blank" rel="noopener" title="Visit storefront">
-              <i class="bi bi-box-arrow-up-right"></i><span class="d-none d-lg-inline ms-1">Storefront</span>
+              <i class="bi bi-box-arrow-up-right"></i><span class="ms-1">Storefront</span>
             </a>` : ''}
           <button class="btn btn-outline-secondary btn-sm" id="logout-btn">
-            <i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline ms-1">Logout</span>
+            <i class="bi bi-box-arrow-right"></i><span class="ms-1">Logout</span>
           </button>
         </div>
+
+        <button class="nav-burger d-lg-none" type="button" data-nav-toggle aria-controls="navMenu" aria-label="Menu">
+          <i class="bi bi-list"></i>
+        </button>
       </div>
     </nav>
-    <div id="connect-banner"></div>`;
+
+    <div class="nav-dd-scrim d-lg-none" data-nav-close aria-hidden="true"></div>
+    <div class="nav-dd d-lg-none" id="navMenu" role="menu">
+      <div class="nav-dd-list">${dropItems}</div>
+      <div class="nav-dd-actions">
+        ${storeUrl ? `
+          <a class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" href="${storeUrl}" target="_blank" rel="noopener">
+            <i class="bi bi-box-arrow-up-right me-2"></i>Storefront
+          </a>` : ''}
+        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" data-logout>
+          <i class="bi bi-box-arrow-right me-2"></i>Logout
+        </button>
+      </div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Connect Banner
+// Setup Checklist  ("Complete your store")
 // ═══════════════════════════════════════════════════════════════
-// Injected below the navbar on every authenticated page. Fetches
-// GET /connect/status once per page load (non-blocking) and renders:
-//   • Nothing if charges_enabled = true (onboarding complete)
-//   • A warning banner with a "Set up payouts" CTA otherwise
-//   • An info banner when the account has pending verification items
-const ConnectBanner = {
-  _containerId: 'connect-banner',
+// Replaces the old persistent "Set up payouts" banner. Rendered at the
+// top of the Dashboard, it mirrors the "complete your profile" pattern
+// found on social platforms: a progress bar plus a short list of steps.
+//
+//   1. Add your first product   → /products/new
+//   2. Customize your store     → store editor with a guided tutorial
+//   3. Set up payouts           → Stripe Connect onboarding
+//
+// Completion is derived from real data so the list reflects actual
+// progress and never gets "stuck":
+//   • product   → at least one product exists
+//   • customize → page_sections has been saved at least once (the
+//                 editor only persists it after a real edit), or the
+//                 local tutorial-completion hint is set
+//   • payouts   → Stripe charges_enabled
+const SETUP_CUSTOMIZE_KEY  = 'upcart_setup_customize';
+const SETUP_DISMISSED_KEY  = 'upcart_setup_dismissed';
 
-  // Returns the placeholder div that views should embed after renderNavbar().
-  placeholder() {
-    return `<div id="${this._containerId}"></div>`;
+const SetupChecklist = {
+  // Build the completion state from already-fetched data. The caller
+  // (DashboardView) loads products/settings/connect once and passes them
+  // here so we don't duplicate network requests.
+  deriveState({ products, settings, status }) {
+    const hasProduct = Array.isArray(products) && products.length > 0;
+
+    let localCustomized = false;
+    try { localCustomized = localStorage.getItem(SETUP_CUSTOMIZE_KEY) === 'done'; } catch { /* ignore */ }
+    const savedSections = settings && typeof settings.page_sections === 'string'
+      && settings.page_sections.trim().length > 0;
+    const customized = localCustomized || savedSections;
+
+    const payouts = !!(status && status.charges_enabled);
+
+    return { hasProduct, customized, payouts, status: status || {} };
   },
 
-  // Call this after rendering a page. Fetches status async; updates the
-  // banner in place without blocking the rest of the page from rendering.
-  async mount() {
-    const container = document.getElementById(this._containerId);
+  _payoutsSubtitle(state) {
+    const r = state.status && state.status.requirements;
+    if (state.payouts) return 'Payments and payouts are live.';
+    if (r && Array.isArray(r.pending_verification) && r.pending_verification.length > 0) {
+      return 'Stripe is reviewing your account — almost there.';
+    }
+    if (r && Array.isArray(r.currently_due) && r.currently_due.length > 0) {
+      return 'Stripe needs a little more information.';
+    }
+    return 'Connect Stripe to accept live payments and receive payouts.';
+  },
+
+  // Returns the HTML string for the checklist card (or empty string when
+  // everything is done and the merchant has dismissed it).
+  render(state) {
+    const steps = [
+      {
+        key:   'product',
+        icon:  'bi-box-seam',
+        done:  state.hasProduct,
+        title: 'Add your first product',
+        sub:   state.hasProduct ? 'Your catalog has a product.' : 'Create something for customers to buy.',
+        cta:   'Add product',
+      },
+      {
+        key:   'customize',
+        icon:  'bi-palette2',
+        done:  state.customized,
+        title: 'Customize your store',
+        sub:   state.customized ? 'Your storefront has been personalized.' : 'Personalize your theme, hero, and colors.',
+        cta:   'Customize',
+      },
+      {
+        key:   'payouts',
+        icon:  'bi-cash-stack',
+        done:  state.payouts,
+        title: 'Set up payouts',
+        sub:   this._payoutsSubtitle(state),
+        cta:   state.status && state.status.connected ? 'Finish setup' : 'Set up payouts',
+      },
+    ];
+
+    const doneCount = steps.filter(s => s.done).length;
+    const total     = steps.length;
+    const pct       = Math.round((doneCount / total) * 100);
+    const allDone   = doneCount === total;
+
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(SETUP_DISMISSED_KEY) === '1'; } catch { /* ignore */ }
+    if (allDone && dismissed) return '';
+
+    // Celebratory, collapsed state once every step is complete.
+    if (allDone) {
+      return `
+        <div class="card setup-card setup-card-done mb-4">
+          <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+            <span class="setup-done-badge"><i class="bi bi-check-lg"></i></span>
+            <div class="flex-grow-1">
+              <h2 class="h6 fw-bold mb-1">Your store is ready to sell 🎉</h2>
+              <p class="small text-secondary mb-0">All setup steps are complete. You can always fine-tune things from the menu above.</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" data-setup-dismiss>Dismiss</button>
+          </div>
+        </div>`;
+    }
+
+    const stepRows = steps.map((s, i) => `
+      <div class="setup-step ${s.done ? 'done' : ''}" data-setup-slide="${i}">
+        <div class="d-flex align-items-center gap-3">
+          <span class="setup-step-icon">
+            <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
+          </span>
+          <div class="setup-step-body">
+            <div class="setup-step-title">${escHtml(s.title)}</div>
+            <div class="setup-step-sub">${escHtml(s.sub)}</div>
+          </div>
+        </div>
+        <div class="setup-step-action">
+          ${s.done
+            ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
+            : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+        </div>
+      </div>`).join('');
+
+    const dots = steps.map((_, i) =>
+      `<button type="button" class="setup-dot ${i === 0 ? 'active' : ''}" data-setup-dot="${i}" aria-label="Step ${i + 1}"></button>`
+    ).join('');
+
+    return `
+      <div class="card setup-card mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div>
+              <h2 class="h5 fw-bold mb-1">Complete your store</h2>
+              <p class="small text-secondary mb-0">Finish these steps to start selling.</p>
+            </div>
+            <div class="text-end">
+              <div class="setup-progress-count">${doneCount}<span class="text-secondary fw-normal">/${total}</span></div>
+              <div class="small text-secondary">steps done</div>
+            </div>
+          </div>
+          <div class="progress setup-progress mb-4" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width:${pct}%"></div>
+          </div>
+          <div class="setup-steps">
+            ${stepRows}
+          </div>
+          <div class="setup-nav">${dots}</div>
+        </div>
+      </div>`;
+  },
+
+  // Attach click handlers. `container` is the element whose innerHTML is
+  // the result of render().
+  wire(container) {
     if (!container) return;
 
-    let status;
-    try {
-      status = await Api.getConnectStatus();
-    } catch {
-      // If Connect status can't be fetched, show nothing rather than an error.
+    const dismissBtn = container.querySelector('[data-setup-dismiss]');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        try { localStorage.setItem(SETUP_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+        container.innerHTML = '';
+      });
+    }
+
+    container.querySelectorAll('[data-setup-step]').forEach(btn => {
+      btn.addEventListener('click', () => this._handleStep(btn.dataset.setupStep, btn));
+    });
+
+    this._wireSlides(container);
+  },
+
+  // Sync the dot indicators with the scroll-snap carousel (mobile). On
+  // desktop the steps render as a static grid and the dots are hidden, so
+  // this is a no-op there beyond harmless listeners.
+  _wireSlides(container) {
+    const track  = container.querySelector('.setup-steps');
+    const dots   = Array.from(container.querySelectorAll('[data-setup-dot]'));
+    const slides = Array.from(container.querySelectorAll('[data-setup-slide]'));
+    if (!track || !slides.length) return;
+
+    const setActive = (idx) => {
+      dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    };
+
+    // Tapping a dot scrolls its slide into view.
+    dots.forEach((dot, i) => {
+      dot.addEventListener('click', () => {
+        slides[i] && slides[i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+        setActive(i);
+      });
+    });
+
+    // Update the active dot as the merchant swipes (throttled via rAF).
+    // Uses bounding rects so it's independent of offsetParent quirks.
+    let raf = 0;
+    track.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const tr = track.getBoundingClientRect();
+        const center = tr.left + tr.width / 2;
+        let best = 0, bestDist = Infinity;
+        slides.forEach((sl, i) => {
+          const r = sl.getBoundingClientRect();
+          const dist = Math.abs((r.left + r.width / 2) - center);
+          if (dist < bestDist) { bestDist = dist; best = i; }
+        });
+        setActive(best);
+      });
+    }, { passive: true });
+  },
+
+  async _handleStep(key, btn) {
+    if (key === 'product') {
+      Router.go('/products/new');
       return;
     }
-
-    // charges_enabled = true means onboarding is fully complete — no banner.
-    if (status.charges_enabled) return;
-
-    const returnUrl   = `${location.origin}${location.pathname}#/payouts`;
-    const refreshUrl  = returnUrl;
-
-    if (!status.connected) {
-      // No Connect account at all — primary CTA to start onboarding.
-      container.innerHTML = `
-        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Complete your payout setup to accept live payments.</strong>
-            Connect Stripe to receive payouts and route funds to your bank account.
-          </span>
-          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Set up payouts
-          </button>
-        </div>`;
-    } else if (status.requirements && status.requirements.currently_due && status.requirements.currently_due.length > 0) {
-      // Onboarding started but Stripe needs more info.
-      const reason = status.requirements.disabled_reason
-        ? escHtml(status.requirements.disabled_reason)
-        : 'additional information required';
-      container.innerHTML = `
-        <div class="alert alert-danger d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Action required:</strong> Stripe needs more information to enable payments (${reason}).
-          </span>
-          <button class="btn btn-sm btn-danger fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Complete setup
-          </button>
-        </div>`;
-    } else if (status.requirements && status.requirements.pending_verification && status.requirements.pending_verification.length > 0) {
-      // Stripe is reviewing submitted info — no action needed.
-      container.innerHTML = `
-        <div class="alert alert-info d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert">
-          <i class="bi bi-hourglass-split flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Stripe is reviewing your account.</strong>
-            Live payments will be enabled once verification is complete (usually a few minutes).
-          </span>
-        </div>`;
-      return; // No button needed.
-    } else {
-      // Connected but charges not yet enabled — nudge to finish onboarding.
-      container.innerHTML = `
-        <div class="alert alert-warning d-flex align-items-center gap-3 rounded-0 border-0 border-bottom mb-0 py-2 px-3" role="alert" id="connect-banner-inner">
-          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-          <span class="flex-grow-1 small">
-            <strong>Payout setup incomplete.</strong>
-            Finish Stripe onboarding to enable live payments and payouts.
-          </span>
-          <button class="btn btn-sm btn-warning fw-semibold flex-shrink-0" id="connect-onboard-btn">
-            Finish setup
-          </button>
-        </div>`;
+    if (key === 'customize') {
+      // Hand off to the store editor, requesting the guided tutorial. The
+      // editor marks the step done locally on save; the dashboard also
+      // detects it server-side via saved page_sections.
+      window.location.href = '/store-editor/?tutorial=customize';
+      return;
     }
-
-    const btn = document.getElementById('connect-onboard-btn');
-    if (!btn) return;
-
-    btn.addEventListener('click', async () => {
+    if (key === 'payouts') {
+      const returnUrl = `${location.origin}${location.pathname}#/dashboard`;
+      const original  = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading…';
       try {
-        const result = await Api.startConnectOnboarding(returnUrl, refreshUrl);
+        const result = await Api.startConnectOnboarding(returnUrl, returnUrl);
         window.location.href = result.url;
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = 'Set up payouts';
-        Toast.error(e.message || 'Failed to start onboarding');
+        btn.innerHTML = original;
+        Toast.error(e.message || 'Failed to start payout setup');
       }
-    });
+    }
   },
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Dashboard stats helpers
+// ═══════════════════════════════════════════════════════════════
+// The per-tenant worker has no dedicated analytics endpoint, so the
+// overview is computed client-side from the orders list. We page through
+// orders up to a sane cap and bucket revenue by the selected period.
+
+const DASH_PERIODS = [
+  { key: 'day',   label: 'Day' },
+  { key: 'week',  label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'year',  label: 'Year' },
+  { key: 'all',   label: 'All' },
+];
+
+// Orders that represent captured revenue (exclude pending/cancelled).
+function isRevenueOrder(o) {
+  return o && (o.status === 'paid' || o.status === 'fulfilled');
+}
+
+async function fetchAllOrders(cap = 600) {
+  const limit = 100;
+  let offset = 0;
+  const all = [];
+  while (offset < cap) {
+    const batch = await Api.getOrders({ limit, offset });
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    all.push(...batch);
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+
+// Build the time buckets (start/end/label) for a given period. Returns an
+// array of { start: Date, end: Date, label: string }.
+function buildBuckets(periodKey, orders, now = new Date()) {
+  const buckets = [];
+  if (periodKey === 'day') {
+    const base = startOfDay(now);
+    for (let h = 0; h < 24; h++) {
+      const s = new Date(base); s.setHours(h);
+      const e = new Date(base); e.setHours(h + 1);
+      buckets.push({ start: s, end: e, label: h % 6 === 0 ? `${h}:00` : '' });
+    }
+  } else if (periodKey === 'week') {
+    const base = startOfDay(now);
+    for (let i = 6; i >= 0; i--) {
+      const s = new Date(base); s.setDate(base.getDate() - i);
+      const e = new Date(s);    e.setDate(s.getDate() + 1);
+      buckets.push({ start: s, end: e, label: s.toLocaleDateString('en-US', { weekday: 'short' }) });
+    }
+  } else if (periodKey === 'month') {
+    const base = startOfDay(now);
+    for (let i = 29; i >= 0; i--) {
+      const s = new Date(base); s.setDate(base.getDate() - i);
+      const e = new Date(s);    e.setDate(s.getDate() + 1);
+      const show = (s.getDate() === 1) || (i % 5 === 0);
+      buckets.push({ start: s, end: e, label: show ? `${s.getMonth() + 1}/${s.getDate()}` : '' });
+    }
+  } else if (periodKey === 'year') {
+    for (let i = 11; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const e = new Date(s.getFullYear(), s.getMonth() + 1, 1);
+      buckets.push({ start: s, end: e, label: s.toLocaleDateString('en-US', { month: 'short' }) });
+    }
+  } else {
+    // "all" — monthly buckets from the earliest order to now (cap 24).
+    const times = (orders || [])
+      .map(o => new Date(o.created_at).getTime())
+      .filter(t => !isNaN(t));
+    let earliest = times.length ? new Date(Math.min(...times)) : now;
+    earliest = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+    let cur = new Date(earliest);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cur <= end && buckets.length < 24) {
+      const s = new Date(cur);
+      const e = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+      buckets.push({ start: s, end: e });
+      cur = e;
+    }
+    const many = buckets.length > 8;
+    buckets.forEach((b, i) => {
+      const show = !many || i === 0 || i === buckets.length - 1 || i % 3 === 0;
+      b.label = show ? b.start.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '';
+    });
+  }
+  return buckets;
+}
+
+// Aggregate revenue/orders for the selected period plus per-bucket totals.
+function computeStats(orders, periodKey) {
+  const buckets = buildBuckets(periodKey, orders);
+  const bucketRevenue = buckets.map(() => 0);
+  const start = buckets.length ? buckets[0].start.getTime() : 0;
+
+  let revenue = 0;
+  let orderCount = 0;
+  for (const o of orders) {
+    if (!isRevenueOrder(o)) continue;
+    const t = new Date(o.created_at).getTime();
+    if (isNaN(t) || t < start) continue;
+    const amt = o.amount_total || 0;
+    revenue += amt;
+    orderCount++;
+    for (let i = 0; i < buckets.length; i++) {
+      if (t >= buckets[i].start.getTime() && t < buckets[i].end.getTime()) {
+        bucketRevenue[i] += amt;
+        break;
+      }
+    }
+  }
+  const aov = orderCount ? Math.round(revenue / orderCount) : 0;
+  return { buckets, bucketRevenue, revenue, orderCount, aov };
+}
 
 // ═══════════════════════════════════════════════════════════════
 // View: Login
@@ -637,7 +921,7 @@ const LoginView = {
           btn.textContent = 'Sign in';
           return;
         }
-        Router.go('/products');
+        Router.go('/dashboard');
       } catch (err) {
         errEl.textContent = err.message;
         errEl.classList.remove('d-none');
@@ -774,7 +1058,7 @@ const ProductsListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0 products-table">
+            <table class="table table-hover align-middle mb-0 products-table">
               <thead>
                 <tr>
                   <th class="ps-3">Product</th>
@@ -1138,7 +1422,7 @@ const ProductFormView = {
                 <i class="bi bi-plus-lg me-1"></i>Add Size
               </button>
               <div class="form-text mt-3">Common sizes: S, M, L, XL. Or use custom sizes like "One Size", "32x24", etc.</div>
-              <div class="mt-3 p-3 bg-dark rounded-2 border border-secondary small">
+              <div class="mt-3 p-3 bg-body-tertiary rounded-2 border small">
                 <div class="text-secondary mb-2">JSON Preview:</div>
                 <code id="variants-preview" class="text-success font-monospace">{ "variants": [] }</code>
               </div>
@@ -1591,7 +1875,7 @@ const OrdersListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0 orders-table">
+            <table class="table table-hover align-middle mb-0 orders-table">
               <thead>
                 <tr>
                   <th class="ps-3">Order</th>
@@ -2217,7 +2501,7 @@ const DiscountsListView = {
           </div>
 
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0">
               <thead>
                 <tr>
                   <th class="ps-3">Code / Name</th>
@@ -3001,6 +3285,373 @@ const PayoutsView = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// View: Dashboard (seller overview)
+// ═══════════════════════════════════════════════════════════════
+// The post-login landing page. Shows the "Complete your store" setup
+// checklist, a sales overview with a day/week/month/year/all selector,
+// an earnings summary, and overall store-health indicators.
+const DashboardView = {
+  _orders:    [],
+  _period:    'week',
+  _currency:  'usd',
+  _balance:   null,
+  _status:    {},
+  _activeProducts: 0,
+  _totalProducts:  0,
+  _lifetimeRevenue: 0,
+  _lifetimeOrders:  0,
+  _awaiting:        0,
+
+  render() {
+    const pills = DASH_PERIODS.map((p, i) => `
+      <input type="radio" class="btn-check" name="dash-period" id="dp-${p.key}" value="${p.key}" ${p.key === this._period ? 'checked' : ''}>
+      <label class="btn btn-outline-secondary" for="dp-${p.key}">${p.label}</label>`).join('');
+
+    return `
+      ${renderNavbar()}
+      <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
+          <div>
+            <h1 class="fw-black mb-0" style="font-size:1.4rem;letter-spacing:-0.01em">Dashboard</h1>
+            <p class="mb-0 mt-1" style="font-size:0.75rem;color:var(--text-muted)">Your store at a glance</p>
+          </div>
+          <a href="#/products/new" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Product
+          </a>
+        </div>
+
+        <!-- Complete your store -->
+        <div id="setup-checklist"></div>
+
+        <!-- Overview header + period selector -->
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
+          <h2 class="h5 fw-bold mb-0">Overview</h2>
+          <div class="btn-group btn-group-sm" role="group" id="dash-period-group">
+            ${pills}
+          </div>
+        </div>
+
+        <div id="dash-error" class="alert alert-danger d-none"></div>
+
+        <!-- Metric cards -->
+        <div class="row g-3 mb-4" id="dash-metrics">
+          ${this._skeletonMetrics()}
+        </div>
+
+        <!-- Revenue chart -->
+        <div class="card aura mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="small fw-semibold text-uppercase text-secondary">Revenue</span>
+            <span class="small text-secondary" id="dash-chart-total"></span>
+          </div>
+          <div class="card-body">
+            <div id="dash-chart" class="dash-chart">
+              <div class="text-center py-5 w-100">
+                <div class="spinner-border text-success" role="status"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Store health + earnings -->
+        <div class="row g-3" id="dash-bottom">
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header small fw-semibold text-uppercase text-secondary">Store health</div>
+              <div class="card-body" id="dash-health">
+                <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header small fw-semibold text-uppercase text-secondary">Earnings</div>
+              <div class="card-body" id="dash-earnings">
+                <div class="text-center py-4"><div class="spinner-border text-success" role="status"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _skeletonMetrics() {
+    return [0, 1, 2, 3].map(() => `
+      <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+          <div class="placeholder-glow">
+            <span class="placeholder col-6"></span>
+            <span class="placeholder col-8 d-block mt-2" style="height:1.4rem"></span>
+          </div>
+        </div></div>
+      </div>`).join('');
+  },
+
+  async init() {
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+    document.getElementById('dash-period-group').addEventListener('change', e => {
+      this._period = e.target.value;
+      this._renderStats();
+    });
+
+    try {
+      const [orders, products, settings, status, balance] = await Promise.all([
+        fetchAllOrders().catch(() => []),
+        Api.getProducts({ limit: 100 }).catch(() => []),
+        Api.getSettings().catch(() => ({})),
+        Api.getConnectStatus().catch(() => ({})),
+        Api.getConnectBalance().catch(() => null),
+      ]);
+
+      this._orders   = Array.isArray(orders) ? orders : [];
+      this._status   = status || {};
+      this._balance  = balance;
+      this._currency = (balance && balance.currency)
+        || (settings && settings.currency)
+        || (this._orders[0] && this._orders[0].currency)
+        || 'usd';
+
+      const prods = Array.isArray(products) ? products : [];
+      this._totalProducts  = prods.length;
+      this._activeProducts = prods.filter(p => p.active).length;
+
+      // Lifetime + operational figures (all-time, period-independent).
+      this._lifetimeRevenue = 0;
+      this._lifetimeOrders  = 0;
+      this._awaiting        = 0;
+      for (const o of this._orders) {
+        if (isRevenueOrder(o)) {
+          this._lifetimeRevenue += o.amount_total || 0;
+          this._lifetimeOrders++;
+        }
+        const fs = o.fulfillment_status;
+        if (o.status === 'paid' && (fs === 'unfulfilled' || fs === 'processing' || !fs)) {
+          this._awaiting++;
+        }
+      }
+
+      // Setup checklist — derived from the same data, no extra requests.
+      const checklist = document.getElementById('setup-checklist');
+      if (checklist) {
+        const state = SetupChecklist.deriveState({ products: prods, settings, status });
+        checklist.innerHTML = SetupChecklist.render(state);
+        SetupChecklist.wire(checklist);
+      }
+
+      this._renderStats();
+      this._renderHealth();
+      this._renderEarnings();
+    } catch (err) {
+      const errEl = document.getElementById('dash-error');
+      if (errEl) {
+        errEl.classList.remove('d-none');
+        errEl.innerHTML = `<i class="bi bi-exclamation-circle me-2"></i>${escHtml(err.message || 'Failed to load dashboard')}`;
+      }
+    }
+  },
+
+  _metricCard(label, value, sub, opts = {}) {
+    const cardCls  = `card h-100${opts.aura ? ' aura' : ''}`;
+    const valueCls = `fs-4 fw-bold mb-0${opts.money ? ' metric-money' : ''}`;
+    return `
+      <div class="col-sm-6 col-xl-3">
+        <div class="${cardCls}"><div class="card-body">
+          <p class="small text-secondary mb-1">${escHtml(label)}</p>
+          <p class="${valueCls}">${value}</p>
+          <p class="small text-secondary mt-1 mb-0">${sub}</p>
+        </div></div>
+      </div>`;
+  },
+
+  _bucketTooltip(b) {
+    const p = this._period;
+    if (p === 'day') return b.start.toLocaleTimeString('en-US', { hour: 'numeric' });
+    if (p === 'year' || p === 'all') return b.start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return b.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  },
+
+  _renderStats() {
+    const stats   = computeStats(this._orders, this._period);
+    const cur     = this._currency;
+    const metrics = document.getElementById('dash-metrics');
+    const chart   = document.getElementById('dash-chart');
+    const chartTotal = document.getElementById('dash-chart-total');
+    if (!metrics || !chart) return;
+
+    const periodLabel = (DASH_PERIODS.find(p => p.key === this._period) || {}).label || '';
+    const avail = this._balance ? (this._balance.available_balance ?? 0) : null;
+
+    metrics.innerHTML = [
+      this._metricCard('Sales', formatPrice(stats.revenue, cur), `This ${periodLabel.toLowerCase()}`, { aura: true, money: true }),
+      this._metricCard('Orders', String(stats.orderCount), `This ${periodLabel.toLowerCase()}`),
+      this._metricCard('Avg order value', stats.orderCount ? formatPrice(stats.aov, cur) : '—', 'Per paid order'),
+      this._metricCard(
+        'Available to withdraw',
+        avail === null ? '—' : formatPrice(avail, cur),
+        avail === null ? 'Set up payouts' : 'In your balance',
+      ),
+    ].join('');
+
+    if (chartTotal) chartTotal.textContent = `${formatPrice(stats.revenue, cur)} · ${periodLabel}`;
+
+    const max = Math.max(...stats.bucketRevenue, 0);
+    if (max <= 0) {
+      chart.innerHTML = `
+        <div class="dash-empty">
+          <i class="bi bi-graph-up fs-2 d-block mb-2 opacity-50"></i>
+          No sales in this period yet.
+        </div>`;
+      return;
+    }
+
+    chart.innerHTML = this._chartSvg(stats, max, cur);
+  },
+
+  // Build a glowing gradient area + line chart as inline SVG (no library).
+  // The SVG stretches to fill its container (preserveAspectRatio="none");
+  // the line keeps a constant width via vector-effect, and the glow is a
+  // CSS drop-shadow so it stays uniform regardless of the non-uniform scale.
+  _chartSvg(stats, max, cur) {
+    const n = stats.buckets.length;
+    const W = Math.max(n - 1, 1);          // x spans 0..W in user units
+    const padT = 8, padB = 6;              // vertical padding (of 100 units)
+    const usable = 100 - padT - padB;
+
+    const pt = (i) => {
+      const rev = stats.bucketRevenue[i] || 0;
+      const x = n === 1 ? W / 2 : i;
+      const y = padT + (1 - rev / max) * usable;
+      return { x, y };
+    };
+    const pts = stats.buckets.map((_, i) => pt(i));
+
+    // Smooth the line with a light Catmull-Rom → cubic Bézier conversion.
+    const line = pts.map((p, i) => {
+      if (i === 0) return `M${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+      const p0 = pts[i - 1];
+      const t  = 0.18;
+      const c1x = p0.x + (p.x - (pts[i - 2] || p0).x) * t;
+      const c1y = p0.y + (p.y - (pts[i - 2] || p0).y) * t;
+      const c2x = p.x - ((pts[i + 1] || p).x - p0.x) * t;
+      const c2y = p.y - ((pts[i + 1] || p).y - p0.y) * t;
+      return `C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+    }).join(' ');
+
+    const area = `${line} L${pts[pts.length - 1].x.toFixed(2)},100 L${pts[0].x.toFixed(2)},100 Z`;
+
+    // Transparent full-height hot zones with native <title> tooltips.
+    const hots = stats.buckets.map((b, i) => {
+      const p   = pts[i];
+      const x   = Math.max(0, p.x - 0.5);
+      const w   = Math.min(W, p.x + 0.5) - x || 0.5;
+      const tip = `${this._bucketTooltip(b)} · ${formatPrice(stats.bucketRevenue[i] || 0, cur)}`;
+      return `<g><rect class="dash-hot" x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="100">` +
+             `<title>${escHtml(tip)}</title></rect>` +
+             `<circle class="dash-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="3"/></g>`;
+    }).join('');
+
+    // Thinned x-axis labels rendered as HTML below the SVG (avoids the
+    // non-uniform-scale text distortion of in-SVG <text>).
+    const maxLabels = 7;
+    const step = Math.max(1, Math.ceil(n / maxLabels));
+    const labels = stats.buckets.map((b, i) =>
+      (i % step === 0 || i === n - 1) && b.label
+        ? `<span>${escHtml(b.label)}</span>` : ''
+    ).filter(Boolean).join('');
+
+    return `
+      <svg class="dash-chart-svg" viewBox="0 0 ${W} 100" preserveAspectRatio="none" role="img" aria-label="Revenue chart">
+        <defs>
+          <linearGradient id="dashStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"  stop-color="#7C3AED"/>
+            <stop offset="55%" stop-color="#4F46E5"/>
+            <stop offset="100%" stop-color="#06B6D4"/>
+          </linearGradient>
+          <linearGradient id="dashFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#7C3AED" stop-opacity="0.40"/>
+            <stop offset="55%"  stop-color="#4F46E5" stop-opacity="0.16"/>
+            <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path class="dash-area" d="${area}" fill="url(#dashFill)"/>
+        <path class="dash-line" d="${line}" vector-effect="non-scaling-stroke"/>
+        ${hots}
+      </svg>
+      <div class="dash-xaxis">${labels}</div>`;
+  },
+
+  _renderHealth() {
+    const el = document.getElementById('dash-health');
+    if (!el) return;
+    const cur = this._currency;
+    const charges = !!this._status.charges_enabled;
+
+    const row = (icon, label, value, valClass = '') => `
+      <div class="d-flex align-items-center justify-content-between py-2 border-bottom border-secondary-subtle">
+        <span class="d-flex align-items-center gap-2 text-secondary small">
+          <i class="bi ${icon}"></i>${escHtml(label)}
+        </span>
+        <span class="fw-semibold ${valClass}">${value}</span>
+      </div>`;
+
+    el.innerHTML = `
+      ${row('bi-credit-card', 'Payments',
+        charges
+          ? '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
+          : '<span class="text-warning"><i class="bi bi-exclamation-circle-fill me-1"></i>Needs setup</span>')}
+      ${row('bi-box-seam', 'Active products',
+        `${this._activeProducts}<span class="text-secondary fw-normal"> / ${this._totalProducts}${this._totalProducts >= 100 ? '+' : ''}</span>`)}
+      ${row('bi-truck', 'Awaiting fulfillment',
+        `${this._awaiting}`, this._awaiting > 0 ? 'text-warning' : '')}
+      <div class="d-flex align-items-center justify-content-between pt-2">
+        <span class="d-flex align-items-center gap-2 text-secondary small">
+          <i class="bi bi-graph-up-arrow"></i>Lifetime revenue
+        </span>
+        <span class="fw-bold text-success">${formatPrice(this._lifetimeRevenue, cur)}</span>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <a href="#/orders" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-receipt me-1"></i>Orders</a>
+        <a href="#/products" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-box-seam me-1"></i>Products</a>
+      </div>`;
+  },
+
+  _renderEarnings() {
+    const el = document.getElementById('dash-earnings');
+    if (!el) return;
+    const cur     = this._currency;
+    const charges = !!this._status.charges_enabled;
+
+    if (!charges) {
+      el.innerHTML = `
+        <div class="text-center py-3">
+          <i class="bi bi-cash-stack fs-2 text-secondary d-block mb-2"></i>
+          <p class="small text-secondary mb-3">Set up payouts to start tracking and withdrawing your earnings.</p>
+          <a href="#/payouts" class="btn btn-sm btn-primary">Set up payouts</a>
+        </div>`;
+      return;
+    }
+
+    const avail   = this._balance ? (this._balance.available_balance ?? 0) : 0;
+    const pending = this._balance ? (this._balance.pending_balance ?? 0) : 0;
+
+    el.innerHTML = `
+      <div class="mb-3">
+        <p class="small text-secondary mb-1">Available to withdraw</p>
+        <p class="fs-3 fw-bold mb-0">${formatPrice(avail, cur)}</p>
+      </div>
+      <div class="mb-3">
+        <p class="small text-secondary mb-1">Pending</p>
+        <p class="fs-5 fw-semibold mb-0">${formatPrice(pending, cur)}</p>
+        <p class="small text-secondary mb-0">Released as orders are delivered</p>
+      </div>
+      <a href="#/payouts" class="btn btn-sm btn-primary w-100">
+        <i class="bi bi-bank me-1"></i>Manage payouts
+      </a>`;
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════
 const Router = {
@@ -3008,6 +3659,19 @@ const Router = {
 
   init() {
     window.addEventListener('hashchange', () => this._route());
+
+    // Drive the mobile nav dropdown via event delegation, since #app (and the
+    // navbar within it) is re-rendered on every navigation.
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-nav-toggle]')) { toggleNav(); return; }
+      if (e.target.closest('[data-nav-close]'))  { closeNav();  return; }
+      if (e.target.closest('[data-logout]'))     { closeNav(); Auth.logout(); return; }
+      if (e.target.closest('#navMenu a')) closeNav();
+      // Tapping anywhere outside an open menu closes it.
+      else if (!e.target.closest('#navMenu, [data-nav-toggle]')) closeNav();
+    });
+    window.addEventListener('hashchange', closeNav);
+
     this._route();
   },
 
@@ -3020,7 +3684,7 @@ const Router = {
 
     // Redirect root
     if (hash === '/') {
-      this.go(Auth.isLoggedIn() ? '/products' : '/login');
+      this.go(Auth.isLoggedIn() ? '/dashboard' : '/login');
       return;
     }
 
@@ -3029,11 +3693,7 @@ const Router = {
 
     // Auth guard
     if (!isPublic && !Auth.isLoggedIn())         { this.go('/login'); return; }
-    if (hash === '/login' && Auth.isLoggedIn())  { this.go('/products'); return; }
-
-    // Mount the connect banner on every authenticated page after the
-    // synchronous render completes (microtask ensures the DOM is ready).
-    if (Auth.isLoggedIn()) Promise.resolve().then(() => ConnectBanner.mount());
+    if (hash === '/login' && Auth.isLoggedIn())  { this.go('/dashboard'); return; }
 
     if (hash === '/welcome') {
       // WelcomeView fetches /provision/:id/status once (no polling) and
@@ -3048,6 +3708,12 @@ const Router = {
     if (hash === '/login') {
       app.innerHTML = LoginView.render();
       LoginView.init();
+      return;
+    }
+
+    if (hash === '/dashboard') {
+      app.innerHTML = DashboardView.render();
+      DashboardView.init();
       return;
     }
 
@@ -3119,7 +3785,7 @@ const Router = {
       <div class="text-center py-5">
         <div style="font-size:3rem;margin-bottom:1rem">★</div>
         <h3 style="color:var(--text-muted)">404 — Page not found</h3>
-        <a href="#/products" class="btn btn-primary mt-3">Go to Products</a>
+        <a href="#/dashboard" class="btn btn-primary mt-3">Go to Dashboard</a>
       </div>`;
   },
 };

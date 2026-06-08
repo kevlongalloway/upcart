@@ -5,11 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Store Editor · Upcart</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <script type="module" crossorigin src="/store-editor/assets/index-C1gqQHwl.js"></script>
+  <script>
+    // Apply the saved theme mode before first paint to avoid a flash.
+    (function () {
+      try {
+        var m = localStorage.getItem('upcart_editor_theme');
+        document.documentElement.setAttribute(
+          'data-ed-theme',
+          (m === 'light' || m === 'dark') ? m : 'auto'
+        );
+      } catch (e) {
+        document.documentElement.setAttribute('data-ed-theme', 'auto');
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/store-editor/assets/index-BJzOqfcS.js"></script>
   <link rel="modulepreload" crossorigin href="/store-editor/assets/vendor-Ci--bKYu.js">
   <link rel="modulepreload" crossorigin href="/store-editor/assets/dnd-CUO1Xuqh.js">
-  <link rel="modulepreload" crossorigin href="/store-editor/assets/icons-C0-5nBIh.js">
-  <link rel="stylesheet" crossorigin href="/store-editor/assets/index-D_bXFpdV.css">
+  <link rel="modulepreload" crossorigin href="/store-editor/assets/icons-D2AqvoTo.js">
+  <link rel="stylesheet" crossorigin href="/store-editor/assets/index-ddLkC-KZ.css">
 </head>
 <body>
   <div id="root"></div>
