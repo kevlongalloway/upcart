@@ -498,13 +498,14 @@ const SetupChecklist = {
 
     let dismissed = false;
     try { dismissed = localStorage.getItem(SETUP_DISMISSED_KEY) === '1'; } catch { /* ignore */ }
-    if (allDone && dismissed) return '';
+    // It's a dismissible nudge — once hidden, stay hidden.
+    if (dismissed) return '';
 
     // Celebratory, collapsed state once every step is complete.
     if (allDone) {
       return `
         <div class="card setup-card setup-card-done mb-4">
-          <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+          <div class="card-body d-flex align-items-center gap-3 flex-wrap" style="padding:14px 16px">
             <span class="setup-done-badge"><i class="bi bi-check-lg"></i></span>
             <div class="flex-grow-1">
               <h2 class="h6 fw-bold mb-1">Your store is ready to sell 🎉</h2>
@@ -515,23 +516,23 @@ const SetupChecklist = {
         </div>`;
     }
 
-    // Each step is a slide. On mobile they're a swipeable carousel (one per
-    // view); on desktop all three sit side by side.
+    // Each step is a compact horizontal row. On mobile they're a swipeable
+    // carousel (one per view); on desktop all three sit side by side.
     const slides = steps.map((s, i) => `
       <div class="setup-slide ${s.done ? 'done' : ''}">
         <div class="setup-slide-inner">
           <span class="setup-slide-icon">
             <i class="bi ${s.done ? 'bi-check-lg' : s.icon}"></i>
           </span>
-          <div class="setup-slide-step">Step ${i + 1}</div>
-          <div>
+          <div class="setup-slide-body">
+            <div class="setup-slide-step">Step ${i + 1}</div>
             <div class="setup-slide-title">${escHtml(s.title)}</div>
-          </div>
-          <div class="setup-slide-sub">${escHtml(s.sub)}</div>
-          <div class="setup-slide-action">
-            ${s.done
-              ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
-              : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+            <div class="setup-slide-sub">${escHtml(s.sub)}</div>
+            <div class="setup-slide-action">
+              ${s.done
+                ? '<span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Done</span>'
+                : `<button class="btn btn-sm btn-primary" data-setup-step="${s.key}">${escHtml(s.cta)}<i class="bi bi-arrow-right ms-1"></i></button>`}
+            </div>
           </div>
         </div>
       </div>`).join('');
@@ -543,17 +544,18 @@ const SetupChecklist = {
     return `
       <div class="card setup-card mb-4">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+          <button class="setup-dismiss" data-setup-dismiss aria-label="Dismiss"><i class="bi bi-x-lg"></i></button>
+          <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-2" style="padding-right:18px">
             <div>
-              <h2 class="h5 fw-bold mb-1">Complete your store</h2>
-              <p class="small text-secondary mb-0">Finish these steps to start selling.</p>
+              <span class="setup-eyebrow"><i class="bi bi-rocket-takeoff"></i>Getting started</span>
+              <h2 class="setup-title">Complete your store</h2>
             </div>
             <div class="text-end">
-              <div class="setup-progress-count">${doneCount}<span class="text-secondary fw-normal">/${total}</span></div>
-              <div class="small text-secondary">steps done</div>
+              <span class="setup-progress-count">${doneCount}<span class="text-secondary fw-normal">/${total}</span></span>
+              <span class="small text-secondary ms-1">done</span>
             </div>
           </div>
-          <div class="progress setup-progress mb-4" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress setup-progress mb-3" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
             <div class="progress-bar" style="width:${pct}%"></div>
           </div>
           <div class="setup-track" id="setup-track">

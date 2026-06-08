@@ -1,45 +1,47 @@
 /* ── Design tokens — light "frosted glass" system ─────────────────────
-   One cohesive indigo→violet accent (matches the U brand badge) over a
-   soft aurora background, with translucent frosted-glass surfaces.
-   Legacy --gold* names are repointed onto the accent so existing rules
-   adopt the new scheme automatically. */
+   A calm, refined light UI with a single emerald accent. The accent and
+   its tints all derive from a few variables, so the palette can be
+   re-tuned in one place. Legacy --gold* names are repointed onto the
+   accent so existing rules adopt the scheme automatically. */
 :root {
-  --accent:        #6d5efc;
-  --accent-2:      #9b6bff;
-  --accent-strong: #5a48e6;
-  --accent-grad:   linear-gradient(135deg, #6d5efc 0%, #9b6bff 100%);
+  --accent:        #10a37f;   /* emerald */
+  --accent-2:      #2dd4a7;   /* mint (gradient top) */
+  --accent-strong: #0b8466;   /* readable emerald for text on light */
+  --accent-rgb:    16, 163, 127;
+  --accent2-rgb:   45, 212, 167;
+  --accent-grad:   linear-gradient(135deg, #0e9a78 0%, #2dd4a7 100%);
 
-  --gold:          #6d5efc;   /* repointed: brand accent */
-  --gold-dim:      #5a48e6;
-  --gold-dark:     #4636c9;
-  --gold-text:     #5a48e6;
-  --gold-glow:     rgba(109, 94, 252, 0.12);
-  --gold-border:   rgba(109, 94, 252, 0.32);
+  --gold:          var(--accent);   /* repointed: brand accent */
+  --gold-dim:      var(--accent-strong);
+  --gold-dark:     #0a6f56;
+  --gold-text:     var(--accent-strong);
+  --gold-glow:     rgba(var(--accent-rgb), 0.12);
+  --gold-border:   rgba(var(--accent-rgb), 0.30);
 
-  /* Success / money = green for clear semantics */
-  --ok:            #16a34a;
-  --ok-text:       #138a3e;
-  --ok-soft:       rgba(22, 163, 74, 0.12);
-  --ok-border:     rgba(22, 163, 74, 0.30);
+  /* Success / money — same family as the accent for a cohesive look */
+  --ok:            #15a06b;
+  --ok-text:       #0b8460;
+  --ok-soft:       rgba(16, 163, 127, 0.12);
+  --ok-border:     rgba(16, 163, 127, 0.30);
 
-  /* Surfaces */
-  --bg-base:       #eef1fb;
-  --bg-card:       rgba(255, 255, 255, 0.62);   /* glass fill */
+  /* Surfaces — mostly clean white, only a whisper of tint */
+  --bg-base:       #f4f6f8;
+  --bg-card:       rgba(255, 255, 255, 0.72);   /* glass fill */
   --bg-solid:      #ffffff;
-  --bg-input:      rgba(255, 255, 255, 0.78);
-  --glass-border:  rgba(255, 255, 255, 0.7);
-  --glass-shadow:  0 10px 34px rgba(38, 41, 92, 0.10);
-  --border:        rgba(30, 32, 70, 0.08);
-  --border-strong: rgba(30, 32, 70, 0.16);
+  --bg-input:      rgba(255, 255, 255, 0.85);
+  --glass-border:  rgba(255, 255, 255, 0.75);
+  --glass-shadow:  0 8px 26px rgba(30, 41, 59, 0.08);
+  --border:        rgba(20, 30, 50, 0.08);
+  --border-strong: rgba(20, 30, 50, 0.15);
 
-  --text:          #1b1f2e;
-  --text-dim:      #59607a;
-  --text-muted:    #98a0b8;
+  --text:          #16202e;
+  --text-dim:      #5a6577;
+  --text-muted:    #97a0ad;
 
-  --red:           #e2483f;
-  --red-glow:      rgba(226, 72, 63, 0.10);
-  --red-border:    rgba(226, 72, 63, 0.30);
-  --amber:         #c07c0a;
+  --red:           #dc4b43;
+  --red-glow:      rgba(220, 75, 67, 0.10);
+  --red-border:    rgba(220, 75, 67, 0.28);
+  --amber:         #bb7a08;
   --blue:          #2f6bff;
 }
 
@@ -47,20 +49,19 @@
 [data-bs-theme="light"] {
   --bs-body-bg:       var(--bg-base);
   --bs-body-color:    var(--text);
-  --bs-primary-rgb:   109, 94, 252;
+  --bs-primary-rgb:   16, 163, 127;
   --bs-border-color:  var(--border-strong);
 }
 
-/* ── Base + aurora background ─────────────────────────────────────── */
+/* ── Base + subtle background wash ───────────────────────────────── */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
   color: var(--text);
   background-color: var(--bg-base);
   background-image:
-    radial-gradient(1100px 620px at -5% -12%, rgba(109, 94, 252, 0.22), transparent 60%),
-    radial-gradient(940px 560px at 106% -2%, rgba(155, 107, 255, 0.18), transparent 58%),
-    radial-gradient(900px 600px at 50% 120%, rgba(56, 189, 248, 0.16), transparent 60%);
+    radial-gradient(1100px 640px at -8% -14%, rgba(var(--accent-rgb), 0.10), transparent 58%),
+    radial-gradient(960px 560px at 108% -4%, rgba(var(--accent2-rgb), 0.08), transparent 56%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -261,13 +262,13 @@ textarea.form-control {
   --bs-btn-active-color:    #fff;
   background-image: var(--accent-grad);
   border: none;
-  box-shadow: 0 6px 18px rgba(109, 94, 252, 0.34);
+  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.34);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 .btn-primary:hover {
   filter: brightness(1.06);
-  box-shadow: 0 9px 24px rgba(109, 94, 252, 0.45);
+  box-shadow: 0 9px 24px rgba(var(--accent-rgb), 0.45);
 }
 .btn-primary:active { filter: brightness(0.96); }
 
@@ -419,7 +420,7 @@ textarea.form-control {
   border-color: transparent !important;
   color: #fff !important;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(109, 94, 252, 0.32);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.32);
 }
 
 /* ── Image gallery ──────────────────────────────────────────────── */
@@ -673,7 +674,7 @@ hr {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background-image: var(--accent-grad);
   color: #fff;
   font-weight: 800;
   font-size: 1.05rem;
@@ -754,57 +755,70 @@ hr {
 /* ═══════════════════════════════════════════════════════════════════
    Setup checklist ("Complete your store") — swipeable slides
    ═══════════════════════════════════════════════════════════════════ */
+/* The setup section is a distinct, greyed ONBOARDING NOTICE — flat and
+   dashed so it reads as a dismissible nudge, clearly separate from the
+   glass content cards below it. */
 .setup-card {
   position: relative;
-  overflow: hidden;
+  background: rgba(99, 110, 135, 0.07) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border: 1px dashed var(--border-strong) !important;
+  box-shadow: none !important;
+  border-radius: 12px;
 }
-/* accent sheen across the top of the glass card */
-.setup-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 130px;
-  background: radial-gradient(120% 100% at 0% 0%, rgba(109,94,252,0.16), transparent 60%);
-  pointer-events: none;
+.setup-card-done {
+  background: var(--ok-soft) !important;
+  border: 1px solid var(--ok-border) !important;
 }
-.setup-card-done::before {
-  background: radial-gradient(120% 100% at 0% 0%, rgba(22,163,74,0.16), transparent 60%);
+.setup-card > .card-body { position: relative; padding: 14px 16px; }
+
+.setup-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
 }
-.setup-card > .card-body { position: relative; }
+.setup-card h2.setup-title { font-size: 1rem; font-weight: 700; margin: 0; }
 
 .setup-progress-count {
-  font-size: 1.6rem;
+  font-size: 1.1rem;
   font-weight: 800;
   line-height: 1;
-  background: var(--accent-grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--text-dim);
 }
 .progress.setup-progress {
-  height: 8px;
-  background-color: rgba(30, 32, 70, 0.08);
+  height: 6px;
+  background-color: rgba(20, 30, 50, 0.10);
   border-radius: 999px;
   overflow: hidden;
 }
 .setup-progress .progress-bar {
   background-image: var(--accent-grad);
   border-radius: 999px;
-  box-shadow: 0 0 12px rgba(109, 94, 252, 0.5);
   transition: width .5s cubic-bezier(.22,1,.36,1);
 }
+
+.setup-dismiss {
+  position: absolute; top: 8px; right: 10px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-muted);
+  border-radius: 6px; font-size: .8rem;
+}
+.setup-dismiss:hover { background: rgba(0, 0, 0, 0.06); color: var(--text); }
 
 /* Carousel track — one slide per view on mobile, all three on desktop */
 .setup-track {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  margin: 0 -4px;
-  padding: 4px;
+  margin: 0 -2px;
+  padding: 2px;
 }
 .setup-track::-webkit-scrollbar { display: none; }
 
@@ -814,52 +828,45 @@ hr {
   min-width: 0;
 }
 @media (min-width: 768px) {
-  .setup-slide { flex-basis: calc(33.333% - 8px); }
+  .setup-slide { flex-basis: calc(33.333% - 7px); }
   .setup-nav   { display: none !important; }
 }
 
+/* Compact horizontal step row */
 .setup-slide-inner {
   height: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border-radius: 16px;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.5);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.setup-slide-inner:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(38, 41, 92, 0.12);
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.6);
 }
 .setup-slide.done .setup-slide-inner {
   border-color: var(--ok-border);
-  background: rgba(22, 163, 74, 0.06);
+  background: rgba(21, 160, 107, 0.07);
 }
 .setup-slide-icon {
-  width: 44px; height: 44px;
-  border-radius: 13px;
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem;
-  color: #fff;
-  background-image: var(--accent-grad);
-  box-shadow: 0 6px 16px rgba(109, 94, 252, 0.35);
+  font-size: .92rem;
+  color: var(--accent-strong);
+  background: var(--gold-glow);
+  border: 1px solid var(--gold-border);
 }
 .setup-slide.done .setup-slide-icon {
-  background-image: linear-gradient(135deg, #22c55e, #16a34a);
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+  color: var(--ok-text);
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
 }
-.setup-slide-step {
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.setup-slide-title { font-weight: 700; font-size: 1rem; line-height: 1.2; }
-.setup-slide-sub   { font-size: .82rem; color: var(--text-dim); flex: 1 1 auto; }
-.setup-slide-action { margin-top: auto; }
+.setup-slide-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.setup-slide-step  { font-size: .58rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
+.setup-slide-title { font-weight: 600; font-size: .86rem; line-height: 1.2; }
+.setup-slide-sub   { font-size: .74rem; color: var(--text-dim); line-height: 1.25; }
+.setup-slide-action { margin-top: 6px; }
 
 /* dots + arrows (mobile only) */
 .setup-nav {
@@ -915,8 +922,8 @@ hr {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(80% 60% at 100% 0%, rgba(155,107,255,0.14), transparent 55%),
-    radial-gradient(70% 60% at 0% 100%, rgba(56,189,248,0.12), transparent 55%);
+    radial-gradient(80% 60% at 100% 0%, rgba(var(--accent2-rgb),0.16), transparent 55%),
+    radial-gradient(70% 60% at 0% 100%, rgba(var(--accent-rgb),0.10), transparent 55%);
   pointer-events: none;
 }
 .overview-panel > .card-body { position: relative; }
@@ -932,7 +939,7 @@ hr {
   background-image: var(--accent-grad);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 4px 14px rgba(109,94,252,0.3);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb),0.3);
 }
 
 .metric-tile {
@@ -946,9 +953,9 @@ hr {
 }
 .metric-tile.hero {
   background:
-    linear-gradient(135deg, rgba(109,94,252,0.16), rgba(155,107,255,0.10)),
+    linear-gradient(135deg, rgba(var(--accent-rgb),0.16), rgba(var(--accent2-rgb),0.10)),
     rgba(255,255,255,0.5);
-  border-color: rgba(109,94,252,0.28);
+  border-color: rgba(var(--accent-rgb),0.28);
 }
 .metric-label {
   font-size: .72rem;
@@ -984,7 +991,7 @@ hr {
   border-radius: 16px;
   border: 1px solid var(--glass-border);
   background:
-    radial-gradient(120% 140% at 50% 0%, rgba(109,94,252,0.10), transparent 60%),
+    radial-gradient(120% 140% at 50% 0%, rgba(var(--accent-rgb),0.10), transparent 60%),
     linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.12));
 }
 .chart-total-value { font-size: 1.02rem; font-weight: 800; letter-spacing: -0.01em; }
@@ -1024,7 +1031,7 @@ hr {
   content: "";
   position: absolute;
   left: 0; right: 0; top: 6px; bottom: 22px;
-  background: radial-gradient(80% 100% at 50% 100%, rgba(109,94,252,0.10), transparent 70%);
+  background: radial-gradient(80% 100% at 50% 100%, rgba(var(--accent-rgb),0.10), transparent 70%);
   border-radius: 12px;
   pointer-events: none;
 }
@@ -1058,10 +1065,10 @@ hr {
   max-width: 30px;
   min-height: 3px;
   border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, #b39bff 0%, #8b6bff 45%, #6d5efc 100%);
+  background: linear-gradient(180deg, var(--accent-2) 0%, var(--accent) 45%, var(--accent) 100%);
   box-shadow:
-    0 0 16px rgba(109, 94, 252, 0.5),
-    0 6px 14px rgba(109, 94, 252, 0.30),
+    0 0 16px rgba(var(--accent-rgb), 0.5),
+    0 6px 14px rgba(var(--accent-rgb), 0.30),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
   transition: height .5s cubic-bezier(.22,1,.36,1), filter .15s;
 }
