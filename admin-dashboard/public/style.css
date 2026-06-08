@@ -81,6 +81,11 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Clip stray horizontal overflow (off-screen drawer, wide controls) so
+     the page can never render wider than the viewport — which is what made
+     mobile load zoomed-in and shifted. `clip` is sticky-safe (unlike
+     `hidden`, it doesn't turn the body into a scroll container). */
+  overflow-x: clip;
 }
 
 /* ── Navbar ─────────────────────────────────────────────────────── */
@@ -151,6 +156,44 @@ body {
   background-color: var(--accent-soft) !important;
   color: var(--accent) !important;
   border-color: var(--accent-border) !important;
+}
+
+/* ── Mobile nav: hamburger + slide-out drawer ───────────────────── */
+.navbar-toggler.nav-burger {
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 2px 9px;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.5);
+}
+.navbar-toggler.nav-burger:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* The offcanvas only acts as a frosted drawer below the expand breakpoint;
+   at ≥lg Bootstrap inlines it back into the bar, so scope glass to mobile. */
+@media (max-width: 991.98px) {
+  .nav-offcanvas {
+    --bs-offcanvas-width: min(82vw, 320px);
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border-left: 1px solid var(--glass-border);
+    box-shadow: -20px 0 60px -20px var(--accent-glow);
+  }
+  .nav-offcanvas .offcanvas-header { border-bottom: 1px solid var(--glass-border); }
+  /* Stacked, full-width tap targets with their text labels. */
+  .nav-offcanvas .nav-pills .nav-link {
+    width: 100%;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    color: var(--text) !important;
+  }
+  .nav-offcanvas .nav-pills .nav-link i { width: 1.4rem; text-align: center; }
+  .nav-offcanvas .nav-pills .nav-link.active {
+    color: var(--accent) !important;
+  }
+  .nav-offcanvas .btn { width: 100%; }
 }
 
 /* ── Cards (frosted glass) ──────────────────────────────────────── */
@@ -649,9 +692,6 @@ hr {
   .brand-logo { height: 26px; }
   .navbar-brand .brand-sub { display: none; }
 
-  /* Nav links: icon only */
-  .nav-link .nav-label { display: none; }
-
   /* Filter group: wrap nicely */
   .btn-group.btn-group-sm .btn {
     padding-left: 0.5rem;
@@ -986,5 +1026,17 @@ hr {
   background-color: transparent !important;
   color: #fff !important;
   box-shadow: 0 4px 12px -4px var(--accent-glow);
+}
+/* On narrow screens the 5-pill control can exceed the row width; let it
+   scroll horizontally instead of pushing the page wider. */
+@media (max-width: 575.98px) {
+  #dash-period-group {
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #dash-period-group::-webkit-scrollbar { display: none; }
+  #dash-period-group .btn { flex: 0 0 auto; }
 }
 
