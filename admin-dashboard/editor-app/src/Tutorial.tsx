@@ -22,6 +22,13 @@ import { useEditor } from './store';
 const DASHBOARD_URL = '/#/dashboard';
 const DONE_KEY      = 'upcart_setup_customize';
 
+// Neon gradient accent (matches the dashboard's frosted-glass redesign).
+const GRAD = 'bg-[linear-gradient(135deg,#7C3AED_0%,#4F46E5_45%,#06B6D4_100%)]';
+// Mobile-safe width: never wider than the viewport minus its margins.
+const PANEL =
+  'fixed bottom-4 left-4 z-[60] w-[min(20rem,calc(100vw-2rem))] rounded-2xl ' +
+  'border border-white/15 bg-ed-surface/80 backdrop-blur-xl shadow-2xl overflow-hidden';
+
 function tutorialRequested(): boolean {
   try {
     return new URLSearchParams(window.location.search).get('tutorial') === 'customize';
@@ -73,7 +80,7 @@ export default function Tutorial() {
   // ── Completed state ──────────────────────────────────────────────
   if (completed) {
     return (
-      <div className="fixed bottom-4 left-4 z-[60] w-80 rounded-lg border border-ed-success/40 bg-ed-surface shadow-2xl overflow-hidden">
+      <div className={PANEL}>
         <div className="h-1 bg-ed-success" />
         <div className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -88,7 +95,7 @@ export default function Tutorial() {
           <div className="flex items-center gap-2">
             <a
               href={DASHBOARD_URL}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium bg-ed-accent hover:bg-ed-accent-hover text-white transition-colors"
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium text-white shadow-lg shadow-[#7C3AED]/30 hover:brightness-110 transition ${GRAD}`}
             >
               Return to dashboard <ArrowUpRight size={13} />
             </a>
@@ -109,12 +116,12 @@ export default function Tutorial() {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed bottom-4 left-4 z-[60] w-80 rounded-lg border border-ed-border bg-ed-surface shadow-2xl overflow-hidden">
-      <div className="h-1 bg-ed-accent" />
+    <div className={PANEL}>
+      <div className={`h-1 ${GRAD}`} />
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-ed-accent/15 text-ed-accent">
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-[#7C3AED]/15 text-[#7C3AED]">
               <Sparkles size={15} />
             </span>
             <h3 className="text-md font-semibold text-ed-text">{s.title}</h3>
@@ -138,13 +145,15 @@ export default function Tutorial() {
         )}
 
         <div className="flex items-center justify-between">
-          {/* Progress dots */}
+          {/* Progress dots — tap to jump between step slides */}
           <div className="flex items-center gap-1.5">
             {STEPS.map((_, i) => (
-              <span
+              <button
                 key={i}
+                onClick={() => setStep(i)}
+                aria-label={`Go to step ${i + 1}`}
                 className={`h-1.5 rounded-full transition-all ${
-                  i === step ? 'w-4 bg-ed-accent' : 'w-1.5 bg-ed-border2'
+                  i === step ? `w-4 ${GRAD}` : 'w-1.5 bg-ed-border2 hover:bg-ed-text-3'
                 }`}
               />
             ))}
@@ -162,7 +171,7 @@ export default function Tutorial() {
             {!isLast && (
               <button
                 onClick={() => setStep(step + 1)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-ed-accent hover:bg-ed-accent-hover text-white transition-colors"
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-white shadow-lg shadow-[#7C3AED]/30 hover:brightness-110 transition ${GRAD}`}
               >
                 Next <ChevronRight size={13} />
               </button>
