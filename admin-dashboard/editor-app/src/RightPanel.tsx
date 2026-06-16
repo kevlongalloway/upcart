@@ -409,22 +409,22 @@ function GlobalThemePanel() {
             <div className="mb-2">
               <label className="text-ed-muted text-[11px] block mb-1">Heading font</label>
               <select
-                value={theme.typography.headingFont}
+                value={theme.typography.headingFont === 'inherit' ? 'system' : theme.typography.headingFont}
                 onChange={e => { loadGoogleFont(e.target.value); upType({ headingFont: e.target.value }); }}
                 className="w-full text-xs"
               >
-                <option value="inherit">Default</option>
+                <option value="system">System (default)</option>
                 {GOOGLE_FONTS.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
             <div className="mb-2">
               <label className="text-ed-muted text-[11px] block mb-1">Body font</label>
               <select
-                value={theme.typography.bodyFont}
+                value={theme.typography.bodyFont === 'inherit' ? 'system' : theme.typography.bodyFont}
                 onChange={e => { loadGoogleFont(e.target.value); upType({ bodyFont: e.target.value }); }}
                 className="w-full text-xs"
               >
-                <option value="inherit">Default</option>
+                <option value="system">System (default)</option>
                 {GOOGLE_FONTS.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
