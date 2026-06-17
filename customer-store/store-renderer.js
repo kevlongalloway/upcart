@@ -904,342 +904,258 @@
   let styleEl = null;
   let mainEl  = null;
 
-  // Section types that count as page chrome — rendered into the
-  // `#uc-storefront-header` slot on subpages so the merchant's edits in the
-  // dashboard cover every page, not just the home page.
-  const HEADER_SECTION_TYPES = ['announcement-bar', 'header', 'nav'];
-  const FOOTER_SECTION_TYPES = ['footer'];
+  /* ── ARCH theme slot patchers ──────────────────────────────────────────
+     The base storefront template (customer-store/index.html) ships with
+     pre-built ARCH-styled markup for the four "core" section types
+     (header, hero, footer, product-grid). When the editor saves a schema,
+     we patch the existing DOM in-place instead of replacing it, so the
+     rich CSS / interactions keep working. Section types without an ARCH
+     slot fall through to the legacy RENDERERS map below and get appended
+     to #uc-extra-sections. */
 
-  function renderSectionWrapper(sec) {
-    const renderer = RENDERERS[sec.type];
-    if (!renderer) return `<!-- Unknown section type: ${sec.type} -->`;
-
-    // Apply section layout background, padding, min-height
-    const layout   = sec.layout || {};
-    const bg       = layout.background ? bgToCss(layout.background) : '';
-    const padding  = layout.padding    ? spacingToCss(layout.padding, 'padding') : '';
-    const margin   = layout.margin     ? spacingToCss(layout.margin,  'margin')  : '';
-    const minH     = layout.minHeight  ? `min-height:${layout.minHeight}px;` : '';
-    const wrapStyle = [bg, padding, margin, minH].filter(Boolean).join('\n');
-
-    const inner = renderer(sec);
-    const customCSS = sec.customCSS
-      ? `<style>[data-sec="${sec.id}"] { ${sec.customCSS} }</style>`
-      : '';
-
-    return `<div data-sec="${sec.id}" data-type="${sec.type}" style="${wrapStyle.replace(/\n/g, ' ')}">${customCSS}${inner}</div>`;
+  // Set element text only when it actually changed — prevents the layout
+  // from flickering on every postMessage during typing.
+  function setText(el, value) {
+    if (!el) return;
+    var v = value == null ? '' : String(value);
+    if (el.textContent !== v) el.textContent = v;
   }
+
+  function setAttr(el, attr, value) {
+    if (!el) return;
+    if (value == null || value === '') el.removeAttribute(attr);
+    else if (el.getAttribute(attr) !== value) el.setAttribute(attr, value);
+  }
+
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible === false ? 'none' : '';
+  }
+
+  // ── header (data-uc-section="header") ──
+  function patchHeader(sec) {
+    var root = document.querySelector('[data-uc-section="header"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Logo / store name — both in the nav and the footer
+    var name = s.storeName || s.logo || 'Store';
+    document.querySelectorAll('[data-store-name]').forEach(function (n) { setText(n, name); });
+
+    // Optional nav links (settings.navLinks: Array<{label, url}>). When
+    // provided, the left list is the first half and the right list is
+    // the rest — keeps the centered logo balanced.
+    if (Array.isArray(s.navLinks)) {
+      var leftHost  = root.querySelector('[data-uc-bind="header.navLinks.left"]');
+      var rightHost = root.querySelector('[data-uc-bind="header.navLinks.right"]');
+      var mid = Math.ceil(s.navLinks.length / 2);
+      var leftLinks  = s.navLinks.slice(0, mid);
+      var rightLinks = s.navLinks.slice(mid);
+      var renderLink = function (l) {
+        return '<a href="' + (l.url || '#') + '" class="nav-link">' + escapeHtml(l.label || '') + '</a>';
+      };
+      if (leftHost)  leftHost.innerHTML  = leftLinks.map(renderLink).join('');
+      if (rightHost) rightHost.innerHTML = rightLinks.map(renderLink).join('');
+    }
+
+    // Cart icon visibility
+    var cartBtn = root.querySelector('[data-uc-bind="header.cartIcon"]');
+    if (cartBtn && s.showCartIcon === false) cartBtn.style.display = 'none';
+    else if (cartBtn) cartBtn.style.display = '';
+  }
+
+  // ── hero (data-uc-section="hero") ──
+  function patchHero(sec) {
+    var root = document.querySelector('[data-uc-section="hero"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Kicker / subhead
+    var kicker = root.querySelector('[data-uc-bind="hero.kicker"]');
+    setText(kicker, s.subheadline || s.subheading || s.kicker || 'New Season Arrivals');
+
+    // Headline — split on a period or use accent setting
+    var titleMain   = root.querySelector('[data-uc-bind="hero.titleMain"]');
+    var titleAccent = root.querySelector('[data-uc-bind="hero.titleAccent"]');
+    var rawTitle    = s.headline || s.heading || '';
+    if (s.titleAccent) {
+      setText(titleMain, s.titleMain || rawTitle);
+      setText(titleAccent, s.titleAccent);
+    } else if (rawTitle.indexOf('.') !== -1) {
+      var idx = rawTitle.indexOf('.');
+      setText(titleMain, rawTitle.slice(0, idx).trim());
+      setText(titleAccent, rawTitle.slice(idx).trim());
+    } else {
+      setText(titleMain, rawTitle);
+      setText(titleAccent, '');
+    }
+
+    // CTA button
+    var ctaWrap  = root.querySelector('[data-uc-bind="hero.cta"]');
+    var ctaLabel = ctaWrap && ctaWrap.querySelector('span');
+    var btn = s.primaryButton || s.cta || {};
+    setText(ctaLabel, btn.label || btn.text || s.ctaLabel || 'Shop Now');
+    if (ctaWrap) setAttr(ctaWrap, 'href', btn.url || s.ctaUrl || '/products');
+
+    // Hero image
+    var img = root.querySelector('[data-uc-bind="hero.image"]');
+    if (img && s.image) setAttr(img, 'src', s.image);
+
+    // Season marker (small vertical text on right edge)
+    var heroText = root.querySelector('[data-uc-bind="hero.text"]');
+    if (heroText && s.season) setAttr(heroText, 'data-season', s.season);
+
+    // Stats strip — Array<{value, label}>; hide if empty array provided
+    if (Array.isArray(s.stats)) {
+      var statsHost = root.querySelector('[data-uc-bind="hero.stats"]');
+      if (statsHost) {
+        if (!s.stats.length) statsHost.style.display = 'none';
+        else {
+          statsHost.style.display = '';
+          statsHost.innerHTML = s.stats.map(function (st) {
+            return '<div class="hero-stat"><strong>' + escapeHtml(st.value || '') + '</strong>' + escapeHtml(st.label || '') + '</div>';
+          }).join('');
+        }
+      }
+    }
+  }
+
+  // ── footer (data-uc-section="footer") ──
+  function patchFooter(sec) {
+    var root = document.querySelector('[data-uc-section="footer"]');
+    if (!root) return;
+    var s = sec.settings || {};
+    setVisible(root, sec.visible !== false);
+
+    // Tagline / about
+    var tagline = root.querySelector('[data-uc-bind="footer.tagline"]');
+    setText(tagline, s.aboutText || s.tagline || s.description || '');
+
+    // Copyright (preserve store-name span if present in the original copy)
+    var copy = root.querySelector('[data-uc-bind="footer.copyright"]');
+    if (copy && (s.copyrightText || s.copyright)) {
+      copy.textContent = s.copyrightText || s.copyright;
+    }
+
+    // Footer columns from blocks (footer-column blocks). Each block has
+    // settings.title and settings.links: Array<{label, url}>.
+    var blocks = (sec.blocks || []).filter(function (b) {
+      return b.visible !== false && b.type === 'footer-column';
+    });
+    if (blocks.length) {
+      // Map columns 1..3 (the first column is reserved for logo + tagline).
+      blocks.slice(0, 3).forEach(function (b, i) {
+        var col = root.querySelector('[data-uc-bind="footer.col' + (i + 1) + '"]');
+        if (!col) return;
+        var bs = b.settings || {};
+        var links = Array.isArray(bs.links) ? bs.links : [];
+        col.innerHTML =
+          '<div class="footer-col-title">' + escapeHtml(bs.title || '') + '</div>' +
+          '<div class="footer-links">' +
+            links.map(function (l) {
+              return '<a class="footer-link" href="' + (l.url || '#') + '">' + escapeHtml(l.label || '') + '</a>';
+            }).join('') +
+          '</div>';
+      });
+    }
+  }
+
+  // ── product-grid (data-uc-section="product-grid") ──
+  function patchProductGrid(sec) {
+    var root = document.querySelector('[data-uc-section="product-grid"]');
+    if (!root) return;
+    setVisible(root, sec.visible !== false);
+    // Heading / sort defaults / pagination tuning belongs here when wired.
+    // Today the storefront's inline JS handles all data + UI for the grid.
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  // Map of section type → patcher. Sections not listed here fall through
+  // to the legacy RENDERERS path and get appended to #uc-extra-sections.
+  var ARCH_PATCHERS = {
+    'header':       patchHeader,
+    'nav':          patchHeader,
+    'hero':         patchHero,
+    'footer':       patchFooter,
+    'product-grid': patchProductGrid,
+  };
 
   function applySchema(schema) {
     currentSchema = schema;
 
-    // ── Global CSS vars ────────────────────────────────────────────────
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = 'uc-theme-vars';
-      document.head.appendChild(styleEl);
-    }
-    const theme = schema.globalTheme;
-    // Only let `body { background, color, font-family, … }` apply on pages
-    // that actually delegate the full body to the renderer. Subpages
-    // (products / cart / etc.) only host the header + footer slots and have
-    // their own static CSS; replacing their body styles would cause a flash
-    // of mismatched theme. The full-body rule is therefore gated on the
-    // canvas slot existing.
-    const hasFullCanvas = !!document.getElementById('uc-editor-canvas');
-    const bodyRule = hasFullCanvas
-      ? `body { background: var(--uc-bg); color: var(--uc-text); font-family: var(--uc-body-font); font-size: var(--uc-base-font-size); line-height: var(--uc-line-height); }\n`
-      : '';
-    styleEl.textContent = `:root { ${themeToCssVars(theme)} }\n` +
-      bodyRule +
-      `h1,h2,h3,h4,h5,h6 { font-family: var(--uc-heading-font); font-weight: var(--uc-heading-weight); }\n` +
-      `.uc-container { width: 100%; margin: 0 auto; padding: 0 24px; }\n` +
-      `.uc-w-full  { max-width: 100%; padding: 0; }\n` +
-      `.uc-w-wide  { max-width: 1440px; }\n` +
-      `.uc-w-contained { max-width: var(--uc-container-max); }\n` +
-      `.uc-w-narrow { max-width: 720px; }\n` +
-      `.uc-section-title { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: var(--uc-heading-weight); margin-bottom: 12px; }\n` +
-      `.uc-section-sub { font-size: 1.05rem; color: var(--uc-text-muted); margin-bottom: 40px; }\n` +
-      `.uc-prose { font-size: var(--uc-base-font-size); line-height: 1.8; }\n` +
-      `.uc-prose h2 { font-size: 1.5em; margin: 1.5em 0 .5em; }\n` +
-      `.uc-prose p { margin: 0 0 1em; }\n` +
-      SHOP_CSS +
-      (theme.customCSS || '');
-
-    // Load Google Fonts
-    loadGoogleFont(theme.typography.headingFont);
-    loadGoogleFont(theme.typography.bodyFont);
-
-    // ── Render page sections ───────────────────────────────────────────
-    const pageId = Object.keys(schema.pages)[0] || 'index';
-    const page   = schema.pages[pageId];
-    if (!page) return;
-
-    const visibleSections = page.sections.filter(sec => sec.visible !== false);
-
-    // Full-page canvas (home page + editor preview iframe). Only auto-create
-    // a canvas if there are no chrome slots present — subpages opt-out of
-    // full rendering by providing #uc-storefront-header / -footer instead.
-    const headerSlot = document.getElementById('uc-storefront-header');
-    const footerSlot = document.getElementById('uc-storefront-footer');
-    const hasChromeSlots = !!(headerSlot || footerSlot);
-
-    if (!mainEl) mainEl = document.getElementById('uc-editor-canvas');
-    if (!mainEl && !hasChromeSlots) {
-      // Editor preview: no slots at all → fall back to creating a canvas so
-      // the iframe still has somewhere to render the schema.
-      mainEl = document.createElement('div');
-      mainEl.id = 'uc-editor-canvas';
-      document.body.appendChild(mainEl);
+    // ── Global CSS vars (editor theme presets — co-exist with ARCH's
+    //     own --bg/--ink/--accent in index.html). ──
+    var theme = schema && schema.globalTheme;
+    if (theme && theme.colors && theme.typography && theme.spacing) {
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'uc-theme-vars';
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent =
+        ':root { ' + themeToCssVars(theme) + ' }\n' +
+        (theme.customCSS || '');
+      if (theme.typography.headingFont) loadGoogleFont(theme.typography.headingFont);
+      if (theme.typography.bodyFont)    loadGoogleFont(theme.typography.bodyFont);
     }
 
-    if (mainEl) {
-      mainEl.innerHTML = visibleSections.map(renderSectionWrapper).join('\n');
-    }
+    if (!schema || !schema.pages) return;
+    var pageId = Object.keys(schema.pages)[0] || 'index';
+    var page   = schema.pages[pageId];
+    if (!page || !Array.isArray(page.sections)) return;
 
-    // Header slot: render every chrome-typed section in declaration order
-    // (e.g. announcement-bar, then header).
-    if (headerSlot) {
-      const head = visibleSections.filter(s => HEADER_SECTION_TYPES.indexOf(s.type) !== -1);
-      headerSlot.innerHTML = head.map(renderSectionWrapper).join('\n');
-    }
-
-    // Footer slot: just the first matching footer section.
-    if (footerSlot) {
-      const foot = visibleSections.filter(s => FOOTER_SECTION_TYPES.indexOf(s.type) !== -1);
-      footerSlot.innerHTML = foot.map(renderSectionWrapper).join('\n');
-    }
-
-    // Global chrome (cart drawer + overlay + quick-view modal) and per-section
-    // product loaders. Idempotent: safe to call after every schema apply.
-    ensureGlobalChrome();
-    bootFilterShops();
-    syncCartUI();
-  }
-
-  /* ── Global chrome (cart drawer / overlay / quick view modal) ────────── */
-
-  function ensureGlobalChrome() {
-    if (document.getElementById('uc-overlay')) return;
-
-    const overlay = document.createElement('div');
-    overlay.id = 'uc-overlay';
-    overlay.className = 'uc-overlay';
-    overlay.addEventListener('click', () => UC.closeAll());
-    document.body.appendChild(overlay);
-
-    const drawer = document.createElement('aside');
-    drawer.id = 'uc-cart-drawer';
-    drawer.className = 'uc-cart-drawer';
-    drawer.setAttribute('aria-hidden', 'true');
-    drawer.innerHTML = `
-      <div class="uc-cart-header">
-        <span class="uc-cart-title">Your Bag</span>
-        <button type="button" class="uc-cart-close" aria-label="Close cart" onclick="window.UC&&UC.closeCart&&UC.closeCart()">×</button>
-      </div>
-      <div class="uc-cart-items" data-uc-cart-items></div>
-      <div class="uc-cart-footer">
-        <div class="uc-cart-row">
-          <span style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--uc-text-muted)">Subtotal</span>
-          <span class="uc-cart-subtotal" data-uc-cart-subtotal>$0.00</span>
-        </div>
-        <a href="/cart.html" class="uc-cart-checkout" data-uc-cart-checkout>Proceed to Checkout</a>
-      </div>
-    `;
-    document.body.appendChild(drawer);
-
-    const modal = document.createElement('div');
-    modal.id = 'uc-quick-view';
-    modal.className = 'uc-modal-overlay';
-    modal.addEventListener('click', e => {
-      if (e.target === modal) UC.closeQuickView();
-    });
-    modal.innerHTML = `
-      <div class="uc-modal" role="dialog" aria-modal="true">
-        <div class="uc-modal-img" data-uc-qv-img></div>
-        <div class="uc-modal-body">
-          <button type="button" class="uc-modal-close" onclick="window.UC&&UC.closeQuickView&&UC.closeQuickView()" aria-label="Close">×</button>
-          <div data-uc-qv-name class="uc-modal-name"></div>
-          <div data-uc-qv-price class="uc-modal-price"></div>
-          <div data-uc-qv-desc class="uc-modal-desc"></div>
-          <button type="button" class="uc-modal-atc" data-uc-qv-atc>Add to Bag</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  /* ── Cart UI ─────────────────────────────────────────────────────────── */
-
-  function syncCartUI() {
-    if (typeof window.getCart !== 'function') return;
-    const cart = window.getCart();
-    const count = cart.reduce((s, i) => s + (i.quantity || 0), 0);
-    const total = cart.reduce((s, i) => s + (i.price || 0) * (i.quantity || 0), 0);
-
-    document.querySelectorAll('[data-uc-cart-badge]').forEach(b => {
-      b.textContent = count > 99 ? '99+' : String(count);
-      b.style.display = count > 0 ? 'flex' : 'none';
-    });
-
-    const subtotal = document.querySelector('[data-uc-cart-subtotal]');
-    if (subtotal) {
-      const currency = (cart[0] && cart[0].currency) || 'usd';
-      subtotal.textContent = typeof window.formatPrice === 'function'
-        ? window.formatPrice(total, currency)
-        : '$' + (total / 100).toFixed(2);
-    }
-
-    const itemsEl = document.querySelector('[data-uc-cart-items]');
-    if (itemsEl) {
-      if (!cart.length) {
-        itemsEl.innerHTML = '<div class="uc-cart-empty">Your bag is empty.</div>';
+    // ── Pass 1: patch ARCH slots in declaration order. ──
+    // ── Pass 2: render any sections without an ARCH slot into the
+    //     #uc-extra-sections container, in their schema order. ──
+    var extras = [];
+    page.sections.forEach(function (sec) {
+      if (!sec || sec.visible === false) return;
+      var patcher = ARCH_PATCHERS[sec.type];
+      if (patcher) {
+        try { patcher(sec); }
+        catch (e) { console.error('Patch failed for ' + sec.type + ':', e); }
       } else {
-        itemsEl.innerHTML = cart.map(it => {
-          const price = typeof window.formatPrice === 'function'
-            ? window.formatPrice(it.price * it.quantity, it.currency)
-            : '$' + ((it.price * it.quantity) / 100).toFixed(2);
-          const id = String(it.productId).replace(/'/g, "\\'");
-          return `<div class="uc-cart-item">
-            ${it.image ? `<img class="uc-cart-item-img" src="${it.image}" alt="" onerror="this.style.display='none'">` : '<div class="uc-cart-item-img"></div>'}
-            <div>
-              <div class="uc-cart-item-name">${it.name||''}</div>
-              <div class="uc-cart-item-price">${price}</div>
-              <div class="uc-cart-qty">
-                <button type="button" onclick="window.UC&&UC.changeQty('${id}',-1)" aria-label="Decrease">−</button>
-                <span>${it.quantity}</span>
-                <button type="button" onclick="window.UC&&UC.changeQty('${id}',1)" aria-label="Increase">+</button>
-              </div>
-              <br>
-              <button type="button" class="uc-cart-remove" onclick="window.UC&&UC.removeItem('${id}')">Remove</button>
-            </div>
-          </div>`;
-        }).join('');
+        extras.push(sec);
       }
-    }
-
-    const checkout = document.querySelector('[data-uc-cart-checkout]');
-    if (checkout) {
-      if (!cart.length) {
-        checkout.setAttribute('aria-disabled', 'true');
-        checkout.style.pointerEvents = 'none';
-        checkout.style.opacity = '.4';
-      } else {
-        checkout.removeAttribute('aria-disabled');
-        checkout.style.pointerEvents = '';
-        checkout.style.opacity = '';
-      }
-    }
-  }
-
-  window.addEventListener('bst:cart-updated', syncCartUI);
-  document.addEventListener('DOMContentLoaded', syncCartUI);
-
-  /* ── Filter shop loaders ────────────────────────────────────────────── */
-
-  // Per-shop in-memory cache of loaded products keyed by section id.
-  const SHOP_STATE = {};
-
-  function bootFilterShops() {
-    document.querySelectorAll('[data-uc-filter-shop]').forEach(root => {
-      const sectionId = root.closest('[data-sec]') ? root.closest('[data-sec]').getAttribute('data-sec') : root.id;
-      if (root.dataset.ucBooted === '1') return;
-      root.dataset.ucBooted = '1';
-      const collection = root.dataset.ucCollection || '';
-      const limit      = parseInt(root.dataset.ucLimit, 10) || 48;
-      loadShopProducts(root, sectionId, collection, limit);
     });
-  }
 
-  async function loadShopProducts(root, sectionId, collection, limit) {
-    const state = SHOP_STATE[sectionId] = { products: [], filters: {}, view: root.dataset.ucDefaultView === 'list' ? 'list' : 'grid' };
-    const grid  = root.querySelector('[data-uc-grid]');
-    const apiBase = (window.BST_API_BASE || '').replace(/\/$/, '');
-    if (!apiBase) {
-      // Editor-only environment without an API: render an empty state instead
-      // of hanging on a network call that will never resolve.
-      const stateEl = grid && grid.querySelector('[data-uc-state]');
-      if (stateEl) stateEl.textContent = 'Connect a backend to load products.';
-      return;
-    }
-    try {
-      const all = [];
-      let offset = 0;
-      const pageSize = Math.min(limit, 100);
-      while (all.length < limit) {
-        const url = apiBase + '/products?limit=' + pageSize + '&offset=' + offset
-          + (collection ? '&collection=' + encodeURIComponent(collection) : '');
-        const res = await fetch(url, { credentials: 'omit' });
-        const body = await res.json();
-        if (!body || !body.ok || !Array.isArray(body.data)) break;
-        all.push(...body.data);
-        if (body.data.length < pageSize) break;
-        offset += body.data.length;
+    var extrasEl = document.getElementById('uc-extra-sections');
+    if (!extrasEl) {
+      // Standalone preview / legacy index: build a canvas if nothing exists.
+      extrasEl = document.getElementById('uc-editor-canvas');
+      if (!extrasEl) {
+        extrasEl = document.createElement('div');
+        extrasEl.id = 'uc-editor-canvas';
+        document.body.appendChild(extrasEl);
       }
-      state.products = all.slice(0, limit);
-      renderShopGrid(root, sectionId);
-    } catch (err) {
-      const stateEl = grid && grid.querySelector('[data-uc-state]');
-      if (stateEl) stateEl.textContent = 'Failed to load products.';
     }
-  }
+    if (mainEl !== extrasEl) mainEl = extrasEl;
 
-  function renderShopGrid(root, sectionId) {
-    const state = SHOP_STATE[sectionId];
-    if (!state) return;
-    const grid    = root.querySelector('[data-uc-grid]');
-    const showATC = root.dataset.ucShowAtc === '1';
-    const countEl = root.querySelector('[data-uc-count]');
-    const f       = state.filters || {};
+    extrasEl.innerHTML = extras.map(function (sec) {
+      var renderer = RENDERERS[sec.type];
+      if (!renderer) return '<!-- Unknown section type: ' + sec.type + ' -->';
 
-    let list = state.products.slice();
+      var layout = sec.layout || {};
+      var parts  = [
+        layout.background ? bgToCss(layout.background)         : '',
+        layout.padding    ? spacingToCss(layout.padding, 'padding') : '',
+        layout.margin     ? spacingToCss(layout.margin,  'margin')  : '',
+        layout.minHeight  ? 'min-height:' + layout.minHeight + 'px;' : '',
+      ].filter(Boolean).join(' ');
 
-    if (f.search) {
-      const q = f.search.toLowerCase();
-      list = list.filter(p => (p.name || '').toLowerCase().includes(q));
-    }
-    if (typeof f.priceMin === 'number') list = list.filter(p => p.price >= f.priceMin * 100);
-    if (typeof f.priceMax === 'number') list = list.filter(p => p.price <= f.priceMax * 100);
-
-    if (f.sort === 'price-asc')  list.sort((a, b) => a.price - b.price);
-    if (f.sort === 'price-desc') list.sort((a, b) => b.price - a.price);
-    if (f.sort === 'name')       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    grid.classList.remove('uc-view-grid', 'uc-view-list');
-    grid.classList.add(state.view === 'list' ? 'uc-view-list' : 'uc-view-grid');
-
-    if (countEl) countEl.textContent = String(list.length);
-
-    if (!list.length) {
-      grid.innerHTML = '<p class="uc-shop-state">No products match your filters.</p>';
-      return;
-    }
-
-    grid.innerHTML = list.map(p => {
-      const img   = (p.images && p.images[0]) || '';
-      const price = typeof window.formatPrice === 'function'
-        ? window.formatPrice(p.price, p.currency)
-        : '$' + (p.price / 100).toFixed(2);
-      const idAttr = String(p.id).replace(/"/g, '&quot;');
-      return `<a href="product.html?id=${encodeURIComponent(p.id)}" class="uc-product-card" data-uc-product-id="${idAttr}">
-        <div class="uc-product-img">
-          ${img ? `<img src="${img}" alt="${(p.name||'').replace(/"/g,'&quot;')}" loading="lazy" onerror="this.style.display='none'">` : ''}
-          ${showATC ? `<button type="button" class="uc-product-atc" onclick="event.preventDefault();event.stopPropagation();window.UC&&UC.addProductToCart(this.closest('.uc-product-card').getAttribute('data-uc-product-id'),'${sectionId}')">Add to Bag</button>` : ''}
-        </div>
-        <div class="uc-product-info">
-          <div class="uc-product-name">${p.name||''}</div>
-          <div class="uc-product-price">${price}</div>
-        </div>
-      </a>`;
-    }).join('');
-  }
-
-  function findProductById(productId) {
-    for (const sid in SHOP_STATE) {
-      const p = SHOP_STATE[sid].products.find(x => String(x.id) === String(productId));
-      if (p) return p;
-    }
-    return null;
+      var inner     = renderer(sec);
+      var customCSS = sec.customCSS
+        ? '<style>[data-sec="' + sec.id + '"] { ' + sec.customCSS + ' }</style>'
+        : '';
+      return '<div data-sec="' + sec.id + '" data-type="' + sec.type + '" style="' + parts.replace(/\n/g, ' ') + '">' + customCSS + inner + '</div>';
+    }).join('\n');
   }
 
   function readShopFiltersFromDom(root) {
